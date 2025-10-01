@@ -1,0 +1,3 @@
+# Treat all files here as text, even if they contain unusual characters
+*.txt text
+*.md text

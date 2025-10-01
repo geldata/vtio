@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+authors = ["Gel Data Inc. <hello@geldata.com>", "Elvis Pranskevichus <el@prans.net>"]
+license = "MIT"
+repository = "https://github.com/geldata/vtio"

@@ -1,0 +1,92 @@
+# Lowercase characters (no SHIFT modifier)
+hello
+
+# Uppercase characters (SHIFT modifier)
+HELLO
+
+# Mixed case
+HeLLo
+
+# Numbers
+0123456789
+
+# Special ASCII characters
+!@#$%^&*()
+
+# Valid 2-byte UTF-8 (café)
+café
+
+# Valid 3-byte UTF-8 (€100)
+€100
+
+# Valid 4-byte UTF-8 (😀)
+😀
+
+# Multiple emoji
+😀😁
+
+# Mixed ASCII and UTF-8
+Hello 😀 World
+
+# UTF-8 accented characters
+àéîôù
+
+# UTF-8 German characters
+äöüßÄÖÜ
+
+# UTF-8 Greek characters
+αβγδε
+
+# UTF-8 Cyrillic characters
+абвгд
+
+# UTF-8 Chinese characters
+你好世界
+
+# UTF-8 Japanese characters
+こんにちは
+
+# UTF-8 with newlines
+Hello<LF>café
+
+# Mixed regular and UTF-8
+Hello café 世界 😀
+
+# Invalid UTF-8: start byte 0xFF (invalid in UTF-8)
+H<ff>i
+
+# Invalid UTF-8: continuation byte 0x80 without start
+A<80>B
+
+# Invalid UTF-8: incomplete 2-byte sequence (0xC3 alone)
+AB<c3>
+
+# Invalid UTF-8: incomplete 3-byte sequence (0xE2 0x82 alone)
+<e2><82>
+
+# Invalid UTF-8: incomplete 4-byte sequence (0xF0 0x9F 0x98 alone)
+<f0><9f><98>
+
+# Invalid UTF-8: invalid continuation in 2-byte (0xC3 0x28)
+<c3><28>
+
+# Invalid UTF-8: overlong encoding (0xC0 0xAF for '/')
+<c0><af>
+
+# Invalid UTF-8: surrogate half (0xED 0xA0 0x80)
+<ed><a0><80>
+
+# Mixed valid and invalid UTF-8
+A<ff>Bcafé<80>D
+
+# Invalid UTF-8 followed by valid
+<ff>hello
+
+# Valid UTF-8 followed by invalid
+world<80>
+
+# Multiple invalid bytes in sequence
+<ff><fe><fd>
+
+# Invalid in middle of valid text
+Hello<c3>World

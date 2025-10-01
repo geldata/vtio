@@ -1,0 +1,155 @@
+# Alt+a
+<ESC>a
+
+# Alt+z
+<ESC>z
+
+# Alt+A (uppercase)
+<ESC>A
+
+# Alt+Z (uppercase)
+<ESC>Z
+
+# Alt+0
+<ESC>0
+
+# Alt+9
+<ESC>9
+
+# Alt+Space
+<ESC><SP>
+
+# Alt+Enter
+<ESC><CR>
+
+# Alt+Tab
+<ESC><TAB>
+
+# Alt+!
+<ESC>!
+
+# Alt+(
+<ESC>(
+
+# Alt+)
+<ESC>)
+
+# Alt+[
+<ESC>[
+
+# Alt+]
+<ESC>]
+
+# Alt+/
+<ESC>/
+
+# Alt+?
+<ESC>?
+
+# Alt+>
+<ESC>>
+
+# Alt+<
+<ESC><
+
+# Alt+1
+<ESC>1
+
+# Alt+M
+<ESC>M
+
+# Alt+N (NOT SS2 in input mode)
+<ESC>N
+
+# Alt+Backspace
+<ESC><DEL>
+
+# Alt+ESC
+<ESC><ESC>
+
+# Alt+intermediate characters (space through /)
+<ESC><SP>
+
+# Alt+! - intermediate character
+<ESC>!
+
+# Alt+" - intermediate character
+<ESC>"
+
+# Alt+# - intermediate character
+<ESC>#
+
+# Alt+$ - intermediate character
+<ESC>$
+
+# Alt+% - intermediate character
+<ESC>%
+
+# Alt+& - intermediate character
+<ESC>&
+
+# Alt+' - intermediate character
+<ESC>'
+
+# Alt+( - intermediate character
+<ESC>(
+
+# Alt+) - intermediate character
+<ESC>)
+
+# Alt+* - intermediate character
+<ESC>*
+
+# Alt++ - intermediate character
+<ESC>+
+
+# Alt+, - intermediate character
+<ESC>,
+
+# Alt+- - intermediate character
+<ESC>-
+
+# Alt+. - intermediate character
+<ESC>.
+
+# Alt+/ - intermediate character (last intermediate)
+<ESC>/
+
+# Multiple Alt+key in sequence
+<ESC>a<ESC>b<ESC>c
+
+# Alt+key mixed with regular text
+hello<ESC>aworld
+
+# Alt followed by various C0 controls
+<ESC><NUL>
+
+# Alt+Ctrl+A
+<ESC><SOH>
+
+# Alt+Ctrl+C
+<ESC><ETX>
+
+# Alt+Ctrl+Z
+<ESC><SUB>
+
+# Alt+CAN
+<ESC><CAN>
+
+# Alt+SUB
+<ESC><SUB>
+
+# Alt+lowercase letters sequence
+<ESC>a<ESC>b<ESC>c<ESC>d<ESC>e
+
+# Alt+uppercase letters sequence
+<ESC>A<ESC>B<ESC>C<ESC>D<ESC>E
+
+# Alt+digits sequence
+<ESC>1<ESC>2<ESC>3<ESC>4<ESC>5
+
+# Mixed Alt and non-Alt
+a<ESC>b<ESC>Cd<ESC>e
+
+# Alt+Ctrl combinations
+<ESC><SOH><ESC><STX><ESC><ETX>
