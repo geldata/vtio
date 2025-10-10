@@ -8,7 +8,9 @@ use crate::{
     csi,
     encode::{Encode, EncodeError, write_str_into},
 };
-use vtansi::write_into;
+use vtansi::write_csi;
+
+
 
 /// Format terminal events in a terse, human-readable format for test
 /// output.
@@ -98,7 +100,7 @@ pub struct EnableFocusChange;
 
 impl Encode for EnableFocusChange {
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, csi!("?1004h"))
+        write_csi!(buf, "?1004h")
     }
 }
 
@@ -108,7 +110,7 @@ pub struct DisableFocusChange;
 
 impl Encode for DisableFocusChange {
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, csi!("?1004l"))
+        write_csi!(buf, "?1004l")
     }
 }
 
@@ -123,7 +125,7 @@ pub struct EnableBracketedPaste;
 
 impl Encode for EnableBracketedPaste {
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, csi!("?2004h"))
+        write_csi!(buf, "?2004h")
     }
 }
 
@@ -133,7 +135,7 @@ pub struct DisableBracketedPaste;
 
 impl Encode for DisableBracketedPaste {
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, csi!("?2004l"))
+        write_csi!(buf, "?2004l")
     }
 }
 
@@ -145,7 +147,7 @@ pub struct PushKeyboardEnhancementFlags(pub KeyboardEnhancementFlags);
 
 impl Encode for PushKeyboardEnhancementFlags {
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_into!(buf, "{}{}u", csi!(">"), self.0.bits())
+        write_csi!(buf, ">{}u", self.0.bits())
     }
 }
 
@@ -159,7 +161,7 @@ pub struct PopKeyboardEnhancementFlags;
 
 impl Encode for PopKeyboardEnhancementFlags {
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, csi!("<1u"))
+        write_csi!(buf, "<1u")
     }
 }
 
@@ -235,7 +237,7 @@ impl Encode for KeyEvent {
                 // Handle modified Enter key
                 if mod_param > 1 {
                     // CSI u format: ESC[13;<mod>u for modified Enter
-                    pos += write_into!(&mut buf[pos..], "{}13;{}u", csi!(), mod_param)?;
+                    pos += write_csi!(&mut buf[pos..], "13;{}u", mod_param)?;
                 } else if alt_prefix {
                     // Alt+Enter: ESC followed by CR
                     if buf.len() < 2 {
@@ -264,7 +266,7 @@ impl Encode for KeyEvent {
 
             KeyCode::Tab => {
                 if mods.contains(KeyModifiers::SHIFT) {
-                    pos += write_str_into(&mut buf[pos..], csi!("Z"))?; // Back-tab
+                    pos += write_csi!(&mut buf[pos..], "Z")?; // Back-tab
                 } else {
                     if buf.is_empty() {
                         return Err(EncodeError::BufferOverflow(1));
@@ -321,10 +323,9 @@ impl Encode for KeyEvent {
                     pos += 3;
                 } else {
                     // With modifiers: CSI 1;M <final>
-                    pos += write_into!(
+                    pos += write_csi!(
                         &mut buf[pos..],
-                        "{}1;{}{}",
-                        csi!(),
+                        "1;{}{}",
                         mod_param,
                         final_byte as char
                     )?;
@@ -356,10 +357,9 @@ impl Encode for KeyEvent {
                         buf[pos + 2] = letter;
                         pos += 3;
                     } else {
-                        pos += write_into!(
+                        pos += write_csi!(
                             &mut buf[pos..],
-                            "{}1;{}{}",
-                            csi!(),
+                            "1;{}{}",
                             mod_param,
                             letter as char
                         )?;
@@ -386,17 +386,16 @@ impl Encode for KeyEvent {
                     };
                     if code != 0 {
                         if mod_param == 1 {
-                            pos += write_into!(&mut buf[pos..], "{}{}~", csi!(), code)?;
+                            pos += write_csi!(&mut buf[pos..], "{}~", code)?;
                         } else {
-                            pos +=
-                                write_into!(&mut buf[pos..], "{}{};{}~", csi!(), code, mod_param)?;
+                            pos += write_csi!(&mut buf[pos..], "{};{}~", code, mod_param)?;
                         }
                     }
                 }
             }
 
             KeyCode::BackTab => {
-                pos += write_str_into(&mut buf[pos..], csi!("Z"))?;
+                pos += write_csi!(&mut buf[pos..], "Z")?;
             }
 
             KeyCode::Null
@@ -480,10 +479,9 @@ impl Encode for MouseEvent {
         let y = self.row + 1;
 
         // Generate SGR sequence: ESC[<btn;col;row(M|m)
-        write_into!(
+        write_csi!(
             buf,
-            "{}<{};{};{}{}",
-            csi!(),
+            "<{};{};{}{}",
             button_code,
             x,
             y,
@@ -498,14 +496,18 @@ impl Encode for TerminalInputEvent<'_> {
             TerminalInputEvent::Key(event) => event.encode(buf),
             TerminalInputEvent::Mouse(event) => event.encode(buf),
             TerminalInputEvent::Resize(rows, cols) => {
-                write_into!(buf, "{}8;{};{}t", csi!(), rows, cols)
+                write_csi!(buf, "8;{};{}t", rows, cols)
             }
-            TerminalInputEvent::Focus(true) => write_str_into(buf, csi!("I")),
-            TerminalInputEvent::Focus(false) => write_str_into(buf, csi!("O")),
+            TerminalInputEvent::Focus(true) => write_csi!(buf, "I"),
+            TerminalInputEvent::Focus(false) => write_csi!(buf, "O"),
             TerminalInputEvent::Paste(text) => {
                 let text_str =
                     core::str::from_utf8(text).map_err(|_| EncodeError::BufferOverflow(0))?;
-                write_into!(buf, "{}200~{}{}201~", csi!(), text_str, csi!())
+                let mut pos = 0;
+                pos += write_csi!(&mut buf[pos..], "200~")?;
+                pos += write_str_into(&mut buf[pos..], text_str)?;
+                pos += write_csi!(&mut buf[pos..], "201~")?;
+                Ok(pos)
             }
             #[cfg(unix)]
             TerminalInputEvent::CursorPosition(_, _)
@@ -543,9 +545,9 @@ fn control_code_for(c: char) -> u8 {
 /// Write a tilde sequence (like for Insert, Delete, `PageUp`, `PageDown`).
 fn push_tilde_seq(buf: &mut [u8], base: u8, mod_param: i32) -> Result<usize, EncodeError> {
     if mod_param == 1 {
-        write_into!(buf, "{}{}~", csi!(), base)
+        write_csi!(buf, "{}~", base)
     } else {
-        write_into!(buf, "{}{};{}~", csi!(), base, mod_param)
+        write_csi!(buf, "{};{}~", base, mod_param)
     }
 }
 

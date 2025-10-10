@@ -1,7 +1,7 @@
 //! Mode control commands.
 
 use vtansi::encode::{Encode, EncodeError};
-use vtansi::{csi, esc, write_const_str_into};
+use vtansi::{write_csi, write_esc};
 
 /// Enable bracketed paste mode.
 pub struct EnableBracketedPaste;
@@ -9,7 +9,7 @@ pub struct EnableBracketedPaste;
 impl Encode for EnableBracketedPaste {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?2004h"))
+        write_csi!(buf, "?2004h")
     }
 }
 
@@ -19,7 +19,7 @@ pub struct DisableBracketedPaste;
 impl Encode for DisableBracketedPaste {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?2004l"))
+        write_csi!(buf, "?2004l")
     }
 }
 
@@ -29,7 +29,7 @@ pub struct EnableFocusReporting;
 impl Encode for EnableFocusReporting {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?1004h"))
+        write_csi!(buf, "?1004h")
     }
 }
 
@@ -39,7 +39,7 @@ pub struct DisableFocusReporting;
 impl Encode for DisableFocusReporting {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?1004l"))
+        write_csi!(buf, "?1004l")
     }
 }
 
@@ -50,7 +50,7 @@ impl Encode for EnableApplicationKeypad {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         // DECKPAM: ESC = (not a CSI sequence)
-        write_const_str_into!(buf, esc!("="))
+        write_esc!(buf, "=")
     }
 }
 
@@ -61,7 +61,7 @@ impl Encode for DisableApplicationKeypad {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         // DECKPNM: ESC > (not a CSI sequence)
-        write_const_str_into!(buf, esc!(">"))
+        write_esc!(buf, ">")
     }
 }
 
@@ -71,7 +71,7 @@ pub struct BeginSynchronizedUpdate;
 impl Encode for BeginSynchronizedUpdate {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?2026h"))
+        write_csi!(buf, "?2026h")
     }
 }
 
@@ -81,6 +81,6 @@ pub struct EndSynchronizedUpdate;
 impl Encode for EndSynchronizedUpdate {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?2026l"))
+        write_csi!(buf, "?2026l")
     }
 }

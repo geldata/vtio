@@ -1,7 +1,7 @@
 //! Screen clearing commands.
 
 use vtansi::encode::{Encode, EncodeError};
-use vtansi::{csi, write_const_str_into};
+use vtansi::write_csi;
 
 /// Clear the entire screen.
 pub struct ClearAll;
@@ -9,7 +9,7 @@ pub struct ClearAll;
 impl Encode for ClearAll {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("2J"))
+        write_csi!(buf, "2J")
     }
 }
 
@@ -19,7 +19,7 @@ pub struct ClearFromCursorDown;
 impl Encode for ClearFromCursorDown {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("J"))
+        write_csi!(buf, "J")
     }
 }
 
@@ -29,7 +29,7 @@ pub struct ClearFromCursorUp;
 impl Encode for ClearFromCursorUp {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("1J"))
+        write_csi!(buf, "1J")
     }
 }
 
@@ -39,7 +39,7 @@ pub struct ClearLine;
 impl Encode for ClearLine {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("2K"))
+        write_csi!(buf, "2K")
     }
 }
 
@@ -49,7 +49,7 @@ pub struct ClearUntilNewLine;
 impl Encode for ClearUntilNewLine {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("K"))
+        write_csi!(buf, "K")
     }
 }
 
@@ -59,6 +59,6 @@ pub struct ClearScrollback;
 impl Encode for ClearScrollback {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("3J"))
+        write_csi!(buf, "3J")
     }
 }

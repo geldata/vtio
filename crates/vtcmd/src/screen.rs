@@ -1,7 +1,7 @@
 //! Screen control commands.
 
-use vtansi::encode::{Encode, EncodeError, write_str_into};
-use vtansi::{csi, write_const_str_into};
+use vtansi::encode::{Encode, EncodeError};
+use vtansi::write_csi;
 
 /// Scroll up by the specified number of lines.
 pub struct ScrollUp(pub u16);
@@ -9,7 +9,7 @@ pub struct ScrollUp(pub u16);
 impl Encode for ScrollUp {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, &csi!("{}S", self.0))
+        write_csi!(buf, "{}S", self.0)
     }
 }
 
@@ -19,7 +19,7 @@ pub struct ScrollDown(pub u16);
 impl Encode for ScrollDown {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, &csi!("{}T", self.0))
+        write_csi!(buf, "{}T", self.0)
     }
 }
 
@@ -29,7 +29,7 @@ pub struct EnableLineWrap;
 impl Encode for EnableLineWrap {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?7h"))
+        write_csi!(buf, "?7h")
     }
 }
 
@@ -39,7 +39,7 @@ pub struct DisableLineWrap;
 impl Encode for DisableLineWrap {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?7l"))
+        write_csi!(buf, "?7l")
     }
 }
 
@@ -49,7 +49,7 @@ pub struct EnterAlternateScreen;
 impl Encode for EnterAlternateScreen {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?1049h"))
+        write_csi!(buf, "?1049h")
     }
 }
 
@@ -59,6 +59,6 @@ pub struct LeaveAlternateScreen;
 impl Encode for LeaveAlternateScreen {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?1049l"))
+        write_csi!(buf, "?1049l")
     }
 }

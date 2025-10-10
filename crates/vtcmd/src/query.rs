@@ -1,7 +1,7 @@
 //! Terminal query commands.
 
-use vtansi::encode::{Encode, EncodeError, write_str_into};
-use vtansi::{csi, dcs, osc, write_const_str_into};
+use vtansi::encode::{Encode, EncodeError};
+use vtansi::{write_csi, write_dcs, write_osc};
 
 /// Request cursor position report (CPR).
 pub struct RequestCursorPosition;
@@ -9,7 +9,7 @@ pub struct RequestCursorPosition;
 impl Encode for RequestCursorPosition {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("6n"))
+        write_csi!(buf, "6n")
     }
 }
 
@@ -19,7 +19,7 @@ pub struct RequestTerminalSize;
 impl Encode for RequestTerminalSize {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("18t"))
+        write_csi!(buf, "18t")
     }
 }
 
@@ -29,7 +29,7 @@ pub struct RequestDeviceAttributes;
 impl Encode for RequestDeviceAttributes {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("c"))
+        write_csi!(buf, "c")
     }
 }
 
@@ -39,7 +39,7 @@ pub struct RequestSecondaryDeviceAttributes;
 impl Encode for RequestSecondaryDeviceAttributes {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!(">c"))
+        write_csi!(buf, ">c")
     }
 }
 
@@ -49,7 +49,7 @@ pub struct RequestTertiaryDeviceAttributes;
 impl Encode for RequestTertiaryDeviceAttributes {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("=c"))
+        write_csi!(buf, "=c")
     }
 }
 
@@ -104,9 +104,9 @@ impl Encode for RequestFeature {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         if self.0.is_ansi() {
-            write_str_into(buf, &csi!("{}$p", self.0 as u16))
+            write_csi!(buf, "{}$p", self.0 as u16)
         } else {
-            write_str_into(buf, &csi!("?{}$p", self.0 as u16))
+            write_csi!(buf, "?{}$p", self.0 as u16)
         }
     }
 }
@@ -117,7 +117,7 @@ pub struct RequestDefaultForeground;
 impl Encode for RequestDefaultForeground {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, osc!("10;?"))
+        write_osc!(buf, "10;?")
     }
 }
 
@@ -127,7 +127,7 @@ pub struct RequestDefaultBackground;
 impl Encode for RequestDefaultBackground {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, osc!("11;?"))
+        write_osc!(buf, "11;?")
     }
 }
 
@@ -137,7 +137,7 @@ pub struct RequestCursorShape;
 impl Encode for RequestCursorShape {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, dcs!("$q q"))
+        write_dcs!(buf, "$q q")
     }
 }
 
@@ -147,7 +147,7 @@ pub struct RequestTextAttributes;
 impl Encode for RequestTextAttributes {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, dcs!("$qm"))
+        write_dcs!(buf, "$qm")
     }
 }
 
@@ -157,7 +157,7 @@ pub struct RequestScrollingRegion;
 impl Encode for RequestScrollingRegion {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, dcs!("$qr"))
+        write_dcs!(buf, "$qr")
     }
 }
 
@@ -167,6 +167,6 @@ pub struct RequestScrollingColumns;
 impl Encode for RequestScrollingColumns {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, dcs!("$qs"))
+        write_dcs!(buf, "$qs")
     }
 }

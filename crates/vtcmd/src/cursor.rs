@@ -1,7 +1,7 @@
 //! Cursor movement and control commands.
 
-use vtansi::encode::{Encode, EncodeError, write_str_into};
-use vtansi::{csi, esc, write_const_str_into};
+use vtansi::encode::{Encode, EncodeError};
+use vtansi::{write_csi, write_esc};
 
 /// Move cursor to the specified position (1-indexed).
 pub struct MoveTo {
@@ -12,7 +12,7 @@ pub struct MoveTo {
 impl Encode for MoveTo {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, &csi!("{};{}H", self.row, self.col))
+        write_csi!(buf, "{};{}H", self.row, self.col)
     }
 }
 
@@ -22,10 +22,7 @@ pub struct MoveUp(pub u16);
 impl Encode for MoveUp {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        if self.0 == 0 {
-            return Ok(0);
-        }
-        write_str_into(buf, &csi!("{}A", self.0))
+        write_csi!(buf, "{}A", self.0)
     }
 }
 
@@ -35,10 +32,7 @@ pub struct MoveDown(pub u16);
 impl Encode for MoveDown {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        if self.0 == 0 {
-            return Ok(0);
-        }
-        write_str_into(buf, &csi!("{}B", self.0))
+        write_csi!(buf, "{}B", self.0)
     }
 }
 
@@ -48,10 +42,7 @@ pub struct MoveLeft(pub u16);
 impl Encode for MoveLeft {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        if self.0 == 0 {
-            return Ok(0);
-        }
-        write_str_into(buf, &csi!("{}D", self.0))
+        write_csi!(buf, "{}D", self.0)
     }
 }
 
@@ -61,10 +52,7 @@ pub struct MoveRight(pub u16);
 impl Encode for MoveRight {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        if self.0 == 0 {
-            return Ok(0);
-        }
-        write_str_into(buf, &csi!("{}C", self.0))
+        write_csi!(buf, "{}C", self.0)
     }
 }
 
@@ -74,7 +62,7 @@ pub struct MoveToNextLine(pub u16);
 impl Encode for MoveToNextLine {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, &csi!("{}E", self.0))
+        write_csi!(buf, "{}E", self.0)
     }
 }
 
@@ -84,7 +72,7 @@ pub struct MoveToPreviousLine(pub u16);
 impl Encode for MoveToPreviousLine {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, &csi!("{}F", self.0))
+        write_csi!(buf, "{}F", self.0)
     }
 }
 
@@ -94,7 +82,7 @@ pub struct MoveToColumn(pub u16);
 impl Encode for MoveToColumn {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(buf, &csi!("{}G", self.0))
+        write_csi!(buf, "{}G", self.0)
     }
 }
 
@@ -104,7 +92,7 @@ pub struct HideCursor;
 impl Encode for HideCursor {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?25l"))
+        write_csi!(buf, "?25l")
     }
 }
 
@@ -114,7 +102,7 @@ pub struct ShowCursor;
 impl Encode for ShowCursor {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?25h"))
+        write_csi!(buf, "?25h")
     }
 }
 
@@ -124,7 +112,7 @@ pub struct EnableCursorBlinking;
 impl Encode for EnableCursorBlinking {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?12h"))
+        write_csi!(buf, "?12h")
     }
 }
 
@@ -134,7 +122,7 @@ pub struct DisableCursorBlinking;
 impl Encode for DisableCursorBlinking {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_const_str_into!(buf, csi!("?12l"))
+        write_csi!(buf, "?12l")
     }
 }
 
@@ -172,7 +160,7 @@ impl Encode for SetCursorShape {
             CursorShape::BlinkingBar => 5,
             CursorShape::SteadyBar => 6,
         };
-        write_str_into(buf, &csi!("{} q", code))
+        write_csi!(buf, "{} q", code)
     }
 }
 
@@ -183,7 +171,7 @@ impl Encode for SaveCursorPosition {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         // DECSC: ESC 7 (not a CSI sequence)
-        write_const_str_into!(buf, esc!("7"))
+        write_esc!(buf, "7")
     }
 }
 
@@ -194,6 +182,6 @@ impl Encode for RestoreCursorPosition {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         // DECRC: ESC 8 (not a CSI sequence)
-        write_const_str_into!(buf, esc!("8"))
+        write_esc!(buf, "8")
     }
 }
