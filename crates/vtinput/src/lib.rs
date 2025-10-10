@@ -1,15 +1,15 @@
 #![warn(clippy::pedantic)]
 
+pub use vtansi::encode::{self, Encode};
+pub use vtansi::{csi, osc};
+
 mod c0;
 mod char;
 mod csi;
-pub mod encode;
 mod esc;
 pub mod event;
-mod macros;
 pub mod parser;
 mod ss;
-pub use encode::Encode;
 pub use event::{
     KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, KeyboardEnhancementFlags,
     MouseButton, MouseEvent, MouseEventKind, TerminalInputEvent, TerminalInputEventOwned,

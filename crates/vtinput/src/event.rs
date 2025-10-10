@@ -7,8 +7,8 @@ use vt_push_parser::event::VTEvent;
 use crate::{
     csi,
     encode::{Encode, EncodeError, write_str_into},
-    write_into,
 };
+use vtansi::write_into;
 
 /// Format terminal events in a terse, human-readable format for test
 /// output.

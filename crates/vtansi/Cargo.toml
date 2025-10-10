@@ -1,0 +1,14 @@
+[package]
+name = "vtansi"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[lib]
+bench = false
+
+[dependencies]
+constcat = "0.6.1"
+
+[dev-dependencies]

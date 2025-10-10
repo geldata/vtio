@@ -1,0 +1,16 @@
+[package]
+name = "vtcmd"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[lib]
+bench = false
+
+[dependencies]
+vtansi = { path = "../vtansi" }
+
+[dev-dependencies]
+vtinput = { path = "../vtinput" }
+libc = "0.2"

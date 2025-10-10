@@ -61,6 +61,30 @@ pub fn write_fmt_into(buf: &mut [u8], args: fmt::Arguments<'_>) -> Result<usize,
     Ok(w.pos)
 }
 
+/// Copy a UTF-8 string literal into a buffer at compile time.
+///
+/// This is a zero-cost macro version of [`write_str_into`] that inlines
+/// the copy operation directly, avoiding function call overhead. When used
+/// with compile-time string literals (such as those from [`csi!`],
+/// [`esc!`], etc.), the length is known at compile time.
+///
+/// [`csi!`]: crate::csi
+/// [`esc!`]: crate::esc
+#[macro_export]
+macro_rules! write_const_str_into {
+    ($buf:expr, $s:expr) => {{
+        const S: &str = $s;
+        const LEN: usize = S.len();
+        let buf = $buf;
+        if buf.len() < LEN {
+            Err($crate::encode::EncodeError::BufferOverflow(LEN))
+        } else {
+            buf[..LEN].copy_from_slice(S.as_bytes());
+            Ok(LEN)
+        }
+    }};
+}
+
 /// `write!`-like macro that targets a `&mut [u8]`.
 #[macro_export]
 macro_rules! write_into {
