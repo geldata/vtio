@@ -6,7 +6,7 @@ use vt_push_parser::event::VTEvent;
 
 use crate::{
     csi,
-    encode::{Encode, EncodeError, StaticEncode, write_str_into},
+    encode::{Encode, EncodeError, ConstEncode, write_str_into},
 };
 use vtansi::write_csi;
 
@@ -52,7 +52,7 @@ bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableMouseCapture;
 
-impl StaticEncode for EnableMouseCapture {
+impl ConstEncode for EnableMouseCapture {
     const STR: &'static str = concat!(
         // Normal tracking: Send mouse X & Y on button press and release
         csi!("?1000h"),
@@ -71,7 +71,7 @@ impl StaticEncode for EnableMouseCapture {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableMouseCapture;
 
-impl StaticEncode for DisableMouseCapture {
+impl ConstEncode for DisableMouseCapture {
     const STR: &'static str = concat!(
         // The inverse commands of EnableMouseCapture, in reverse order.
         csi!("?1006l"),
@@ -88,7 +88,7 @@ impl StaticEncode for DisableMouseCapture {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableFocusChange;
 
-impl StaticEncode for EnableFocusChange {
+impl ConstEncode for EnableFocusChange {
     const STR: &'static str = csi!("?1004h");
 }
 
@@ -96,7 +96,7 @@ impl StaticEncode for EnableFocusChange {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableFocusChange;
 
-impl StaticEncode for DisableFocusChange {
+impl ConstEncode for DisableFocusChange {
     const STR: &'static str = csi!("?1004l");
 }
 
@@ -109,7 +109,7 @@ impl StaticEncode for DisableFocusChange {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableBracketedPaste;
 
-impl StaticEncode for EnableBracketedPaste {
+impl ConstEncode for EnableBracketedPaste {
     const STR: &'static str = csi!("?2004h");
 }
 
@@ -117,7 +117,7 @@ impl StaticEncode for EnableBracketedPaste {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableBracketedPaste;
 
-impl StaticEncode for DisableBracketedPaste {
+impl ConstEncode for DisableBracketedPaste {
     const STR: &'static str = csi!("?2004l");
 }
 
@@ -141,7 +141,7 @@ impl Encode for PushKeyboardEnhancementFlags {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PopKeyboardEnhancementFlags;
 
-impl StaticEncode for PopKeyboardEnhancementFlags {
+impl ConstEncode for PopKeyboardEnhancementFlags {
     const STR: &'static str = csi!("<1u");
 }
 

@@ -1,7 +1,7 @@
 //! Screen control commands.
 
 use vtansi::csi;
-use vtansi::encode::{Encode, EncodeError, StaticEncode};
+use vtansi::encode::{Encode, EncodeError, ConstEncode};
 use vtansi::write_csi;
 
 /// Scroll up by the specified number of lines.
@@ -27,27 +27,27 @@ impl Encode for ScrollDown {
 /// Enable line wrapping.
 pub struct EnableLineWrap;
 
-impl StaticEncode for EnableLineWrap {
+impl ConstEncode for EnableLineWrap {
     const STR: &'static str = csi!("?7h");
 }
 
 /// Disable line wrapping.
 pub struct DisableLineWrap;
 
-impl StaticEncode for DisableLineWrap {
+impl ConstEncode for DisableLineWrap {
     const STR: &'static str = csi!("?7l");
 }
 
 /// Enter alternate screen buffer.
 pub struct EnterAlternateScreen;
 
-impl StaticEncode for EnterAlternateScreen {
+impl ConstEncode for EnterAlternateScreen {
     const STR: &'static str = csi!("?1049h");
 }
 
 /// Leave alternate screen buffer.
 pub struct LeaveAlternateScreen;
 
-impl StaticEncode for LeaveAlternateScreen {
+impl ConstEncode for LeaveAlternateScreen {
     const STR: &'static str = csi!("?1049l");
 }

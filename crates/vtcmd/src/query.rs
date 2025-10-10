@@ -2,42 +2,42 @@
 
 use vtansi::csi;
 use vtansi::dcs;
-use vtansi::encode::{Encode, EncodeError, StaticEncode};
+use vtansi::encode::{Encode, EncodeError, ConstEncode};
 use vtansi::osc;
 use vtansi::{write_csi};
 
 /// Request cursor position report (CPR).
 pub struct RequestCursorPosition;
 
-impl StaticEncode for RequestCursorPosition {
+impl ConstEncode for RequestCursorPosition {
     const STR: &'static str = csi!("6n");
 }
 
 /// Request terminal size (DECSLPP).
 pub struct RequestTerminalSize;
 
-impl StaticEncode for RequestTerminalSize {
+impl ConstEncode for RequestTerminalSize {
     const STR: &'static str = csi!("18t");
 }
 
 /// Request primary device attributes (DA1).
 pub struct RequestDeviceAttributes;
 
-impl StaticEncode for RequestDeviceAttributes {
+impl ConstEncode for RequestDeviceAttributes {
     const STR: &'static str = csi!("c");
 }
 
 /// Request secondary device attributes (DA2).
 pub struct RequestSecondaryDeviceAttributes;
 
-impl StaticEncode for RequestSecondaryDeviceAttributes {
+impl ConstEncode for RequestSecondaryDeviceAttributes {
     const STR: &'static str = csi!(">c");
 }
 
 /// Request tertiary device attributes (DA3).
 pub struct RequestTertiaryDeviceAttributes;
 
-impl StaticEncode for RequestTertiaryDeviceAttributes {
+impl ConstEncode for RequestTertiaryDeviceAttributes {
     const STR: &'static str = csi!("=c");
 }
 
@@ -102,41 +102,41 @@ impl Encode for RequestFeature {
 /// Request default foreground color.
 pub struct RequestDefaultForeground;
 
-impl StaticEncode for RequestDefaultForeground {
+impl ConstEncode for RequestDefaultForeground {
     const STR: &'static str = osc!("10;?");
 }
 
 /// Request default background color.
 pub struct RequestDefaultBackground;
 
-impl StaticEncode for RequestDefaultBackground {
+impl ConstEncode for RequestDefaultBackground {
     const STR: &'static str = osc!("11;?");
 }
 
 /// Request cursor shape using DECRQSS.
 pub struct RequestCursorShape;
 
-impl StaticEncode for RequestCursorShape {
+impl ConstEncode for RequestCursorShape {
     const STR: &'static str = dcs!("$q q");
 }
 
 /// Request text attributes (SGR) using DECRQSS.
 pub struct RequestTextAttributes;
 
-impl StaticEncode for RequestTextAttributes {
+impl ConstEncode for RequestTextAttributes {
     const STR: &'static str = dcs!("$qm");
 }
 
 /// Request scrolling region (top/bottom) using DECRQSS.
 pub struct RequestScrollingRegion;
 
-impl StaticEncode for RequestScrollingRegion {
+impl ConstEncode for RequestScrollingRegion {
     const STR: &'static str = dcs!("$qr");
 }
 
 /// Request scrolling region (left/right) using DECRQSS.
 pub struct RequestScrollingColumns;
 
-impl StaticEncode for RequestScrollingColumns {
+impl ConstEncode for RequestScrollingColumns {
     const STR: &'static str = dcs!("$qs");
 }

@@ -1,12 +1,17 @@
 //! Cursor movement and control commands.
 
-use vtansi::encode::{Encode, EncodeError, StaticEncode};
+use vtansi::encode::{ConstEncodedLen, Encode, EncodeError, ConstEncode};
 use vtansi::{csi, esc, write_csi};
 
 /// Move cursor to the specified position (1-indexed).
 pub struct MoveTo {
     pub row: u16,
     pub col: u16,
+}
+
+impl ConstEncodedLen for MoveTo {
+    // CSI (2) + max u16 digits (5) + ";" (1) + max u16 digits (5) + "H" (1) = 14
+    const ENCODED_LEN: usize = 14;
 }
 
 impl Encode for MoveTo {
@@ -19,6 +24,11 @@ impl Encode for MoveTo {
 /// Move cursor up by the specified number of lines.
 pub struct MoveUp(pub u16);
 
+impl ConstEncodedLen for MoveUp {
+    // CSI (2) + max u16 digits (5) + "A" (1) = 8
+    const ENCODED_LEN: usize = 8;
+}
+
 impl Encode for MoveUp {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
@@ -28,6 +38,11 @@ impl Encode for MoveUp {
 
 /// Move cursor down by the specified number of lines.
 pub struct MoveDown(pub u16);
+
+impl ConstEncodedLen for MoveDown {
+    // CSI (2) + max u16 digits (5) + "B" (1) = 8
+    const ENCODED_LEN: usize = 8;
+}
 
 impl Encode for MoveDown {
     #[inline]
@@ -39,6 +54,11 @@ impl Encode for MoveDown {
 /// Move cursor left by the specified number of columns.
 pub struct MoveLeft(pub u16);
 
+impl ConstEncodedLen for MoveLeft {
+    // CSI (2) + max u16 digits (5) + "D" (1) = 8
+    const ENCODED_LEN: usize = 8;
+}
+
 impl Encode for MoveLeft {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
@@ -48,6 +68,11 @@ impl Encode for MoveLeft {
 
 /// Move cursor right by the specified number of columns.
 pub struct MoveRight(pub u16);
+
+impl ConstEncodedLen for MoveRight {
+    // CSI (2) + max u16 digits (5) + "C" (1) = 8
+    const ENCODED_LEN: usize = 8;
+}
 
 impl Encode for MoveRight {
     #[inline]
@@ -59,6 +84,11 @@ impl Encode for MoveRight {
 /// Move cursor to the beginning of the line N lines down.
 pub struct MoveToNextLine(pub u16);
 
+impl ConstEncodedLen for MoveToNextLine {
+    // CSI (2) + max u16 digits (5) + "E" (1) = 8
+    const ENCODED_LEN: usize = 8;
+}
+
 impl Encode for MoveToNextLine {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
@@ -68,6 +98,11 @@ impl Encode for MoveToNextLine {
 
 /// Move cursor to the beginning of the line N lines up.
 pub struct MoveToPreviousLine(pub u16);
+
+impl ConstEncodedLen for MoveToPreviousLine {
+    // CSI (2) + max u16 digits (5) + "F" (1) = 8
+    const ENCODED_LEN: usize = 8;
+}
 
 impl Encode for MoveToPreviousLine {
     #[inline]
@@ -79,6 +114,11 @@ impl Encode for MoveToPreviousLine {
 /// Move cursor to the specified column on the current line.
 pub struct MoveToColumn(pub u16);
 
+impl ConstEncodedLen for MoveToColumn {
+    // CSI (2) + max u16 digits (5) + "G" (1) = 8
+    const ENCODED_LEN: usize = 8;
+}
+
 impl Encode for MoveToColumn {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
@@ -89,28 +129,28 @@ impl Encode for MoveToColumn {
 /// Hide the cursor.
 pub struct HideCursor;
 
-impl StaticEncode for HideCursor {
+impl ConstEncode for HideCursor {
     const STR: &'static str = csi!("?25l");
 }
 
 /// Show the cursor.
 pub struct ShowCursor;
 
-impl StaticEncode for ShowCursor {
+impl ConstEncode for ShowCursor {
     const STR: &'static str = csi!("?25h");
 }
 
 /// Enable cursor blinking.
 pub struct EnableCursorBlinking;
 
-impl StaticEncode for EnableCursorBlinking {
+impl ConstEncode for EnableCursorBlinking {
     const STR: &'static str = csi!("?12h");
 }
 
 /// Disable cursor blinking.
 pub struct DisableCursorBlinking;
 
-impl StaticEncode for DisableCursorBlinking {
+impl ConstEncode for DisableCursorBlinking {
     const STR: &'static str = csi!("?12l");
 }
 
@@ -136,6 +176,11 @@ pub enum CursorShape {
 /// Set cursor shape using DECSCUSR.
 pub struct SetCursorShape(pub CursorShape);
 
+impl ConstEncodedLen for SetCursorShape {
+    // CSI (2) + max single digit (1) + " q" (2) = 5
+    const ENCODED_LEN: usize = 5;
+}
+
 impl Encode for SetCursorShape {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
@@ -155,7 +200,7 @@ impl Encode for SetCursorShape {
 /// Save cursor position (DECSC).
 pub struct SaveCursorPosition;
 
-impl StaticEncode for SaveCursorPosition {
+impl ConstEncode for SaveCursorPosition {
     // DECSC: ESC 7 (not a CSI sequence)
     const STR: &'static str = esc!("7");
 }
@@ -163,7 +208,7 @@ impl StaticEncode for SaveCursorPosition {
 /// Restore cursor position (DECRC).
 pub struct RestoreCursorPosition;
 
-impl StaticEncode for RestoreCursorPosition {
+impl ConstEncode for RestoreCursorPosition {
     // DECRC: ESC 8 (not a CSI sequence)
     const STR: &'static str = esc!("8");
 }

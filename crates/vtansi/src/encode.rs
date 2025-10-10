@@ -1,6 +1,8 @@
 use core::fmt;
 use std::io;
 
+use tinyvec::tiny_vec;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncodeError {
     BufferOverflow(usize),
@@ -22,6 +24,24 @@ pub fn write_str_into(buf: &mut [u8], s: &str) -> Result<usize, EncodeError> {
     Ok(len)
 }
 
+pub trait EncodedLen {
+    /// Return the upper bound of the buffer size needed for `encode`.
+    ///
+    /// This value guarantees that `encode` will succeed with a buffer of
+    /// this size. It does not have to be exact and should be computed as
+    /// quickly as possible.
+    fn encoded_buf_len(&self) -> usize;
+}
+
+pub trait Write {
+    /// Write encoded bytes to the provided writer.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if encoding fails or if writing to the writer fails.
+    fn write<W: io::Write>(&mut self, writer: &mut W) -> io::Result<usize>;
+}
+
 pub trait Encode {
     /// Encode this value into the provided buffer.
     ///
@@ -29,17 +49,19 @@ pub trait Encode {
     ///
     /// Return an error if the buffer is too small to hold the encoded value.
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError>;
+}
 
+impl<T: Encode+EncodedLen> Write for T {
     /// Write encoded bytes to the provided writer.
     ///
-    /// This method uses a temporary buffer to encode the value and then
+    /// This implementation uses a temporary buffer to encode the value and then
     /// writes it to the writer.
     ///
     /// # Errors
     ///
     /// Return an error if encoding fails or if writing to the writer fails.
     fn write<W: io::Write>(&mut self, writer: &mut W) -> io::Result<usize> {
-        let mut buf = [0u8; 4096];
+        let mut buf = tiny_vec!([u8; 64]);
         let len = self
             .encode(&mut buf)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
@@ -48,22 +70,51 @@ pub trait Encode {
     }
 }
 
+/// Trait for types with a compile-time known encoded length.
+///
+/// This trait provides a constant upper bound for the buffer size needed to
+/// encode a value. Types implementing this trait can have their buffer
+/// requirements determined at compile time.
+///
+/// Types implementing this trait automatically get a default implementation
+/// of [`Encode::encoded_buf_len`] that returns this constant value.
+pub trait ConstEncodedLen {
+    /// The maximum number of bytes needed to encode this type.
+    ///
+    /// This value represents an upper bound that guarantees `encode` will
+    /// succeed with a buffer of this size.
+    const ENCODED_LEN: usize;
+}
+
+impl<T: ConstEncodedLen> EncodedLen for T {
+    #[inline]
+    fn encoded_buf_len(&self) -> usize {
+        Self::ENCODED_LEN
+    }
+}
+
 /// Trait for types that encode to a static byte sequence.
 ///
 /// This trait is for types that always encode to the same constant string,
 /// such as terminal control sequences without parameters. Types implementing
 /// this trait automatically get an `Encode` implementation via a blanket impl.
-pub trait StaticEncode {
+pub trait ConstEncode {
     /// The static string this type encodes to.
     const STR: &'static str;
 }
 
-impl<T: StaticEncode> Encode for T {
+impl<T: ConstEncode> ConstEncodedLen for T {
+    const ENCODED_LEN: usize = T::STR.len();
+}
+
+impl<T: ConstEncode> Encode for T {
     #[inline]
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         write_str_into(buf, Self::STR)
     }
+}
 
+impl<T: ConstEncode> Write for T {
     /// Write encoded bytes to the provided writer.
     ///
     /// This method uses a temporary buffer to encode the value and then
