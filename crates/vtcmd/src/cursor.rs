@@ -1,7 +1,7 @@
 //! Cursor movement and control commands.
 
-use vtansi::encode::{Encode, EncodeError};
-use vtansi::{write_csi, write_esc};
+use vtansi::encode::{Encode, EncodeError, StaticEncode};
+use vtansi::{csi, esc, write_csi};
 
 /// Move cursor to the specified position (1-indexed).
 pub struct MoveTo {
@@ -89,41 +89,29 @@ impl Encode for MoveToColumn {
 /// Hide the cursor.
 pub struct HideCursor;
 
-impl Encode for HideCursor {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?25l")
-    }
+impl StaticEncode for HideCursor {
+    const STR: &'static str = csi!("?25l");
 }
 
 /// Show the cursor.
 pub struct ShowCursor;
 
-impl Encode for ShowCursor {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?25h")
-    }
+impl StaticEncode for ShowCursor {
+    const STR: &'static str = csi!("?25h");
 }
 
 /// Enable cursor blinking.
 pub struct EnableCursorBlinking;
 
-impl Encode for EnableCursorBlinking {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?12h")
-    }
+impl StaticEncode for EnableCursorBlinking {
+    const STR: &'static str = csi!("?12h");
 }
 
 /// Disable cursor blinking.
 pub struct DisableCursorBlinking;
 
-impl Encode for DisableCursorBlinking {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?12l")
-    }
+impl StaticEncode for DisableCursorBlinking {
+    const STR: &'static str = csi!("?12l");
 }
 
 /// Cursor shape variants.
@@ -167,21 +155,15 @@ impl Encode for SetCursorShape {
 /// Save cursor position (DECSC).
 pub struct SaveCursorPosition;
 
-impl Encode for SaveCursorPosition {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        // DECSC: ESC 7 (not a CSI sequence)
-        write_esc!(buf, "7")
-    }
+impl StaticEncode for SaveCursorPosition {
+    // DECSC: ESC 7 (not a CSI sequence)
+    const STR: &'static str = esc!("7");
 }
 
 /// Restore cursor position (DECRC).
 pub struct RestoreCursorPosition;
 
-impl Encode for RestoreCursorPosition {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        // DECRC: ESC 8 (not a CSI sequence)
-        write_esc!(buf, "8")
-    }
+impl StaticEncode for RestoreCursorPosition {
+    // DECRC: ESC 8 (not a CSI sequence)
+    const STR: &'static str = esc!("8");
 }

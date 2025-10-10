@@ -1,4 +1,5 @@
 use core::fmt;
+use std::io;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncodeError {
@@ -28,6 +29,54 @@ pub trait Encode {
     ///
     /// Return an error if the buffer is too small to hold the encoded value.
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError>;
+
+    /// Write encoded bytes to the provided writer.
+    ///
+    /// This method uses a temporary buffer to encode the value and then
+    /// writes it to the writer.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if encoding fails or if writing to the writer fails.
+    fn write<W: io::Write>(&mut self, writer: &mut W) -> io::Result<usize> {
+        let mut buf = [0u8; 4096];
+        let len = self
+            .encode(&mut buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
+        writer.write_all(&buf[..len])?;
+        Ok(len)
+    }
+}
+
+/// Trait for types that encode to a static byte sequence.
+///
+/// This trait is for types that always encode to the same constant string,
+/// such as terminal control sequences without parameters. Types implementing
+/// this trait automatically get an `Encode` implementation via a blanket impl.
+pub trait StaticEncode {
+    /// The static string this type encodes to.
+    const STR: &'static str;
+}
+
+impl<T: StaticEncode> Encode for T {
+    #[inline]
+    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+        write_str_into(buf, Self::STR)
+    }
+
+    /// Write encoded bytes to the provided writer.
+    ///
+    /// This method uses a temporary buffer to encode the value and then
+    /// writes it to the writer.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if encoding fails or if writing to the writer fails.
+    #[inline]
+    fn write<W: io::Write>(&mut self, writer: &mut W) -> io::Result<usize> {
+        writer.write_all(Self::STR.as_bytes())?;
+        Ok(Self::STR.len())
+    }
 }
 
 /// Internal adapter that writes `&str` chunks into a byte slice.

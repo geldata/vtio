@@ -1,64 +1,46 @@
 //! Screen clearing commands.
 
-use vtansi::encode::{Encode, EncodeError};
-use vtansi::write_csi;
+use vtansi::csi;
+use vtansi::encode::StaticEncode;
 
 /// Clear the entire screen.
 pub struct ClearAll;
 
-impl Encode for ClearAll {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "2J")
-    }
+impl StaticEncode for ClearAll {
+    const STR: &'static str = csi!("2J");
 }
 
 /// Clear from cursor to end of screen.
 pub struct ClearFromCursorDown;
 
-impl Encode for ClearFromCursorDown {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "J")
-    }
+impl StaticEncode for ClearFromCursorDown {
+    const STR: &'static str = csi!("J");
 }
 
 /// Clear from cursor to beginning of screen.
 pub struct ClearFromCursorUp;
 
-impl Encode for ClearFromCursorUp {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "1J")
-    }
+impl StaticEncode for ClearFromCursorUp {
+    const STR: &'static str = csi!("1J");
 }
 
 /// Clear the current line.
 pub struct ClearLine;
 
-impl Encode for ClearLine {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "2K")
-    }
+impl StaticEncode for ClearLine {
+    const STR: &'static str = csi!("2K");
 }
 
 /// Clear from cursor to end of line.
 pub struct ClearUntilNewLine;
 
-impl Encode for ClearUntilNewLine {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "K")
-    }
+impl StaticEncode for ClearUntilNewLine {
+    const STR: &'static str = csi!("K");
 }
 
 /// Purge scrollback buffer (extended command).
 pub struct ClearScrollback;
 
-impl Encode for ClearScrollback {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "3J")
-    }
+impl StaticEncode for ClearScrollback {
+    const STR: &'static str = csi!("3J");
 }

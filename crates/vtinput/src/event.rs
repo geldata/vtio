@@ -6,7 +6,7 @@ use vt_push_parser::event::VTEvent;
 
 use crate::{
     csi,
-    encode::{Encode, EncodeError, write_str_into},
+    encode::{Encode, EncodeError, StaticEncode, write_str_into},
 };
 use vtansi::write_csi;
 
@@ -52,44 +52,34 @@ bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableMouseCapture;
 
-impl Encode for EnableMouseCapture {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(
-            buf,
-            concat!(
-                // Normal tracking: Send mouse X & Y on button press and release
-                csi!("?1000h"),
-                // Button-event tracking: Report button motion events (dragging)
-                csi!("?1002h"),
-                // Any-event tracking: Report all motion events
-                csi!("?1003h"),
-                // RXVT mouse mode: Allows mouse coordinates of >223
-                csi!("?1015h"),
-                // SGR mouse mode: Allows mouse coordinates of >223, preferred over RXVT mode
-                csi!("?1006h"),
-            ),
-        )
-    }
+impl StaticEncode for EnableMouseCapture {
+    const STR: &'static str = concat!(
+        // Normal tracking: Send mouse X & Y on button press and release
+        csi!("?1000h"),
+        // Button-event tracking: Report button motion events (dragging)
+        csi!("?1002h"),
+        // Any-event tracking: Report all motion events
+        csi!("?1003h"),
+        // RXVT mouse mode: Allows mouse coordinates of >223
+        csi!("?1015h"),
+        // SGR mouse mode: Allows mouse coordinates of >223, preferred over RXVT mode
+        csi!("?1006h"),
+    );
 }
 
 /// A command that disables mouse event capture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableMouseCapture;
 
-impl Encode for DisableMouseCapture {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_str_into(
-            buf,
-            concat!(
-                // The inverse commands of EnableMouseCapture, in reverse order.
-                csi!("?1006l"),
-                csi!("?1015l"),
-                csi!("?1003l"),
-                csi!("?1002l"),
-                csi!("?1000l"),
-            ),
-        )
-    }
+impl StaticEncode for DisableMouseCapture {
+    const STR: &'static str = concat!(
+        // The inverse commands of EnableMouseCapture, in reverse order.
+        csi!("?1006l"),
+        csi!("?1015l"),
+        csi!("?1003l"),
+        csi!("?1002l"),
+        csi!("?1000l"),
+    );
 }
 
 /// A command that enables focus event emission.
@@ -98,20 +88,16 @@ impl Encode for DisableMouseCapture {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableFocusChange;
 
-impl Encode for EnableFocusChange {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?1004h")
-    }
+impl StaticEncode for EnableFocusChange {
+    const STR: &'static str = csi!("?1004h");
 }
 
 /// A command that disables focus event emission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableFocusChange;
 
-impl Encode for DisableFocusChange {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?1004l")
-    }
+impl StaticEncode for DisableFocusChange {
+    const STR: &'static str = csi!("?1004l");
 }
 
 /// A command that enables [bracketed paste mode](https://en.wikipedia.org/wiki/Bracketed-paste).
@@ -123,20 +109,16 @@ impl Encode for DisableFocusChange {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableBracketedPaste;
 
-impl Encode for EnableBracketedPaste {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?2004h")
-    }
+impl StaticEncode for EnableBracketedPaste {
+    const STR: &'static str = csi!("?2004h");
 }
 
 /// A command that disables bracketed paste mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableBracketedPaste;
 
-impl Encode for DisableBracketedPaste {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "?2004l")
-    }
+impl StaticEncode for DisableBracketedPaste {
+    const STR: &'static str = csi!("?2004l");
 }
 
 /// A command that enables the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/), which adds extra information to keyboard events and removes ambiguity for modifier keys.
@@ -159,10 +141,8 @@ impl Encode for PushKeyboardEnhancementFlags {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PopKeyboardEnhancementFlags;
 
-impl Encode for PopKeyboardEnhancementFlags {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "<1u")
-    }
+impl StaticEncode for PopKeyboardEnhancementFlags {
+    const STR: &'static str = csi!("<1u");
 }
 
 impl Encode for KeyEvent {

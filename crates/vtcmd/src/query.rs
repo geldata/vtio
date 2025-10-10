@@ -1,56 +1,44 @@
 //! Terminal query commands.
 
-use vtansi::encode::{Encode, EncodeError};
-use vtansi::{write_csi, write_dcs, write_osc};
+use vtansi::csi;
+use vtansi::dcs;
+use vtansi::encode::{Encode, EncodeError, StaticEncode};
+use vtansi::osc;
+use vtansi::{write_csi};
 
 /// Request cursor position report (CPR).
 pub struct RequestCursorPosition;
 
-impl Encode for RequestCursorPosition {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "6n")
-    }
+impl StaticEncode for RequestCursorPosition {
+    const STR: &'static str = csi!("6n");
 }
 
 /// Request terminal size (DECSLPP).
 pub struct RequestTerminalSize;
 
-impl Encode for RequestTerminalSize {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "18t")
-    }
+impl StaticEncode for RequestTerminalSize {
+    const STR: &'static str = csi!("18t");
 }
 
 /// Request primary device attributes (DA1).
 pub struct RequestDeviceAttributes;
 
-impl Encode for RequestDeviceAttributes {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "c")
-    }
+impl StaticEncode for RequestDeviceAttributes {
+    const STR: &'static str = csi!("c");
 }
 
 /// Request secondary device attributes (DA2).
 pub struct RequestSecondaryDeviceAttributes;
 
-impl Encode for RequestSecondaryDeviceAttributes {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, ">c")
-    }
+impl StaticEncode for RequestSecondaryDeviceAttributes {
+    const STR: &'static str = csi!(">c");
 }
 
 /// Request tertiary device attributes (DA3).
 pub struct RequestTertiaryDeviceAttributes;
 
-impl Encode for RequestTertiaryDeviceAttributes {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "=c")
-    }
+impl StaticEncode for RequestTertiaryDeviceAttributes {
+    const STR: &'static str = csi!("=c");
 }
 
 /// Feature report identifier for DECRQM (Request Mode).
@@ -114,59 +102,41 @@ impl Encode for RequestFeature {
 /// Request default foreground color.
 pub struct RequestDefaultForeground;
 
-impl Encode for RequestDefaultForeground {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_osc!(buf, "10;?")
-    }
+impl StaticEncode for RequestDefaultForeground {
+    const STR: &'static str = osc!("10;?");
 }
 
 /// Request default background color.
 pub struct RequestDefaultBackground;
 
-impl Encode for RequestDefaultBackground {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_osc!(buf, "11;?")
-    }
+impl StaticEncode for RequestDefaultBackground {
+    const STR: &'static str = osc!("11;?");
 }
 
 /// Request cursor shape using DECRQSS.
 pub struct RequestCursorShape;
 
-impl Encode for RequestCursorShape {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_dcs!(buf, "$q q")
-    }
+impl StaticEncode for RequestCursorShape {
+    const STR: &'static str = dcs!("$q q");
 }
 
 /// Request text attributes (SGR) using DECRQSS.
 pub struct RequestTextAttributes;
 
-impl Encode for RequestTextAttributes {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_dcs!(buf, "$qm")
-    }
+impl StaticEncode for RequestTextAttributes {
+    const STR: &'static str = dcs!("$qm");
 }
 
 /// Request scrolling region (top/bottom) using DECRQSS.
 pub struct RequestScrollingRegion;
 
-impl Encode for RequestScrollingRegion {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_dcs!(buf, "$qr")
-    }
+impl StaticEncode for RequestScrollingRegion {
+    const STR: &'static str = dcs!("$qr");
 }
 
 /// Request scrolling region (left/right) using DECRQSS.
 pub struct RequestScrollingColumns;
 
-impl Encode for RequestScrollingColumns {
-    #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_dcs!(buf, "$qs")
-    }
+impl StaticEncode for RequestScrollingColumns {
+    const STR: &'static str = dcs!("$qs");
 }
