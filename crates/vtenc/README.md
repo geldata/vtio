@@ -1,4 +1,4 @@
-# vtansi
+# vtenc
 
 Macros for framing VT ANSI escape sequences.
 
@@ -12,7 +12,7 @@ This crate provides utilities for constructing ANSI escape sequences at compile 
 ## Usage
 
 ```rust
-use vtansi::{csi, osc};
+use vtenc::{csi, osc};
 
 // Create a CSI sequence to clear the screen
 let clear_screen = csi!("2J");

@@ -45,6 +45,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
+name = "bytes"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -490,21 +496,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinyvec"
-version = "1.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa5fdc3bce6191a1dbc8c02d5c8bffcf557bafa17c124c5264a458f1b0613fa"
-dependencies = [
- "tinyvec_macros",
-]
-
-[[package]]
-name = "tinyvec_macros"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -520,20 +511,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtansi"
+name = "vtmsg"
 version = "0.0.0"
 dependencies = [
- "constcat",
- "tinyvec",
+ "bytes",
+ "vtenc",
+ "vtinput",
 ]
 
 [[package]]
-name = "vtcmd"
+name = "vtenc"
 version = "0.0.0"
 dependencies = [
- "libc",
- "vtansi",
- "vtinput",
+ "bytes",
+ "constcat",
+ "itoa",
 ]
 
 [[package]]
@@ -546,7 +538,7 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "vt-push-parser",
- "vtansi",
+ "vtenc",
 ]
 
 [[package]]

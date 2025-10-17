@@ -16,17 +16,17 @@
 //! # Example
 //!
 //! ```
-//! use vtcmd::{ClearAll, cursor::MoveTo};
-//! use vtansi::Encode;
+//! use vtmsg::{ClearAll, cursor::MoveTo};
+//! use vtenc::Encode;
 //!
 //! let mut buf = [0u8; 64];
 //!
 //! // Clear the screen
-//! let len = ClearAll.encode(&mut buf).unwrap();
+//! let len = ClearAll.encode(&mut &mut buf[..]).unwrap();
 //! // Write buf[..len] to stdout
 //!
 //! // Move cursor to row 10, column 20
-//! let len = MoveTo { row: 10, col: 20 }.encode(&mut buf).unwrap();
+//! let len = MoveTo { row: 10, col: 20 }.encode(&mut &mut buf[..]).unwrap();
 //! // Write buf[..len] to stdout
 //! ```
 
@@ -68,16 +68,16 @@ pub use window::{SetSize, SetTitle};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtansi::Encode;
+    use vtenc::Encode;
 
     #[test]
     fn test_clear_commands() {
         let mut buf = [0u8; 64];
 
-        assert_eq!(ClearAll.encode(&mut buf).unwrap(), 4);
+        assert_eq!(ClearAll.encode(&mut &mut buf[..]).unwrap(), 4);
         assert_eq!(&buf[..4], b"\x1B[2J");
 
-        assert_eq!(ClearLine.encode(&mut buf).unwrap(), 4);
+        assert_eq!(ClearLine.encode(&mut &mut buf[..]).unwrap(), 4);
         assert_eq!(&buf[..4], b"\x1B[2K");
     }
 
@@ -85,13 +85,15 @@ mod tests {
     fn test_cursor_movement() {
         let mut buf = [0u8; 64];
 
-        let len = MoveTo { row: 10, col: 20 }.encode(&mut buf).unwrap();
+        let len = MoveTo { row: 10, col: 20 }
+            .encode(&mut &mut buf[..])
+            .unwrap();
         assert_eq!(&buf[..len], b"\x1B[10;20H");
 
-        let len = MoveUp(5).encode(&mut buf).unwrap();
+        let len = MoveUp(5).encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1B[5A");
 
-        let len = MoveDown(3).encode(&mut buf).unwrap();
+        let len = MoveDown(3).encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1B[3B");
     }
 
@@ -99,10 +101,10 @@ mod tests {
     fn test_screen_commands() {
         let mut buf = [0u8; 64];
 
-        assert_eq!(EnterAlternateScreen.encode(&mut buf).unwrap(), 8);
+        assert_eq!(EnterAlternateScreen.encode(&mut &mut buf[..]).unwrap(), 8);
         assert_eq!(&buf[..8], b"\x1B[?1049h");
 
-        assert_eq!(LeaveAlternateScreen.encode(&mut buf).unwrap(), 8);
+        assert_eq!(LeaveAlternateScreen.encode(&mut &mut buf[..]).unwrap(), 8);
         assert_eq!(&buf[..8], b"\x1B[?1049l");
     }
 
@@ -110,10 +112,10 @@ mod tests {
     fn test_cursor_visibility() {
         let mut buf = [0u8; 64];
 
-        assert_eq!(ShowCursor.encode(&mut buf).unwrap(), 6);
+        assert_eq!(ShowCursor.encode(&mut &mut buf[..]).unwrap(), 6);
         assert_eq!(&buf[..6], b"\x1B[?25h");
 
-        assert_eq!(HideCursor.encode(&mut buf).unwrap(), 6);
+        assert_eq!(HideCursor.encode(&mut &mut buf[..]).unwrap(), 6);
         assert_eq!(&buf[..6], b"\x1B[?25l");
     }
 
@@ -122,12 +124,12 @@ mod tests {
         let mut buf = [0u8; 64];
 
         let len = SetCursorShape(CursorShape::BlinkingBlock)
-            .encode(&mut buf)
+            .encode(&mut &mut buf[..])
             .unwrap();
         assert_eq!(&buf[..len], b"\x1B[1 q");
 
         let len = SetCursorShape(CursorShape::SteadyBar)
-            .encode(&mut buf)
+            .encode(&mut &mut buf[..])
             .unwrap();
         assert_eq!(&buf[..len], b"\x1B[6 q");
     }
@@ -136,7 +138,7 @@ mod tests {
     fn test_title() {
         let mut buf = [0u8; 64];
 
-        let len = SetTitle("Test").encode(&mut buf).unwrap();
+        let len = SetTitle("Test").encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1B]0;Test\x1B\\");
     }
 
@@ -144,10 +146,13 @@ mod tests {
     fn test_request_commands() {
         let mut buf = [0u8; 64];
 
-        assert_eq!(RequestCursorPosition.encode(&mut buf).unwrap(), 4);
+        assert_eq!(RequestCursorPosition.encode(&mut &mut buf[..]).unwrap(), 4);
         assert_eq!(&buf[..4], b"\x1B[6n");
 
-        assert_eq!(RequestDeviceAttributes.encode(&mut buf).unwrap(), 3);
+        assert_eq!(
+            RequestDeviceAttributes.encode(&mut &mut buf[..]).unwrap(),
+            3
+        );
         assert_eq!(&buf[..3], b"\x1B[c");
     }
 
@@ -156,12 +161,12 @@ mod tests {
         let mut buf = [0u8; 64];
 
         let len = RequestFeature(Feature::BracketedPaste)
-            .encode(&mut buf)
+            .encode(&mut &mut buf[..])
             .unwrap();
         assert_eq!(&buf[..len], b"\x1B[?2004$p");
 
         let len = RequestFeature(Feature::InsertMode)
-            .encode(&mut buf)
+            .encode(&mut &mut buf[..])
             .unwrap();
         assert_eq!(&buf[..len], b"\x1B[4$p");
     }
@@ -170,10 +175,10 @@ mod tests {
     fn test_buffer_overflow() {
         let mut buf = [0u8; 2];
 
-        let result = ClearAll.encode(&mut buf);
+        let result = ClearAll.encode(&mut &mut buf[..]);
         assert!(matches!(
             result,
-            Err(vtansi::EncodeError::BufferOverflow(_))
+            Err(vtenc::EncodeError::BufferOverflow(_))
         ));
     }
 }

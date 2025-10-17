@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use bitflags::bitflags;
 use vt_push_parser::event::VTEvent;
 
-use vtansi::{ConstEncode, Encode, EncodeError, csi, write_csi};
+use vtenc::{ConstEncode, Encode, EncodeError, csi, write_bytes_into, write_csi};
 
 /// Format terminal events in a terse, human-readable format for test
 /// output.
@@ -122,8 +122,8 @@ impl ConstEncode for DisableBracketedPaste {
 pub struct PushKeyboardEnhancementFlags(pub KeyboardEnhancementFlags);
 
 impl Encode for PushKeyboardEnhancementFlags {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, ">{}u", self.0.bits())
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; ">", self.0.bits(), "u")
     }
 }
 
@@ -141,7 +141,9 @@ impl ConstEncode for PopKeyboardEnhancementFlags {
 
 impl Encode for KeyEvent {
     #[allow(clippy::too_many_lines)]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        use std::io::Write as _;
+        use vtenc::encode::CountingWriter;
         // Only generate on key press (ignore repeats/releases)
         if self.kind != KeyEventKind::Press {
             return Ok(0);
@@ -163,7 +165,7 @@ impl Encode for KeyEvent {
                 0
             };
 
-        let mut pos = 0;
+        let mut w = CountingWriter::new(buf);
         let alt_prefix = mods.contains(KeyModifiers::ALT);
 
         match self.code {
@@ -177,86 +179,99 @@ impl Encode for KeyEvent {
                 if mods.contains(KeyModifiers::CONTROL) {
                     let ctrl = control_code_for(c);
                     if alt_prefix {
-                        if buf.is_empty() {
-                            return Err(EncodeError::BufferOverflow(2));
+                        match w.write(&[0x1b]) {
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                                return Err(EncodeError::BufferOverflow(w.overflow()));
+                            }
+                            Err(e) => return Err(EncodeError::IOError(e)),
+                            Ok(_) => {}
                         }
-                        buf[pos] = 0x1b;
-                        pos += 1;
                     }
-                    if pos >= buf.len() {
-                        return Err(EncodeError::BufferOverflow(pos + 1));
+                    match w.write(&[ctrl]) {
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                            return Err(EncodeError::BufferOverflow(w.overflow()));
+                        }
+                        Err(e) => return Err(EncodeError::IOError(e)),
+                        Ok(_) => {}
                     }
-                    buf[pos] = ctrl;
-                    pos += 1;
-                    return Ok(pos);
+                    return Ok(w.written());
                 }
 
                 if alt_prefix {
-                    if buf.is_empty() {
-                        return Err(EncodeError::BufferOverflow(1));
+                    match w.write(&[0x1b]) {
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                            return Err(EncodeError::BufferOverflow(w.overflow()));
+                        }
+                        Err(e) => return Err(EncodeError::IOError(e)),
+                        Ok(_) => {}
                     }
-                    buf[pos] = 0x1b;
-                    pos += 1;
                 }
                 let mut tmp = [0u8; 4];
                 let s = c.encode_utf8(&mut tmp);
-                if pos + s.len() > buf.len() {
-                    return Err(EncodeError::BufferOverflow(pos + s.len()));
+                match w.write(s.as_bytes()) {
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                        return Err(EncodeError::BufferOverflow(w.overflow()));
+                    }
+                    Err(e) => return Err(EncodeError::IOError(e)),
+                    Ok(_) => {}
                 }
-                buf[pos..pos + s.len()].copy_from_slice(s.as_bytes());
-                pos += s.len();
             }
 
             KeyCode::Enter => {
                 // Handle modified Enter key
                 if mod_param > 1 {
                     // CSI u format: ESC[13;<mod>u for modified Enter
-                    pos += write_csi!(&mut buf[pos..], "13;{}u", mod_param)?;
+                    write_csi!(&mut w; "13;", mod_param, "u")?;
                 } else if alt_prefix {
                     // Alt+Enter: ESC followed by CR
-                    if buf.len() < 2 {
-                        return Err(EncodeError::BufferOverflow(2));
+                    match w.write(&[0x1b, b'\r']) {
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                            return Err(EncodeError::BufferOverflow(w.overflow()));
+                        }
+                        Err(e) => return Err(EncodeError::IOError(e)),
+                        Ok(_) => {}
                     }
-                    buf[pos] = 0x1b;
-                    buf[pos + 1] = b'\r';
-                    pos += 2;
                 } else {
                     // Normal Enter: just CR
-                    if buf.is_empty() {
-                        return Err(EncodeError::BufferOverflow(1));
+                    match w.write(b"\r") {
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                            return Err(EncodeError::BufferOverflow(w.overflow()));
+                        }
+                        Err(e) => return Err(EncodeError::IOError(e)),
+                        Ok(_) => {}
                     }
-                    buf[pos] = b'\r';
-                    pos += 1;
                 }
             }
 
-            KeyCode::Backspace => {
-                if buf.is_empty() {
-                    return Err(EncodeError::BufferOverflow(1));
+            KeyCode::Backspace => match w.write(&[0x7f]) {
+                Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                    return Err(EncodeError::BufferOverflow(w.overflow()));
                 }
-                buf[pos] = 0x7f; // DEL
-                pos += 1;
-            }
+                Err(e) => return Err(EncodeError::IOError(e)),
+                Ok(_) => {}
+            },
 
             KeyCode::Tab => {
                 if mods.contains(KeyModifiers::SHIFT) {
-                    pos += write_csi!(&mut buf[pos..], "Z")?; // Back-tab
+                    write_csi!(&mut w; "Z")?; // Back-tab
                 } else {
-                    if buf.is_empty() {
-                        return Err(EncodeError::BufferOverflow(1));
+                    match w.write(b"\t") {
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                            return Err(EncodeError::BufferOverflow(w.overflow()));
+                        }
+                        Err(e) => return Err(EncodeError::IOError(e)),
+                        Ok(_) => {}
                     }
-                    buf[pos] = b'\t';
-                    pos += 1;
                 }
             }
 
-            KeyCode::Esc => {
-                if buf.is_empty() {
-                    return Err(EncodeError::BufferOverflow(1));
+            KeyCode::Esc => match w.write(&[0x1b]) {
+                Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                    return Err(EncodeError::BufferOverflow(w.overflow()));
                 }
-                buf[pos] = 0x1b;
-                pos += 1;
-            }
+                Err(e) => return Err(EncodeError::IOError(e)),
+                Ok(_) => {}
+            },
 
             KeyCode::Up
             | KeyCode::Down
@@ -279,32 +294,56 @@ impl Encode for KeyEvent {
 
                 if application_cursor && no_mods && use_ss3 {
                     // SS3: ESC O <final>
-                    if buf.len() < pos + 3 {
-                        return Err(EncodeError::BufferOverflow(pos + 3));
+                    match w.write(&[0x1b, b'O', final_byte]) {
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                            return Err(EncodeError::BufferOverflow(w.overflow()));
+                        }
+                        Err(e) => return Err(EncodeError::IOError(e)),
+                        Ok(_) => {}
                     }
-                    buf[pos] = 0x1b;
-                    buf[pos + 1] = b'O';
-                    buf[pos + 2] = final_byte;
-                    pos += 3;
                 } else if no_mods && use_ss3 {
                     // Normal cursor mode: CSI <final>
-                    if buf.len() < pos + 3 {
-                        return Err(EncodeError::BufferOverflow(pos + 3));
+                    match w.write(&[0x1b, b'[', final_byte]) {
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                            return Err(EncodeError::BufferOverflow(w.overflow()));
+                        }
+                        Err(e) => return Err(EncodeError::IOError(e)),
+                        Ok(_) => {}
                     }
-                    buf[pos] = 0x1b;
-                    buf[pos + 1] = b'[';
-                    buf[pos + 2] = final_byte;
-                    pos += 3;
                 } else {
                     // With modifiers: CSI 1;M <final>
-                    pos += write_csi!(&mut buf[pos..], "1;{}{}", mod_param, final_byte as char)?;
+                    write_csi!(&mut w; "1;", mod_param, final_byte as char)?;
                 }
             }
 
-            KeyCode::Insert => pos += push_tilde_seq(&mut buf[pos..], 2, mod_param)?,
-            KeyCode::Delete => pos += push_tilde_seq(&mut buf[pos..], 3, mod_param)?,
-            KeyCode::PageUp => pos += push_tilde_seq(&mut buf[pos..], 5, mod_param)?,
-            KeyCode::PageDown => pos += push_tilde_seq(&mut buf[pos..], 6, mod_param)?,
+            KeyCode::Insert => {
+                if mod_param == 1 {
+                    write_csi!(&mut w; "2~")?;
+                } else {
+                    write_csi!(&mut w; "2;", mod_param, "~")?;
+                }
+            }
+            KeyCode::Delete => {
+                if mod_param == 1 {
+                    write_csi!(&mut w; "3~")?;
+                } else {
+                    write_csi!(&mut w; "3;", mod_param, "~")?;
+                }
+            }
+            KeyCode::PageUp => {
+                if mod_param == 1 {
+                    write_csi!(&mut w; "5~")?;
+                } else {
+                    write_csi!(&mut w; "5;", mod_param, "~")?;
+                }
+            }
+            KeyCode::PageDown => {
+                if mod_param == 1 {
+                    write_csi!(&mut w; "6~")?;
+                } else {
+                    write_csi!(&mut w; "6;", mod_param, "~")?;
+                }
+            }
 
             KeyCode::F(n) => {
                 // xterm mappings
@@ -318,15 +357,15 @@ impl Encode for KeyEvent {
                     };
                     if mod_param == 1 {
                         // SS3 for F1-F4
-                        if buf.len() < pos + 3 {
-                            return Err(EncodeError::BufferOverflow(pos + 3));
+                        match w.write(&[0x1b, b'O', letter]) {
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WriteZero => {
+                                return Err(EncodeError::BufferOverflow(w.overflow()));
+                            }
+                            Err(e) => return Err(EncodeError::IOError(e)),
+                            Ok(_) => {}
                         }
-                        buf[pos] = 0x1b;
-                        buf[pos + 1] = b'O';
-                        buf[pos + 2] = letter;
-                        pos += 3;
                     } else {
-                        pos += write_csi!(&mut buf[pos..], "1;{}{}", mod_param, letter as char)?;
+                        write_csi!(&mut w; "1;", mod_param, letter as char)?;
                     }
                 } else {
                     let code = match n {
@@ -350,16 +389,16 @@ impl Encode for KeyEvent {
                     };
                     if code != 0 {
                         if mod_param == 1 {
-                            pos += write_csi!(&mut buf[pos..], "{}~", code)?;
+                            write_csi!(&mut w; code, "~")?;
                         } else {
-                            pos += write_csi!(&mut buf[pos..], "{};{}~", code, mod_param)?;
+                            write_csi!(&mut w; code, ";", mod_param, "~")?;
                         }
                     }
                 }
             }
 
             KeyCode::BackTab => {
-                pos += write_csi!(&mut buf[pos..], "Z")?;
+                write_csi!(&mut w; "Z")?;
             }
 
             KeyCode::Null
@@ -376,12 +415,12 @@ impl Encode for KeyEvent {
             }
         }
 
-        Ok(pos)
+        Ok(w.written())
     }
 }
 
 impl Encode for MouseEvent {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         let mods = self.modifiers;
 
         // Calculate modifier offset for SGR mode
@@ -443,24 +482,26 @@ impl Encode for MouseEvent {
         let y = self.row + 1;
 
         // Generate SGR sequence: ESC[<btn;col;row(M|m)
-        write_csi!(buf, "<{};{};{}{}", button_code, x, y, final_char as char)
+        write_csi!(buf; "<", button_code, ";", x, ";", y, final_char as char)
     }
 }
 
 impl Encode for TerminalInputEvent<'_> {
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         match self {
             TerminalInputEvent::Key(event) => event.encode(buf),
             TerminalInputEvent::Mouse(event) => event.encode(buf),
             TerminalInputEvent::Resize(rows, cols) => {
-                write_csi!(buf, "8;{};{}t", rows, cols)
+                write_csi!(buf; "8;", rows, ";", cols, "t")
             }
-            TerminalInputEvent::Focus(true) => write_csi!(buf, "I"),
-            TerminalInputEvent::Focus(false) => write_csi!(buf, "O"),
+            TerminalInputEvent::Focus(true) => write_csi!(buf; "I"),
+            TerminalInputEvent::Focus(false) => write_csi!(buf; "O"),
             TerminalInputEvent::Paste(text) => {
-                let text_str =
-                    core::str::from_utf8(text).map_err(|_| EncodeError::BufferOverflow(0))?;
-                write_csi!(buf, "200~{}201~", text_str)
+                let mut total = 0;
+                total += write_csi!(buf; "200~")?;
+                total += write_bytes_into(buf, text)?;
+                total += write_csi!(buf; "201~")?;
+                Ok(total)
             }
             #[cfg(unix)]
             TerminalInputEvent::CursorPosition(_, _)
@@ -492,15 +533,6 @@ fn control_code_for(c: char) -> u8 {
         '_' => 0x1f,
         '?' => 0x7f,
         _ => c as u8 & 0x1f,
-    }
-}
-
-/// Write a tilde sequence (like for Insert, Delete, `PageUp`, `PageDown`).
-fn push_tilde_seq(buf: &mut [u8], base: u8, mod_param: i32) -> Result<usize, EncodeError> {
-    if mod_param == 1 {
-        write_csi!(buf, "{}~", base)
-    } else {
-        write_csi!(buf, "{};{}~", base, mod_param)
     }
 }
 
@@ -1817,7 +1849,7 @@ mod tests {
     fn test_encode_key_event_char() {
         let mut event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"a");
     }
 
@@ -1825,7 +1857,7 @@ mod tests {
     fn test_encode_key_event_ctrl_char() {
         let mut event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], &[0x03]); // Ctrl-C
     }
 
@@ -1833,7 +1865,7 @@ mod tests {
     fn test_encode_key_event_enter() {
         let mut event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\r");
     }
 
@@ -1841,7 +1873,7 @@ mod tests {
     fn test_encode_key_event_arrow() {
         let mut event = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[A");
     }
 
@@ -1849,7 +1881,7 @@ mod tests {
     fn test_encode_key_event_arrow_with_modifiers() {
         let mut event = KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[1;2A");
     }
 
@@ -1857,7 +1889,7 @@ mod tests {
     fn test_encode_key_event_f1() {
         let mut event = KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1bOP");
     }
 
@@ -1971,7 +2003,7 @@ mod tests {
     fn test_encode_key_event_f5() {
         let mut event = KeyEvent::new(KeyCode::F(5), KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[15~");
     }
 
@@ -1984,7 +2016,7 @@ mod tests {
             modifiers: KeyModifiers::NONE,
         };
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<0;1;1M");
     }
 
@@ -1997,7 +2029,7 @@ mod tests {
             modifiers: KeyModifiers::NONE,
         };
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<0;1;1m");
     }
 
@@ -2010,7 +2042,7 @@ mod tests {
             modifiers: KeyModifiers::NONE,
         };
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<64;1;1M");
     }
 
@@ -2018,11 +2050,11 @@ mod tests {
     fn test_encode_terminal_event_focus() {
         let mut event = TerminalInputEvent::Focus(true);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[I");
 
         let mut event = TerminalInputEvent::Focus(false);
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[O");
     }
 
@@ -2030,7 +2062,7 @@ mod tests {
     fn test_encode_terminal_event_resize() {
         let mut event = TerminalInputEvent::Resize(24, 80);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[8;24;80t");
     }
 
@@ -2039,7 +2071,7 @@ mod tests {
         let text = b"hello world";
         let mut event = TerminalInputEvent::Paste(text);
         let mut buf = [0u8; 128];
-        let len = event.encode(&mut buf).unwrap();
+        let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[200~hello world\x1b[201~");
     }
 }

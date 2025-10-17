@@ -1,7 +1,7 @@
 //! Screen clearing commands.
 
-use vtansi::csi;
-use vtansi::encode::ConstEncode;
+use vtenc::csi;
+use vtenc::encode::ConstEncode;
 
 /// Clear the entire screen.
 pub struct ClearAll;

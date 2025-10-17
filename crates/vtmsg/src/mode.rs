@@ -1,8 +1,8 @@
 //! Mode control commands.
 
-use vtansi::csi;
-use vtansi::encode::ConstEncode;
-use vtansi::esc;
+use vtenc::csi;
+use vtenc::encode::ConstEncode;
+use vtenc::esc;
 
 /// Enable bracketed paste mode.
 pub struct EnableBracketedPaste;

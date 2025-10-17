@@ -3,7 +3,10 @@
 #![warn(clippy::pedantic)]
 
 pub mod encode;
-pub use encode::{ConstEncodedLen, Encode, EncodeError, ConstEncode, Write};
+pub use encode::write_bytes_into;
+pub use encode::write_int;
+pub use encode::write_str_into;
+pub use encode::{ConstEncode, ConstEncodedLen, Encode, EncodeError, WriteSeq};
 
 /// Format a string while prepending a ANSI control sequence introducer
 /// (`"\x1b["`).
@@ -13,7 +16,6 @@ pub use encode::{ConstEncodedLen, Encode, EncodeError, ConstEncode, Write};
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! csi {
-    () => { "\x1B[" };
     ($fmt:literal) => { concat!("\x1B[", $fmt) };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1B[", $fmt), $($args),+)
@@ -22,17 +24,26 @@ macro_rules! csi {
 
 /// Write a CSI sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
+///
+/// # Examples
+///
+/// ```ignore
+/// write_csi!(buf; "H")                    // ESC[H
+/// write_csi!(buf; row, ";", col, "H")     // ESC[row;colH
+/// write_csi!(buf; n, "A")                 // ESC[nA
+/// ```
 #[macro_export]
 macro_rules! write_csi {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1B[", $fmt))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1B[", $fmt), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1B[")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending a xterm Operating System Commands (OSC)
@@ -43,7 +54,6 @@ macro_rules! write_csi {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! osc {
-    () => { "\x1B]\x1B\\" };
     ($fmt:literal) => { concat!("\x1B]", $fmt, "\x1B\\") };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1B]", $fmt, "\x1B\\"), $($args),+)
@@ -52,17 +62,25 @@ macro_rules! osc {
 
 /// Write an OSC sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
+///
+/// # Examples
+///
+/// ```ignore
+/// write_osc!(buf; "0;", title)            // ESC]0;titleESC\
+/// ```
 #[macro_export]
 macro_rules! write_osc {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1B]", $fmt, "\x1B\\"))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1B]", $fmt, "\x1B\\"), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1B]")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending a Single Shift 2 (SS2) introducer
@@ -73,7 +91,6 @@ macro_rules! write_osc {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! ss2 {
-    () => { "\x1BN" };
     ($fmt:literal) => { concat!("\x1BN", $fmt) };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1BN", $fmt), $($args),+)
@@ -82,17 +99,18 @@ macro_rules! ss2 {
 
 /// Write an SS2 sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
 #[macro_export]
 macro_rules! write_ss2 {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1BN", $fmt))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1BN", $fmt), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1BN")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending a Single Shift 3 (SS3) introducer
@@ -103,7 +121,6 @@ macro_rules! write_ss2 {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! ss3 {
-    () => { "\x1BO" };
     ($fmt:literal) => { concat!("\x1BO", $fmt) };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1BO", $fmt), $($args),+)
@@ -112,17 +129,18 @@ macro_rules! ss3 {
 
 /// Write an SS3 sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
 #[macro_export]
 macro_rules! write_ss3 {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1BO", $fmt))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1BO", $fmt), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1BO")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending a Device Control String (DCS)
@@ -133,7 +151,6 @@ macro_rules! write_ss3 {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! dcs {
-    () => { "\x1BP\x1B\\" };
     ($fmt:literal) => { concat!("\x1BP", $fmt, "\x1B\\") };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1BP", $fmt, "\x1B\\"), $($args),+)
@@ -142,17 +159,19 @@ macro_rules! dcs {
 
 /// Write a DCS sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
 #[macro_export]
 macro_rules! write_dcs {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1BP", $fmt, "\x1B\\"))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1BP", $fmt, "\x1B\\"), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1BP")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending a Privacy Message (PM) introducer
@@ -163,7 +182,6 @@ macro_rules! write_dcs {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! pm {
-    () => { "\x1B^\x1B\\" };
     ($fmt:literal) => { concat!("\x1B^", $fmt, "\x1B\\") };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1B^", $fmt, "\x1B\\"), $($args),+)
@@ -172,17 +190,19 @@ macro_rules! pm {
 
 /// Write a PM sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
 #[macro_export]
 macro_rules! write_pm {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1B^", $fmt, "\x1B\\"))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1B^", $fmt, "\x1B\\"), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1B^")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending an Application Program Command (APC)
@@ -193,7 +213,6 @@ macro_rules! write_pm {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! apc {
-    () => { "\x1B_\x1B\\" };
     ($fmt:literal) => { concat!("\x1B_", $fmt, "\x1B\\") };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1B_", $fmt, "\x1B\\"), $($args),+)
@@ -202,17 +221,19 @@ macro_rules! apc {
 
 /// Write an APC sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
 #[macro_export]
 macro_rules! write_apc {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1B_", $fmt, "\x1B\\"))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1B_", $fmt, "\x1B\\"), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1B_")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending an escape character (`"\x1b"`).
@@ -222,7 +243,6 @@ macro_rules! write_apc {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! esc {
-    () => { "\x1B" };
     ($fmt:literal) => { concat!("\x1B", $fmt) };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1B", $fmt), $($args),+)
@@ -231,17 +251,18 @@ macro_rules! esc {
 
 /// Write an ESC sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
 #[macro_export]
 macro_rules! write_esc {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1B", $fmt))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1B", $fmt), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1B")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        Ok(__total)
+    }};
 }
 
 /// Format a string while prepending an escape character (`"\x1b"`) and
@@ -252,7 +273,6 @@ macro_rules! write_esc {
 /// `format!` for runtime formatting.
 #[macro_export]
 macro_rules! escst {
-    () => { "\x1B\x1B\\" };
     ($fmt:literal) => { concat!("\x1B", $fmt, "\x1B\\") };
     ($fmt:literal, $($args:expr),+ $(,)?) => {
         format!(concat!("\x1B", $fmt, "\x1B\\"), $($args),+)
@@ -261,15 +281,17 @@ macro_rules! escst {
 
 /// Write an ESC...ST sequence to a buffer without heap allocation.
 ///
-/// When called with only a string literal, this uses `write_const_str_into!`
-/// for compile-time efficiency. When called with format arguments, this uses
-/// `write_into!` to format directly into the buffer.
+/// Takes a semicolon-separated list of items (string literals or integers).
+/// Each item is written directly without formatting overhead.
 #[macro_export]
 macro_rules! write_escst {
-    ($buf:expr, $fmt:literal) => {
-        $crate::write_const_str_into!($buf, concat!("\x1B", $fmt, "\x1B\\"))
-    };
-    ($buf:expr, $fmt:literal, $($args:expr),+ $(,)?) => {
-        $crate::write_into!($buf, concat!("\x1B", $fmt, "\x1B\\"), $($args),+)
-    };
+    ($buf:expr; $($item:expr),* $(,)?) => {{
+        let mut __total = 0usize;
+        __total += $crate::encode::write_str_into($buf, "\x1B")?;
+        $(
+            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+        )*
+        __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
+        Ok(__total)
+    }};
 }

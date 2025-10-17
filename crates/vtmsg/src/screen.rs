@@ -1,16 +1,16 @@
 //! Screen control commands.
 
-use vtansi::csi;
-use vtansi::{Encode, EncodeError, ConstEncode};
-use vtansi::write_csi;
+use vtenc::csi;
+use vtenc::write_csi;
+use vtenc::{ConstEncode, Encode, EncodeError};
 
 /// Scroll up by the specified number of lines.
 pub struct ScrollUp(pub u16);
 
 impl Encode for ScrollUp {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}S", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "S")
     }
 }
 
@@ -19,8 +19,8 @@ pub struct ScrollDown(pub u16);
 
 impl Encode for ScrollDown {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}T", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "T")
     }
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "vtcmd"
+name = "vtmsg"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -9,8 +9,8 @@ readme = "README.md"
 bench = false
 
 [dependencies]
-vtansi = { path = "../vtansi" }
+vtenc = { path = "../vtenc" }
 
 [dev-dependencies]
 vtinput = { path = "../vtinput" }
-libc = "0.2"
+bytes = "1.0"

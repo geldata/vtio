@@ -1,6 +1,6 @@
 //! Cursor movement and control commands.
 
-use vtansi::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, esc, write_csi};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, esc, write_csi};
 
 /// Move cursor to the specified position (1-indexed).
 pub struct MoveTo {
@@ -15,8 +15,8 @@ impl ConstEncodedLen for MoveTo {
 
 impl Encode for MoveTo {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{};{}H", self.row, self.col)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.row, ";", self.col, "H")
     }
 }
 
@@ -30,8 +30,8 @@ impl ConstEncodedLen for MoveUp {
 
 impl Encode for MoveUp {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}A", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "A")
     }
 }
 
@@ -45,8 +45,8 @@ impl ConstEncodedLen for MoveDown {
 
 impl Encode for MoveDown {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}B", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "B")
     }
 }
 
@@ -60,8 +60,8 @@ impl ConstEncodedLen for MoveLeft {
 
 impl Encode for MoveLeft {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}D", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "D")
     }
 }
 
@@ -75,8 +75,8 @@ impl ConstEncodedLen for MoveRight {
 
 impl Encode for MoveRight {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}C", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "C")
     }
 }
 
@@ -90,8 +90,8 @@ impl ConstEncodedLen for MoveToNextLine {
 
 impl Encode for MoveToNextLine {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}E", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "E")
     }
 }
 
@@ -105,8 +105,8 @@ impl ConstEncodedLen for MoveToPreviousLine {
 
 impl Encode for MoveToPreviousLine {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}F", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "F")
     }
 }
 
@@ -120,8 +120,8 @@ impl ConstEncodedLen for MoveToColumn {
 
 impl Encode for MoveToColumn {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        write_csi!(buf, "{}G", self.0)
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.0, "G")
     }
 }
 
@@ -182,7 +182,7 @@ impl ConstEncodedLen for SetCursorShape {
 
 impl Encode for SetCursorShape {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         let code = match self.0 {
             CursorShape::Default => 0,
             CursorShape::BlinkingBlock => 1,
@@ -192,7 +192,7 @@ impl Encode for SetCursorShape {
             CursorShape::BlinkingBar => 5,
             CursorShape::SteadyBar => 6,
         };
-        write_csi!(buf, "{} q", code)
+        write_csi!(buf; code, " q")
     }
 }
 

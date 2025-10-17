@@ -1,8 +1,8 @@
-# vtcmd
+# vtmsg
 
 Terminal command sequences implementing common VT escape codes.
 
-This crate provides types that implement the `Encode` trait from `vtansi` to
+This crate provides types that implement the `Encode` trait from `vtenc` to
 render terminal control sequences for cursor movement, screen manipulation,
 and terminal state queries.
 
@@ -19,12 +19,12 @@ and terminal state queries.
 
 ## Usage
 
-All commands implement the `Encode` trait from `vtansi`, allowing them to be
+All commands implement the `Encode` trait from `vtenc`, allowing them to be
 encoded into a byte buffer:
 
 ```rust
-use vtcmd::{ClearAll, cursor::MoveTo};
-use vtansi::Encode;
+use vtmsg::{ClearAll, cursor::MoveTo};
+use vtenc::Encode;
 use std::io::Write;
 
 let mut buf = [0u8; 64];
@@ -56,8 +56,8 @@ Commonly used types are re-exported at the crate root for convenience.
 ### Basic Screen Manipulation
 
 ```rust
-use vtcmd::{ClearAll, screen::EnterAlternateScreen};
-use vtansi::Encode;
+use vtmsg::{ClearAll, screen::EnterAlternateScreen};
+use vtenc::Encode;
 
 let mut buf = [0u8; 64];
 
@@ -73,8 +73,8 @@ let len = ClearAll.encode(&mut buf)?;
 ### Cursor Control
 
 ```rust
-use vtcmd::cursor::{MoveTo, HideCursor, ShowCursor, SetCursorShape, CursorShape};
-use vtansi::Encode;
+use vtmsg::cursor::{MoveTo, HideCursor, ShowCursor, SetCursorShape, CursorShape};
+use vtenc::Encode;
 
 let mut buf = [0u8; 64];
 
@@ -94,8 +94,8 @@ let len = ShowCursor.encode(&mut buf)?;
 ### Terminal Queries
 
 ```rust
-use vtcmd::query::{RequestCursorPosition, RequestDeviceAttributes};
-use vtansi::Encode;
+use vtmsg::query::{RequestCursorPosition, RequestDeviceAttributes};
+use vtenc::Encode;
 
 let mut buf = [0u8; 64];
 
@@ -190,8 +190,8 @@ let len = RequestDeviceAttributes.encode(&mut buf)?;
 
 ## Design
 
-This crate uses the `Encode` trait pattern from `vtansi` for efficient, allocation-free
-rendering of terminal commands. All escape sequences are generated using the `vtansi`
+This crate uses the `Encode` trait pattern from `vtenc` for efficient, allocation-free
+rendering of terminal commands. All escape sequences are generated using the `vtenc`
 macros (`csi!`, `osc!`, `dcs!`) to ensure correctness and consistency.
 
 Commands are organized into modules by function, with commonly used types re-exported

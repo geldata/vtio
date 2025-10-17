@@ -1,10 +1,10 @@
 //! Terminal query commands.
 
-use vtansi::csi;
-use vtansi::dcs;
-use vtansi::{Encode, EncodeError, ConstEncode};
-use vtansi::osc;
-use vtansi::{write_csi};
+use vtenc::csi;
+use vtenc::dcs;
+use vtenc::osc;
+use vtenc::write_csi;
+use vtenc::{ConstEncode, Encode, EncodeError};
 
 /// Request cursor position report (CPR).
 pub struct RequestCursorPosition;
@@ -90,11 +90,11 @@ pub struct RequestFeature(pub Feature);
 
 impl Encode for RequestFeature {
     #[inline]
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         if self.0.is_ansi() {
-            write_csi!(buf, "{}$p", self.0 as u16)
+            write_csi!(buf; self.0 as u16, "$p")
         } else {
-            write_csi!(buf, "?{}$p", self.0 as u16)
+            write_csi!(buf; "?", self.0 as u16, "$p")
         }
     }
 }
