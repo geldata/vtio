@@ -1,7 +1,6 @@
 //! Cursor movement and control commands.
 
-use vtansi::encode::{ConstEncodedLen, Encode, EncodeError, ConstEncode};
-use vtansi::{csi, esc, write_csi};
+use vtansi::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, esc, write_csi};
 
 /// Move cursor to the specified position (1-indexed).
 pub struct MoveTo {

@@ -4,13 +4,7 @@ use std::hash::{Hash, Hasher};
 use bitflags::bitflags;
 use vt_push_parser::event::VTEvent;
 
-use crate::{
-    csi,
-    encode::{Encode, EncodeError, ConstEncode, write_str_into},
-};
-use vtansi::write_csi;
-
-
+use vtansi::{ConstEncode, Encode, EncodeError, csi, write_csi};
 
 /// Format terminal events in a terse, human-readable format for test
 /// output.
@@ -303,12 +297,7 @@ impl Encode for KeyEvent {
                     pos += 3;
                 } else {
                     // With modifiers: CSI 1;M <final>
-                    pos += write_csi!(
-                        &mut buf[pos..],
-                        "1;{}{}",
-                        mod_param,
-                        final_byte as char
-                    )?;
+                    pos += write_csi!(&mut buf[pos..], "1;{}{}", mod_param, final_byte as char)?;
                 }
             }
 
@@ -337,12 +326,7 @@ impl Encode for KeyEvent {
                         buf[pos + 2] = letter;
                         pos += 3;
                     } else {
-                        pos += write_csi!(
-                            &mut buf[pos..],
-                            "1;{}{}",
-                            mod_param,
-                            letter as char
-                        )?;
+                        pos += write_csi!(&mut buf[pos..], "1;{}{}", mod_param, letter as char)?;
                     }
                 } else {
                     let code = match n {
@@ -459,14 +443,7 @@ impl Encode for MouseEvent {
         let y = self.row + 1;
 
         // Generate SGR sequence: ESC[<btn;col;row(M|m)
-        write_csi!(
-            buf,
-            "<{};{};{}{}",
-            button_code,
-            x,
-            y,
-            final_char as char
-        )
+        write_csi!(buf, "<{};{};{}{}", button_code, x, y, final_char as char)
     }
 }
 
@@ -483,11 +460,7 @@ impl Encode for TerminalInputEvent<'_> {
             TerminalInputEvent::Paste(text) => {
                 let text_str =
                     core::str::from_utf8(text).map_err(|_| EncodeError::BufferOverflow(0))?;
-                let mut pos = 0;
-                pos += write_csi!(&mut buf[pos..], "200~")?;
-                pos += write_str_into(&mut buf[pos..], text_str)?;
-                pos += write_csi!(&mut buf[pos..], "201~")?;
-                Ok(pos)
+                write_csi!(buf, "200~{}201~", text_str)
             }
             #[cfg(unix)]
             TerminalInputEvent::CursorPosition(_, _)

@@ -2,7 +2,7 @@
 
 use vtansi::csi;
 use vtansi::dcs;
-use vtansi::encode::{Encode, EncodeError, ConstEncode};
+use vtansi::{Encode, EncodeError, ConstEncode};
 use vtansi::osc;
 use vtansi::{write_csi};
 

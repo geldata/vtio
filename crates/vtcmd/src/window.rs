@@ -1,6 +1,6 @@
 //! Window control commands.
 
-use vtansi::encode::{Encode, EncodeError};
+use vtansi::{Encode, EncodeError, Write};
 use vtansi::{write_csi, write_osc};
 
 /// Set terminal window title.
@@ -11,6 +11,12 @@ impl Encode for SetTitle<'_> {
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         // OSC 0 ; title ST
         write_osc!(buf, "0;{}", self.0)
+    }
+}
+
+impl Write for SetTitle<'_> {
+    fn write<W: std::io::Write>(&mut self, writer: &mut W) -> std::io::Result<usize> {
+        write_osc!(writer, "0;{}", self.0).map_err(Into::into)
     }
 }
 

@@ -1,8 +1,5 @@
 #![warn(clippy::pedantic)]
 
-pub use vtansi::encode::{self, Encode};
-pub use vtansi::{csi, osc};
-
 mod c0;
 mod char;
 mod csi;

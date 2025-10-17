@@ -1,7 +1,7 @@
 //! Screen control commands.
 
 use vtansi::csi;
-use vtansi::encode::{Encode, EncodeError, ConstEncode};
+use vtansi::{Encode, EncodeError, ConstEncode};
 use vtansi::write_csi;
 
 /// Scroll up by the specified number of lines.

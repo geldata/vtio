@@ -3,7 +3,7 @@
 #![warn(clippy::pedantic)]
 
 pub mod encode;
-pub use encode::{ConstEncodedLen, Encode, ConstEncode};
+pub use encode::{ConstEncodedLen, Encode, EncodeError, ConstEncode, Write};
 
 /// Format a string while prepending a ANSI control sequence introducer
 /// (`"\x1b["`).

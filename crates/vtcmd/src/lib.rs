@@ -173,7 +173,7 @@ mod tests {
         let result = ClearAll.encode(&mut buf);
         assert!(matches!(
             result,
-            Err(vtansi::encode::EncodeError::BufferOverflow(_))
+            Err(vtansi::EncodeError::BufferOverflow(_))
         ));
     }
 }
