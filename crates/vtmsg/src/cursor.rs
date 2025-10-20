@@ -1,6 +1,10 @@
 //! Cursor movement and control commands.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, esc, write_csi};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, write_csi};
+use crate::terminal_mode;
+
+terminal_mode!(CursorVisibility, 25);
+terminal_mode!(CursorBlinking, 12);
 
 /// Move cursor to the specified position (1-indexed).
 pub struct MoveTo {
@@ -126,32 +130,10 @@ impl Encode for MoveToColumn {
 }
 
 /// Hide the cursor.
-pub struct HideCursor;
-
-impl ConstEncode for HideCursor {
-    const STR: &'static str = csi!("?25l");
-}
+pub type HideCursor = DisableCursorVisibility;
 
 /// Show the cursor.
-pub struct ShowCursor;
-
-impl ConstEncode for ShowCursor {
-    const STR: &'static str = csi!("?25h");
-}
-
-/// Enable cursor blinking.
-pub struct EnableCursorBlinking;
-
-impl ConstEncode for EnableCursorBlinking {
-    const STR: &'static str = csi!("?12h");
-}
-
-/// Disable cursor blinking.
-pub struct DisableCursorBlinking;
-
-impl ConstEncode for DisableCursorBlinking {
-    const STR: &'static str = csi!("?12l");
-}
+pub type ShowCursor = EnableCursorVisibility;
 
 /// Cursor shape variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,6 +178,13 @@ impl Encode for SetCursorShape {
     }
 }
 
+/// Request cursor shape using DECRQSS.
+pub struct RequestCursorShape;
+
+impl ConstEncode for RequestCursorShape {
+    const STR: &'static str = dcs!("$q q");
+}
+
 /// Save cursor position (DECSC).
 pub struct SaveCursorPosition;
 
@@ -210,4 +199,29 @@ pub struct RestoreCursorPosition;
 impl ConstEncode for RestoreCursorPosition {
     // DECRC: ESC 8 (not a CSI sequence)
     const STR: &'static str = esc!("8");
+}
+
+/// Request cursor position report (CPR).
+pub struct RequestCursorPosition;
+
+impl ConstEncode for RequestCursorPosition {
+    const STR: &'static str = csi!("6n");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CursorPosition {
+    pub row: u16,
+    pub col: u16,
+}
+
+impl ConstEncodedLen for CursorPosition {
+    // CSI (2) + max u16 digits (5) + ";" (1) + max u16 digits (5) + "R" (1) = 14
+    const ENCODED_LEN: usize = 14;
+}
+
+impl Encode for CursorPosition {
+    #[inline]
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.row, ";", self.col, "R")
+    }
 }

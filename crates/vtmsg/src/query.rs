@@ -6,20 +6,6 @@ use vtenc::osc;
 use vtenc::write_csi;
 use vtenc::{ConstEncode, Encode, EncodeError};
 
-/// Request cursor position report (CPR).
-pub struct RequestCursorPosition;
-
-impl ConstEncode for RequestCursorPosition {
-    const STR: &'static str = csi!("6n");
-}
-
-/// Request terminal size (DECSLPP).
-pub struct RequestTerminalSize;
-
-impl ConstEncode for RequestTerminalSize {
-    const STR: &'static str = csi!("18t");
-}
-
 /// Request primary device attributes (DA1).
 pub struct RequestDeviceAttributes;
 
@@ -44,7 +30,7 @@ impl ConstEncode for RequestTertiaryDeviceAttributes {
 /// Feature report identifier for DECRQM (Request Mode).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
-pub enum Feature {
+pub (crate) enum Mode {
     /// Alternate screen buffer (1049).
     AltScreen = 1049,
     /// Bracketed paste mode (2004).
@@ -77,7 +63,7 @@ pub enum Feature {
     InsertMode = 4,
 }
 
-impl Feature {
+impl Mode {
     /// Check if this is an ANSI mode (vs DEC private mode).
     #[must_use]
     pub const fn is_ansi(self) -> bool {
@@ -86,9 +72,9 @@ impl Feature {
 }
 
 /// Request feature status using DECRQM (Request Mode).
-pub struct RequestFeature(pub Feature);
+pub(crate) struct RequestMode(pub(crate) Mode);
 
-impl Encode for RequestFeature {
+impl Encode for RequestMode {
     #[inline]
     fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         if self.0.is_ansi() {
@@ -113,30 +99,9 @@ impl ConstEncode for RequestDefaultBackground {
     const STR: &'static str = osc!("11;?");
 }
 
-/// Request cursor shape using DECRQSS.
-pub struct RequestCursorShape;
-
-impl ConstEncode for RequestCursorShape {
-    const STR: &'static str = dcs!("$q q");
-}
-
 /// Request text attributes (SGR) using DECRQSS.
 pub struct RequestTextAttributes;
 
 impl ConstEncode for RequestTextAttributes {
     const STR: &'static str = dcs!("$qm");
-}
-
-/// Request scrolling region (top/bottom) using DECRQSS.
-pub struct RequestScrollingRegion;
-
-impl ConstEncode for RequestScrollingRegion {
-    const STR: &'static str = dcs!("$qr");
-}
-
-/// Request scrolling region (left/right) using DECRQSS.
-pub struct RequestScrollingColumns;
-
-impl ConstEncode for RequestScrollingColumns {
-    const STR: &'static str = dcs!("$qs");
 }

@@ -32,11 +32,13 @@
 
 #![warn(clippy::pedantic)]
 
+pub mod buffer;
 pub mod clear;
 pub mod cursor;
+pub mod mouse;
+pub mod keyboard;
 pub mod mode;
 pub mod query;
-pub mod screen;
 pub mod window;
 
 // Re-export commonly used types at the crate root
@@ -46,7 +48,8 @@ pub use clear::{
 pub use cursor::{
     CursorShape, DisableCursorBlinking, EnableCursorBlinking, HideCursor, MoveDown, MoveLeft,
     MoveRight, MoveTo, MoveToColumn, MoveToNextLine, MoveToPreviousLine, MoveUp,
-    RestoreCursorPosition, SaveCursorPosition, SetCursorShape, ShowCursor,
+    RequestCursorPosition, RequestCursorShape, RestoreCursorPosition, SaveCursorPosition,
+    SetCursorShape, ShowCursor,
 };
 pub use mode::{
     BeginSynchronizedUpdate, DisableApplicationKeypad, DisableBracketedPaste,
@@ -54,16 +57,14 @@ pub use mode::{
     EndSynchronizedUpdate,
 };
 pub use query::{
-    Feature, RequestCursorPosition, RequestCursorShape, RequestDefaultBackground,
-    RequestDefaultForeground, RequestDeviceAttributes, RequestFeature, RequestScrollingColumns,
-    RequestScrollingRegion, RequestSecondaryDeviceAttributes, RequestTerminalSize,
-    RequestTertiaryDeviceAttributes, RequestTextAttributes,
+    RequestDefaultBackground, RequestDefaultForeground, RequestDeviceAttributes,
+    RequestSecondaryDeviceAttributes, RequestTertiaryDeviceAttributes, RequestTextAttributes,
 };
-pub use screen::{
-    DisableLineWrap, EnableLineWrap, EnterAlternateScreen, LeaveAlternateScreen, ScrollDown,
-    ScrollUp,
+pub use buffer::{
+    DisableLineWrap, EnableLineWrap, EnterAlternateScreen, LeaveAlternateScreen,
+    RequestScrollingColumns, RequestScrollingRegion, ScrollDown, ScrollUp,
 };
-pub use window::{SetSize, SetTitle};
+pub use window::{RequestTerminalSize, SetSize, SetTitle};
 
 #[cfg(test)]
 mod tests {

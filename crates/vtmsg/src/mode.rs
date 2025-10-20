@@ -1,24 +1,31 @@
 //! Mode control commands.
 
-use vtenc::csi;
-use vtenc::encode::ConstEncode;
-use vtenc::esc;
+use bitflags::bitflags;
 
-/// Enable bracketed paste mode.
+use vtenc::{ConstEncode, Encode, EncodeError, csi, esc, write_csi};
+
+/// A command that enables [bracketed paste mode](https://en.wikipedia.org/wiki/Bracketed-paste).
+///
+/// The [`DisableBracketedPaste`] command does the inverse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableBracketedPaste;
 
 impl ConstEncode for EnableBracketedPaste {
     const STR: &'static str = csi!("?2004h");
 }
 
-/// Disable bracketed paste mode.
+/// A command that disables bracketed paste mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableBracketedPaste;
 
 impl ConstEncode for DisableBracketedPaste {
     const STR: &'static str = csi!("?2004l");
 }
 
-/// Enable focus reporting.
+/// A command that enables focus event emission.
+///
+/// The [`DisableFocusRecording`] command does the inverse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableFocusReporting;
 
 impl ConstEncode for EnableFocusReporting {
@@ -26,6 +33,7 @@ impl ConstEncode for EnableFocusReporting {
 }
 
 /// Disable focus reporting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableFocusReporting;
 
 impl ConstEncode for DisableFocusReporting {
@@ -33,6 +41,7 @@ impl ConstEncode for DisableFocusReporting {
 }
 
 /// Enable application keypad mode (DECKPAM).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnableApplicationKeypad;
 
 impl ConstEncode for EnableApplicationKeypad {
@@ -40,22 +49,144 @@ impl ConstEncode for EnableApplicationKeypad {
 }
 
 /// Disable application keypad mode (DECKPNM).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisableApplicationKeypad;
 
 impl ConstEncode for DisableApplicationKeypad {
     const STR: &'static str = esc!(">");
 }
 
-/// Begin synchronized update.
+/// A command that instructs the terminal emulator to begin a
+/// [synchronized update block](https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BeginSynchronizedUpdate;
 
 impl ConstEncode for BeginSynchronizedUpdate {
     const STR: &'static str = csi!("?2026h");
 }
 
-/// End synchronized update.
+/// End synchronized update block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EndSynchronizedUpdate;
 
 impl ConstEncode for EndSynchronizedUpdate {
     const STR: &'static str = csi!("?2026l");
+}
+
+/// A command that enables mouse event capture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnableMouseCapture;
+
+impl ConstEncode for EnableMouseCapture {
+    const STR: &'static str = concat!(
+        // Normal tracking: Send mouse X & Y on button press and release
+        csi!("?1000h"),
+        // Button-event tracking: Report button motion events (dragging)
+        csi!("?1002h"),
+        // Any-event tracking: Report all motion events
+        csi!("?1003h"),
+        // RXVT mouse mode: Allows mouse coordinates of >223
+        csi!("?1015h"),
+        // SGR mouse mode: Allows mouse coordinates of >223, preferred over RXVT mode
+        csi!("?1006h"),
+    );
+}
+
+/// A command that disables mouse event capture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DisableMouseCapture;
+
+impl ConstEncode for DisableMouseCapture {
+    const STR: &'static str = concat!(
+        // The inverse commands of EnableMouseCapture, in reverse order.
+        csi!("?1006l"),
+        csi!("?1015l"),
+        csi!("?1003l"),
+        csi!("?1002l"),
+        csi!("?1000l"),
+    );
+}
+
+/// Generate terminal mode control structures (enable, disable, request,
+/// response).
+#[macro_export]
+macro_rules! terminal_mode {
+    // Variant with custom documentation
+    ($(#[doc = $doc:expr])+ $name:ident, $code:literal) => {
+        ::paste::paste! {
+            $(#[doc = $doc])+
+            #[doc = ""]
+            #[doc = "Enable the mode."]
+            pub struct [<Enable $name>];
+
+            impl ConstEncode for [<Enable $name>] {
+                const STR: &'static str = csi!("?", stringify!($code), "h");
+            }
+
+            $(#[doc = $doc])+
+            #[doc = ""]
+            #[doc = "Disable the mode."]
+            pub struct [<Disable $name>];
+
+            impl ConstEncode for [<Disable $name>] {
+                const STR: &'static str = csi!("?", stringify!($code), "l");
+            }
+
+            $(#[doc = $doc])+
+            #[doc = ""]
+            #[doc = "Request the mode status."]
+            pub struct [<Request $name>];
+
+            impl ConstEncode for [<Request $name>] {
+                const STR: &'static str = csi!("?", stringify!($code), "$p");
+            }
+
+            $(#[doc = $doc])+
+            #[doc = ""]
+            #[doc = "Mode status response."]
+            pub struct $name(pub bool);
+
+            impl Encode for $name {
+                #[inline]
+                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+                    write_csi!(buf; "?", stringify!($code), ";", u8::from(self.0), "$y")
+                }
+            }
+        }
+    };
+    // Variant without custom documentation
+    ($name:ident, $code:literal) => {
+        ::paste::paste! {
+            /// Enable the mode.
+            pub struct [<Enable $name>];
+
+            impl ConstEncode for [<Enable $name>] {
+                const STR: &'static str = csi!("?", stringify!($code), "h");
+            }
+
+            /// Disable the mode.
+            pub struct [<Disable $name>];
+
+            impl ConstEncode for [<Disable $name>] {
+                const STR: &'static str = csi!("?", stringify!($code), "l");
+            }
+
+            /// Request the mode status.
+            pub struct [<Request $name>];
+
+            impl ConstEncode for [<Request $name>] {
+                const STR: &'static str = csi!("?", stringify!($code), "$p");
+            }
+
+            /// Mode status response.
+            pub struct $name(pub bool);
+
+            impl Encode for $name {
+                #[inline]
+                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+                    write_csi!(buf; "?", stringify!($code), ";", u8::from(self.0), "$y")
+                }
+            }
+        }
+    };
 }

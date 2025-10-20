@@ -8,8 +8,16 @@ readme = "README.md"
 [lib]
 bench = false
 
+[features]
+#! ### Optional Features
+## Enables [`serde`] for various types.
+serde = ["dep:serde", "bitflags/serde"]
+
 [dependencies]
+bitflags = { version = "2.9" }
 vtenc = { path = "../vtenc" }
+serde = { version = "1.0", features = ["derive"], optional = true }
+paste = "1.0"
 
 [dev-dependencies]
 vtinput = { path = "../vtinput" }

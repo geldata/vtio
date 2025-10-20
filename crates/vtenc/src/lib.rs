@@ -8,17 +8,15 @@ pub use encode::write_int;
 pub use encode::write_str_into;
 pub use encode::{ConstEncode, ConstEncodedLen, Encode, EncodeError, WriteSeq};
 
-/// Format a string while prepending a ANSI control sequence introducer
-/// (`"\x1b["`).
+/// Concatenate string literals while prepending a ANSI control sequence
+/// introducer (`"\x1b["`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! csi {
-    ($fmt:literal) => { concat!("\x1B[", $fmt) };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1B[", $fmt), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1B[", $($arg),+)
     };
 }
 
@@ -46,17 +44,16 @@ macro_rules! write_csi {
     }};
 }
 
-/// Format a string while prepending a xterm Operating System Commands (OSC)
-/// introducer (`"\x1b]"`) and appending a string terminator (`"\x1b\\"`).
+/// Concatenate string literals while prepending a xterm Operating System
+/// Commands (OSC) introducer (`"\x1b]"`) and appending a string terminator
+/// (`"\x1b\\"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! osc {
-    ($fmt:literal) => { concat!("\x1B]", $fmt, "\x1B\\") };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1B]", $fmt, "\x1B\\"), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1B]", $($arg),+, "\x1B\\")
     };
 }
 
@@ -83,17 +80,15 @@ macro_rules! write_osc {
     }};
 }
 
-/// Format a string while prepending a Single Shift 2 (SS2) introducer
-/// (`"\x1bN"`).
+/// Concatenate string literals while prepending a Single Shift 2 (SS2)
+/// introducer (`"\x1bN"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! ss2 {
-    ($fmt:literal) => { concat!("\x1BN", $fmt) };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1BN", $fmt), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1BN", $($arg),+)
     };
 }
 
@@ -113,17 +108,15 @@ macro_rules! write_ss2 {
     }};
 }
 
-/// Format a string while prepending a Single Shift 3 (SS3) introducer
-/// (`"\x1bO"`).
+/// Concatenate string literals while prepending a Single Shift 3 (SS3)
+/// introducer (`"\x1bO"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! ss3 {
-    ($fmt:literal) => { concat!("\x1BO", $fmt) };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1BO", $fmt), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1BO", $($arg),+)
     };
 }
 
@@ -143,17 +136,15 @@ macro_rules! write_ss3 {
     }};
 }
 
-/// Format a string while prepending a Device Control String (DCS)
+/// Concatenate string literals while prepending a Device Control String (DCS)
 /// introducer (`"\x1bP"`) and appending a string terminator (`"\x1b\\"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! dcs {
-    ($fmt:literal) => { concat!("\x1BP", $fmt, "\x1B\\") };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1BP", $fmt, "\x1B\\"), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1BP", $($arg),+, "\x1B\\")
     };
 }
 
@@ -174,17 +165,15 @@ macro_rules! write_dcs {
     }};
 }
 
-/// Format a string while prepending a Privacy Message (PM) introducer
-/// (`"\x1b^"`) and appending a string terminator (`"\x1b\\"`).
+/// Concatenate string literals while prepending a Privacy Message (PM)
+/// introducer (`"\x1b^"`) and appending a string terminator (`"\x1b\\"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! pm {
-    ($fmt:literal) => { concat!("\x1B^", $fmt, "\x1B\\") };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1B^", $fmt, "\x1B\\"), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1B^", $($arg),+, "\x1B\\")
     };
 }
 
@@ -205,17 +194,16 @@ macro_rules! write_pm {
     }};
 }
 
-/// Format a string while prepending an Application Program Command (APC)
-/// introducer (`"\x1b_"`) and appending a string terminator (`"\x1b\\"`).
+/// Concatenate string literals while prepending an Application Program
+/// Command (APC) introducer (`"\x1b_"`) and appending a string terminator
+/// (`"\x1b\\"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! apc {
-    ($fmt:literal) => { concat!("\x1B_", $fmt, "\x1B\\") };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1B_", $fmt, "\x1B\\"), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1B_", $($arg),+, "\x1B\\")
     };
 }
 
@@ -236,16 +224,15 @@ macro_rules! write_apc {
     }};
 }
 
-/// Format a string while prepending an escape character (`"\x1b"`).
+/// Concatenate string literals while prepending an escape character
+/// (`"\x1b"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! esc {
-    ($fmt:literal) => { concat!("\x1B", $fmt) };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1B", $fmt), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1B", $($arg),+)
     };
 }
 
@@ -265,17 +252,15 @@ macro_rules! write_esc {
     }};
 }
 
-/// Format a string while prepending an escape character (`"\x1b"`) and
-/// appending a string terminator (`"\x1b\\"`).
+/// Concatenate string literals while prepending an escape character
+/// (`"\x1b"`) and appending a string terminator (`"\x1b\\"`).
 ///
-/// When called with only a string literal, this uses `concat!` for
-/// compile-time efficiency. When called with format arguments, this uses
-/// `format!` for runtime formatting.
+/// All arguments must be string literals that can be concatenated at
+/// compile-time using `concat!`.
 #[macro_export]
 macro_rules! escst {
-    ($fmt:literal) => { concat!("\x1B", $fmt, "\x1B\\") };
-    ($fmt:literal, $($args:expr),+ $(,)?) => {
-        format!(concat!("\x1B", $fmt, "\x1B\\"), $($args),+)
+    ($($arg:expr),+ $(,)?) => {
+        concat!("\x1B", $($arg),+, "\x1B\\")
     };
 }
 

@@ -1,7 +1,6 @@
 //! Window control commands.
 
-use vtenc::{Encode, EncodeError};
-use vtenc::{write_csi, write_osc};
+use vtenc::{ConstEncode, Encode, EncodeError, csi, write_csi, write_osc};
 
 /// Set terminal window title.
 pub struct SetTitle<'a>(pub &'a str);
@@ -25,4 +24,11 @@ impl Encode for SetSize {
     fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "8;", self.rows, ";", self.cols, "t")
     }
+}
+
+/// Request terminal size (DECSLPP).
+pub struct RequestTerminalSize;
+
+impl ConstEncode for RequestTerminalSize {
+    const STR: &'static str = csi!("18t");
 }

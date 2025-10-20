@@ -282,6 +282,20 @@ impl WriteSeq for &char {
     }
 }
 
+impl WriteSeq for bool {
+    #[inline]
+    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+        write_str_into(sink, if *self {"1"} else {"0"})
+    }
+}
+
+impl WriteSeq for &bool {
+    #[inline]
+    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+        write_str_into(sink, if **self {"1"} else {"0"})
+    }
+}
+
 #[derive(Debug)]
 pub enum EncodeError {
     BufferOverflow(usize),

@@ -1,8 +1,6 @@
-//! Screen control commands.
+//! Buffer control/information messages.
 
-use vtenc::csi;
-use vtenc::write_csi;
-use vtenc::{ConstEncode, Encode, EncodeError};
+use vtenc::{ConstEncode, Encode, EncodeError, csi, dcs, write_csi};
 
 /// Scroll up by the specified number of lines.
 pub struct ScrollUp(pub u16);
@@ -50,4 +48,18 @@ pub struct LeaveAlternateScreen;
 
 impl ConstEncode for LeaveAlternateScreen {
     const STR: &'static str = csi!("?1049l");
+}
+
+/// Request scrolling region (top/bottom) using DECRQSS.
+pub struct RequestScrollingRegion;
+
+impl ConstEncode for RequestScrollingRegion {
+    const STR: &'static str = dcs!("$qr");
+}
+
+/// Request scrolling region (left/right) using DECRQSS.
+pub struct RequestScrollingColumns;
+
+impl ConstEncode for RequestScrollingColumns {
+    const STR: &'static str = dcs!("$qs");
 }
