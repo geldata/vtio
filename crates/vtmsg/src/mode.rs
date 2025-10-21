@@ -85,8 +85,8 @@ macro_rules! terminal_mode {
             #[doc = "Enable the mode."]
             pub struct [<Enable $name>];
 
-            impl ConstEncode for [<Enable $name>] {
-                const STR: &'static str = csi!("?", stringify!($code), "h");
+            impl vtenc::ConstEncode for [<Enable $name>] {
+                const STR: &'static str = vtenc::csi!("?", stringify!($code), "h");
             }
 
             $(#[doc = $doc])+
@@ -94,8 +94,8 @@ macro_rules! terminal_mode {
             #[doc = "Disable the mode."]
             pub struct [<Disable $name>];
 
-            impl ConstEncode for [<Disable $name>] {
-                const STR: &'static str = csi!("?", stringify!($code), "l");
+            impl vtenc::ConstEncode for [<Disable $name>] {
+                const STR: &'static str = vtenc::csi!("?", stringify!($code), "l");
             }
 
             $(#[doc = $doc])+
@@ -103,8 +103,8 @@ macro_rules! terminal_mode {
             #[doc = "Request the mode status."]
             pub struct [<Request $name>];
 
-            impl ConstEncode for [<Request $name>] {
-                const STR: &'static str = csi!("?", stringify!($code), "$p");
+            impl vtenc::ConstEncode for [<Request $name>] {
+                const STR: &'static str = vtenc::csi!("?", stringify!($code), "$p");
             }
 
             $(#[doc = $doc])+
@@ -112,10 +112,10 @@ macro_rules! terminal_mode {
             #[doc = "Mode status response."]
             pub struct $name(pub bool);
 
-            impl Encode for $name {
+            impl vtenc::Encode for $name {
                 #[inline]
-                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-                    write_csi!(buf; "?", stringify!($code), ";", u8::from(self.0), "$y")
+                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, vtenc::EncodeError> {
+                    vtenc::write_csi!(buf; "?", stringify!($code), ";", u8::from(self.0), "$y")
                 }
             }
         }
@@ -149,7 +149,7 @@ macro_rules! terminal_mode {
 
             impl Encode for $name {
                 #[inline]
-                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, vtenc::EncodeError> {
                     write_csi!(buf; "?", stringify!($code), ";", u8::from(self.0), "$y")
                 }
             }

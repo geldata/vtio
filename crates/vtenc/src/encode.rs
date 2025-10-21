@@ -285,14 +285,14 @@ impl WriteSeq for &char {
 impl WriteSeq for bool {
     #[inline]
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_str_into(sink, if *self {"1"} else {"0"})
+        write_str_into(sink, if *self { "1" } else { "0" })
     }
 }
 
 impl WriteSeq for &bool {
     #[inline]
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_str_into(sink, if **self {"1"} else {"0"})
+        write_str_into(sink, if **self { "1" } else { "0" })
     }
 }
 
@@ -377,6 +377,10 @@ pub trait ConstEncode {
     const STR: &'static str;
 }
 
+impl<T: ConstEncode> ConstEncodedLen for T {
+    const ENCODED_LEN: usize = Self::STR.len();
+}
+
 impl<T: ConstEncode> Encode for T {
     #[inline]
     fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
@@ -401,6 +405,45 @@ pub trait Encode {
     fn encode_into_slice(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         self.encode(&mut &mut buf[..])
     }
+}
+
+/// Define a composite const encodeable that combines multiple encodeables.
+#[macro_export]
+macro_rules! const_composite {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident = [
+            $($command:path),* $(,)?
+        ];
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        $vis struct $name;
+
+        impl $crate::encode::ConstEncodedLen for $name {
+            const ENCODED_LEN: usize = 0 $(+ <$command>::ENCODED_LEN)*;
+        }
+
+        impl $crate::encode::Encode for $name {
+            #[inline]
+            fn encode<W: std::io::Write>(
+                &mut self,
+                buf: &mut W
+            ) -> Result<usize, $crate::encode::EncodeError> {
+                // Use a stack-allocated buffer for const-length commands
+                let mut stack_buf = [0u8; <Self as $crate::encode::ConstEncodedLen>::ENCODED_LEN];
+                let mut offset = 0;
+
+                $(
+                    offset += $command.encode(&mut &mut stack_buf[offset..])?;
+                )*
+
+                buf.write_all(&stack_buf[..offset])
+                    .map_err($crate::encode::EncodeError::IOError)?;
+                Ok(offset)
+            }
+        }
+    };
 }
 
 #[cfg(test)]
