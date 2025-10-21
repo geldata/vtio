@@ -47,12 +47,6 @@ terminal_mode!(
 );
 
 terminal_mode!(
-    #[doc = "Slow scrolling mode (`DECCSLM`)."]
-    SlowScrollingMode,
-    "?4"
-);
-
-terminal_mode!(
     #[doc = "Reverse display colors (`DECSCNM`)."]
     ReverseDisplayColorsMode,
     "?5"

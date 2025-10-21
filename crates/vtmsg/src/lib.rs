@@ -32,7 +32,6 @@
 
 #![warn(clippy::pedantic)]
 
-pub mod buffer;
 pub mod charset;
 pub mod clear;
 pub mod cursor;
@@ -40,6 +39,7 @@ pub mod mouse;
 pub mod keyboard;
 pub mod terminal;
 pub mod mode;
+pub mod scroll;
 pub mod window;
 
 #[cfg(test)]
