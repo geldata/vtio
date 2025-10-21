@@ -5,150 +5,161 @@ use vtenc::{ConstEncode, csi, dcs, esc, osc};
 use crate::terminal_mode;
 
 terminal_mode!(
-    #[doc = "Insert mode (`IRM`)."]
+    /// Insert mode (`IRM`).
     InsertMode,
     "4"
 );
 
 terminal_mode!(
-    #[doc = "Echo mode."]
+    /// Echo mode.
     EchoMode,
     "12"
 );
 
 terminal_mode!(
-    #[doc = "Linefeed mode."]
+    /// Linefeed mode.
     LinefeedMode,
     "20"
 );
 
 terminal_mode!(
-    #[doc = "VT52 mode (`DECANM`)."]
+    /// VT52 mode (`DECANM`).
     VT52Mode,
     "?2"
 );
 
 terminal_mode!(
-    #[doc = "132 column mode (`DECCOLM`)."]
+    /// 132 column mode (`DECCOLM`).
     HundredThirtyTwoColumnMode,
     "?3"
 );
 
 terminal_mode!(
-    #[doc = "Enable support for 132 column mode (`132COLS`)."]
+    /// Enable support for 132 column mode (`132COLS`).
     EnableSupportForHundredThirtyTwoColumnMode,
     "?40"
 );
 
 terminal_mode!(
-    #[doc = "Do not clear screen on 132 column mode change (`DECNCSM`)."]
+    /// Do not clear screen on 132 column mode change (`DECNCSM`).
     KeepScreenOnHundredThirtyTwoColumnChangeMode,
     "?95"
 );
 
 terminal_mode!(
-    #[doc = "Reverse display colors (`DECSCNM`)."]
+    /// Reverse display colors (`DECSCNM`).
     ReverseDisplayColorsMode,
     "?5"
 );
 
 terminal_mode!(
-    #[doc = "Wraparound mode (`DECAWM`)."]
+    /// Wraparound mode (`DECAWM`).
     LineWraparoundMode,
     "?7"
 );
 
 terminal_mode!(
-    #[doc = "Scrollbar visibility (`RXVT_SCROLLBAR`)."]
+    /// Scrollbar visibility (`RXVT_SCROLLBAR`).
     ScrollbarVisibilityMode,
     "?30"
 );
 
 terminal_mode!(
-    #[doc = "Alternate screen buffer (ALTBUF). \
-            Switch to alternate screen buffer."]
+    /// Alternate screen buffer (ALTBUF).
+    ///
+    /// Switch to alternate screen buffer.
     AlternateScreenBasicMode,
     "?47"
 );
 
 terminal_mode!(
-    #[doc = "Alternate screen buffer with clear on exit."]
+    /// Alternate screen buffer with clear on exit.
     AlternateScreenClearOnExitMode,
     "?1047"
 );
 
 terminal_mode!(
-    #[doc = "Send Cursor Keys on Mouse Wheel on Alternate Screen. \n\n\
-            When the alternate screen is active and the mouse wheel \
-            is used send arrow up and down. \n\n\
-            The number of arrow up or arrow down sequences that are \
-            transmitted is implementation defined."]
+    /// Send Cursor Keys on Mouse Wheel on Alternate Screen.
+    ///
+    /// When the alternate screen is active and the mouse wheel
+    /// is used send arrow up and down.
+    ///
+    /// The number of arrow up or arrow down sequences that are
+    /// transmitted is implementation defined.
     CursorKeysOnMouseWheelOnAlternateScreenMode,
     "?1007"
 );
 
 terminal_mode!(
-    #[doc = "Alternate screen."]
+    /// Alternate screen.
     AlternateScreenMode,
     "?1049"
 );
 
 terminal_mode!(
-    #[doc = "Focus monitoring."]
+    /// Focus monitoring.
     ReportFocusChangeMode,
     "?1004"
 );
 
 terminal_mode!(
-    #[doc = "Inhibit Scroll on Application Output.\n\n\
-            Disable automatic scroll to bottom when the application \
-            outputs a printable character."]
+    /// Inhibit Scroll on Application Output.
+    ///
+    /// Disable automatic scroll to bottom when the application
+    /// outputs a printable character.
     InhibitScrollOnApplicationOutputMode,
     "?1010"
 );
 
 terminal_mode!(
-    #[doc = "Scroll on Keyboard Input.\n\n\
-            If set scrolls to the bottom on every keypress."]
+    /// Scroll on Keyboard Input.
+    ///
+    /// If set scrolls to the bottom on every keypress.
     ScrollOnKeyboardInputMode,
     "?1011"
 );
 
 terminal_mode!(
-    #[doc = "Bold/Blinking cells are also bright.\n\n\
-            If a cell is rendered in bold, and it's foreground color is one \
-            of the 8 'named' dark colors force that cell's foreground to be \
-            its corresponding bright named color.\n\n\
-            If a cell is rendered as blinking, and it's background color is \
-            one of the 8 'named' dark colors force that cell's background \
-            to be its corresponding bright named color."]
+    /// Bold/Blinking cells are also bright.
+    ///
+    /// If a cell is rendered in bold, and it's foreground color is one
+    /// of the 8 'named' dark colors force that cell's foreground to be
+    /// its corresponding bright named color.
+    ///
+    /// If a cell is rendered as blinking, and it's background color is
+    /// one of the 8 'named' dark colors force that cell's background
+    /// to be its corresponding bright named color.
     BoldBlinkingBrightMode,
     "?1021"
 );
 
 terminal_mode!(
-    #[doc = "Bracketed Paste Mode.\n\n\
-            Bracket clipboard paste contents in delimiter sequences.\n\n\
-            When pasting from the (e.g. system) clipboard add `ESC[200~`
-            before the clipboard contents and `ESC[201~` after the
-            clipboard contents. This allows applications to distinguish
-            clipboard contents from manually typed text."]
+    /// Bracketed Paste Mode.
+    ///
+    /// Bracket clipboard paste contents in delimiter sequences.
+    ///
+    /// When pasting from the (e.g. system) clipboard add `ESC[200~`
+    /// before the clipboard contents and `ESC[201~` after the
+    /// clipboard contents. This allows applications to distinguish
+    /// clipboard contents from manually typed text.
     BracketedPasteMode,
     "?2004"
 );
 
 terminal_mode!(
-    #[doc = "Synchronized update mode.\n\n\
-            When the synchronization mode is enabled following render calls \
-            will keep rendering the last rendered state. The terminal \
-            keeps processing incoming text and sequences. When the \
-            synchronized update mode is disabled again the renderer may fetch \
-            the latest screen buffer state again, effectively avoiding the \
-            tearing effect by unintentionally rendering in the middle a of \
-            an application screen update. \n\n\
-            See <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec> \
-            for more details and <https://terminalguide.namepad.de/mode/p2026/> \
-            for terminal support specifics."]
+    /// Synchronized update mode.
+    ///
+    /// When the synchronization mode is enabled following render calls
+    /// will keep rendering the last rendered state. The terminal
+    /// keeps processing incoming text and sequences. When the
+    /// synchronized update mode is disabled again the renderer may fetch
+    /// the latest screen buffer state again, effectively avoiding the
+    /// tearing effect by unintentionally rendering in the middle a of
+    /// an application screen update.
+    ///
+    /// See <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec>
+    /// for more details and <https://terminalguide.namepad.de/mode/p2026/>
+    /// for terminal support specifics.
     SynchronizedUpdateMode,
     "?2006"
 );

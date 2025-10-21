@@ -1,4 +1,4 @@
-//! Mode control commands.
+//! Helper macros.
 
 /// Generate terminal mode control structures (enable, disable, request,
 /// response).

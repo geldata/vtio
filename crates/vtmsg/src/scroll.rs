@@ -61,20 +61,19 @@ use crate::terminal_mode;
 use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, dcs, write_csi};
 
 terminal_mode!(
-    #[doc = "Smooth Scroll Mode (`DECSCLM`).\n\
-             \n\
-             Control whether scrolling operations use smooth scrolling or \
-             jump scrolling.\n\
-             \n\
-             When set, smooth scroll is enabled. The terminal adds lines to \
-             the screen gradually at a fixed rate.\n\
-             \n\
-             When reset, jump scroll is enabled. The terminal adds lines to \
-             the screen as fast as possible.\n\
-             \n\
-             See <https://terminalguide.namepad.de/mode/p4/> and \
-             <https://vt100.net/docs/vt102-ug/chapter5.html> for terminal \
-             support specifics."]
+    /// Smooth Scroll Mode (`DECSCLM`).
+    ///
+    /// Control whether scrolling operations use smooth scrolling or
+    /// jump scrolling.
+    ///
+    /// When set, smooth scroll is enabled. The terminal adds lines to
+    /// the screen gradually at a fixed rate.
+    ///
+    /// When reset, jump scroll is enabled. The terminal adds lines to
+    /// the screen as fast as possible.
+    ///
+    /// See <https://terminalguide.namepad.de/mode/p4/> for terminal
+    /// support specifics.
     SmoothScrollMode,
     "?4"
 );

@@ -33,13 +33,13 @@
 #![warn(clippy::pedantic)]
 
 pub mod charset;
-pub mod clear;
 pub mod cursor;
-pub mod mouse;
 pub mod keyboard;
-pub mod terminal;
-pub mod mode;
+pub mod macros;
+pub mod mouse;
+pub mod screen;
 pub mod scroll;
+pub mod terminal;
 pub mod window;
 
 #[cfg(test)]
