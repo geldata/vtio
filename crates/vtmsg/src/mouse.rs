@@ -1,37 +1,64 @@
 //! Mouse mode control commands.
 
-use vtenc::const_composite;
 use crate::terminal_mode;
+use vtenc::const_composite;
+
+//
+// Mouse event modes (mutually exclusive).
+//
 
 terminal_mode!(
-    #[doc = "Normal mouse tracking (send X & Y on button press/release)."]
-    MouseTracking,
-    1000
+    #[doc = "Mouse click only tracking. Send mouse button press for left, middle, and right mouse buttons."]
+    MouseX10Mode,
+    "?9"
+);
+
+terminal_mode!(
+    #[doc = "Mouse down+up+scroll tracking (button down+up and scroll events)."]
+    MouseDownUpTrackingMode,
+    "?1000"
+);
+
+terminal_mode!(
+    #[doc = "Mouse highlight mode (xterm-only)."]
+    MouseHighlightMode,
+    "?1001"
 );
 
 terminal_mode!(
     #[doc = "Button-event tracking (report button motion/dragging)."]
-    MouseButtonEventTracking,
-    1002
+    MouseClickAndDragTrackingMode,
+    "?1002"
 );
 
 terminal_mode!(
     #[doc = "Any-event tracking (report all motion events)."]
-    MouseAnyEventTracking,
-    1003
+    MouseAnyEventTrackingMode,
+    "?1003"
 );
 
+//
+// Mouse reporting format modes (mutually exclusive).
+//
+
 terminal_mode!(
-    #[doc = "RXVT mouse mode (extended coordinates >223, less preferred)."]
-    MouseRxvtMode,
-    1015
+    #[doc = "Mouse report format multibyte mode"]
+    MouseReportMultibyteMode,
+    "?1005"
 );
 
 terminal_mode!(
     #[doc = "SGR mouse mode (extended coordinates >223, preferred)."]
-    MouseSgrMode,
-    1006
+    MouseReportSgrMode,
+    "?1006"
 );
+
+terminal_mode!(
+    #[doc = "RXVT mouse mode (extended coordinates >223, less preferred)."]
+    MouseReportRxvtMode,
+    "?1015"
+);
+
 
 const_composite! {
     /// A command that enables mouse event capture.
@@ -39,11 +66,11 @@ const_composite! {
     /// This command enables all mouse tracking modes and coordinate encoding
     /// formats for comprehensive mouse support.
     pub struct EnableMouseCapture = [
-        EnableMouseTracking,
-        EnableMouseButtonEventTracking,
-        EnableMouseAnyEventTracking,
-        EnableMouseRxvtMode,
-        EnableMouseSgrMode,
+        EnableMouseDownUpTrackingMode,
+        EnableMouseClickAndDragTrackingMode,
+        EnableMouseAnyEventTrackingMode,
+        EnableMouseReportRxvtMode,
+        EnableMouseReportSgrMode,
     ];
 }
 
@@ -53,10 +80,10 @@ const_composite! {
     /// This command disables all mouse tracking modes and coordinate encoding
     /// formats. The modes are disabled in reverse order of enablement.
     pub struct DisableMouseCapture = [
-        DisableMouseSgrMode,
-        DisableMouseRxvtMode,
-        DisableMouseAnyEventTracking,
-        DisableMouseButtonEventTracking,
-        DisableMouseTracking,
+        DisableMouseReportSgrMode,
+        DisableMouseReportRxvtMode,
+        DisableMouseAnyEventTrackingMode,
+        DisableMouseClickAndDragTrackingMode,
+        DisableMouseDownUpTrackingMode,
     ];
 }

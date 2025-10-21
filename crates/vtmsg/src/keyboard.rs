@@ -1,8 +1,87 @@
 //! Keyboard-related messages.
 
 use bitflags::bitflags;
-
 use vtenc::{ConstEncode, Encode, EncodeError, csi, esc, write_csi};
+
+use crate::terminal_mode;
+
+terminal_mode!(
+    #[doc = "Disable keyboard input (KAM)."]
+    KeyboardInputDisabledMode,
+    "2"
+);
+
+terminal_mode!(
+    #[doc = "Cursor keys mode (DECCKM)."]
+    CursorKeysMode,
+    "?1"
+);
+
+terminal_mode!(
+    #[doc = "Repeat Held Keys. \
+            Repeat keys while being held down. If enabled a key held down \
+            automatically repeats in an implementation specific interval."]
+    HeldKeysRepeatMode,
+    "?8"
+);
+
+terminal_mode!(
+    #[doc = "Application Keypad Mode (DECNKM). \
+            This is a mirror of [`SetApplicationKeypadMode`]."]
+    ApplicationKeypadMode,
+    "?66"
+);
+
+terminal_mode!(
+    #[doc = "Backspace Sends Delete (DECBKM). \
+            When set the backspace key sends BS, when reset it sends DEL."]
+    BackspaceSendsDeleteMode,
+    "?67"
+);
+
+terminal_mode!(
+    #[doc = "Alt + Key Sends Character with High Bit Set. \
+            Use high bit to signal keypresses with alt modifier held.\n\n\
+            When reporting key presses use the high (eighth) bit to indicate \
+            alt modifier. (This will collide with non ASCII characters)"]
+    AltKeyHighBitSetMode,
+    "?1034"
+);
+
+terminal_mode!(
+    #[doc = "Ignore Keypad Application Mode When Numlock is Active. \
+            Use high bit to signal keypresses with alt modifier held.\n\n\
+            When reporting key presses use the high (eighth) bit to indicate \
+            alt modifier. (This will collide with non ASCII characters)"]
+    IgnoreKeypadApplicationModeOnNumlockMode,
+    "?1035"
+);
+
+terminal_mode!(
+    #[doc = "Alt + Key Sends Esc as Prefix.\n\n\
+            When this mode is active Alt + Key sends ESC + the key for \
+            printable inputs instead of forcing the 8th bit of the character \
+            to high."]
+    AltKeySendsEscPrefixMode,
+    "?1036"
+);
+
+terminal_mode!(
+    #[doc = "Delete Key sends DEL.\n\n\
+            If set use legacy DEL for the delete key instead of an \
+            escape sequence."]
+    DeleteKeySendsDELMode,
+    "?1037"
+);
+
+terminal_mode!(
+    #[doc = "Additional Modifier + Key Sends Esc as Prefix.\n\n\
+            This is similar to [`AltKeySendsEscPrefixMode`], but for \
+            an additionally configured modifier."]
+    AdditionalModifierKeySendsEscPrefix,
+    "?1039"
+);
+
 
 bitflags! {
     /// Represents special flags that tell compatible terminals to add extra information to keyboard events.
@@ -60,15 +139,17 @@ impl ConstEncode for PopKeyboardEnhancementFlags {
 }
 
 /// Enable application keypad mode (DECKPAM).
-pub struct EnableApplicationKeypad;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetApplicationKeypadMode;
 
-impl ConstEncode for EnableApplicationKeypad {
+impl ConstEncode for SetApplicationKeypadMode {
     const STR: &'static str = esc!("=");
 }
 
 /// Disable application keypad mode (DECKPNM).
-pub struct DisableApplicationKeypad;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResetApplicationKeypadMode;
 
-impl ConstEncode for DisableApplicationKeypad {
+impl ConstEncode for ResetApplicationKeypadMode {
     const STR: &'static str = esc!(">");
 }

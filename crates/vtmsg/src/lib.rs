@@ -33,39 +33,14 @@
 #![warn(clippy::pedantic)]
 
 pub mod buffer;
+pub mod charset;
 pub mod clear;
 pub mod cursor;
 pub mod mouse;
 pub mod keyboard;
+pub mod terminal;
 pub mod mode;
-pub mod query;
 pub mod window;
-
-// Re-export commonly used types at the crate root
-pub use clear::{
-    ClearAll, ClearFromCursorDown, ClearFromCursorUp, ClearLine, ClearScrollback, ClearUntilNewLine,
-};
-pub use cursor::{
-    CursorShape, DisableCursorBlinking, EnableCursorBlinking, HideCursor, MoveDown, MoveLeft,
-    MoveRight, MoveTo, MoveToColumn, MoveToNextLine, MoveToPreviousLine, MoveUp,
-    RequestCursorPosition, RequestCursorShape, RestoreCursorPosition, SaveCursorPosition,
-    SetCursorShape, ShowCursor,
-};
-pub use mode::{
-    BeginSynchronizedUpdate, DisableApplicationKeypad, DisableBracketedPaste,
-    DisableFocusReporting, EnableApplicationKeypad, EnableBracketedPaste,
-    EnableFocusReporting, EndSynchronizedUpdate,
-};
-pub use mouse::{DisableMouseCapture, EnableMouseCapture};
-pub use query::{
-    RequestDefaultBackground, RequestDefaultForeground, RequestDeviceAttributes,
-    RequestSecondaryDeviceAttributes, RequestTertiaryDeviceAttributes, RequestTextAttributes,
-};
-pub use buffer::{
-    DisableLineWrap, EnableLineWrap, EnterAlternateScreen, LeaveAlternateScreen,
-    RequestScrollingColumns, RequestScrollingRegion, ScrollDown, ScrollUp,
-};
-pub use window::{RequestTerminalSize, SetSize, SetTitle};
 
 #[cfg(test)]
 mod tests {
