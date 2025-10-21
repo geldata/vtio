@@ -1,8 +1,6 @@
 //! Mode control commands.
 
-use bitflags::bitflags;
-
-use vtenc::{ConstEncode, Encode, EncodeError, csi, esc, write_csi};
+use vtenc::{ConstEncode, csi, esc};
 
 /// A command that enables [bracketed paste mode](https://en.wikipedia.org/wiki/Bracketed-paste).
 ///
@@ -73,39 +71,7 @@ impl ConstEncode for EndSynchronizedUpdate {
     const STR: &'static str = csi!("?2026l");
 }
 
-/// A command that enables mouse event capture.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EnableMouseCapture;
 
-impl ConstEncode for EnableMouseCapture {
-    const STR: &'static str = concat!(
-        // Normal tracking: Send mouse X & Y on button press and release
-        csi!("?1000h"),
-        // Button-event tracking: Report button motion events (dragging)
-        csi!("?1002h"),
-        // Any-event tracking: Report all motion events
-        csi!("?1003h"),
-        // RXVT mouse mode: Allows mouse coordinates of >223
-        csi!("?1015h"),
-        // SGR mouse mode: Allows mouse coordinates of >223, preferred over RXVT mode
-        csi!("?1006h"),
-    );
-}
-
-/// A command that disables mouse event capture.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DisableMouseCapture;
-
-impl ConstEncode for DisableMouseCapture {
-    const STR: &'static str = concat!(
-        // The inverse commands of EnableMouseCapture, in reverse order.
-        csi!("?1006l"),
-        csi!("?1015l"),
-        csi!("?1003l"),
-        csi!("?1002l"),
-        csi!("?1000l"),
-    );
-}
 
 /// Generate terminal mode control structures (enable, disable, request,
 /// response).

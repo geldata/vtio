@@ -53,9 +53,10 @@ pub use cursor::{
 };
 pub use mode::{
     BeginSynchronizedUpdate, DisableApplicationKeypad, DisableBracketedPaste,
-    DisableFocusReporting, EnableApplicationKeypad, EnableBracketedPaste, EnableFocusReporting,
-    EndSynchronizedUpdate,
+    DisableFocusReporting, EnableApplicationKeypad, EnableBracketedPaste,
+    EnableFocusReporting, EndSynchronizedUpdate,
 };
+pub use mouse::{DisableMouseCapture, EnableMouseCapture};
 pub use query::{
     RequestDefaultBackground, RequestDefaultForeground, RequestDeviceAttributes,
     RequestSecondaryDeviceAttributes, RequestTertiaryDeviceAttributes, RequestTextAttributes,
