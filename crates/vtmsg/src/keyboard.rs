@@ -143,7 +143,6 @@ terminal_mode!(
     "?1039"
 );
 
-
 bitflags! {
     /// Keyboard enhancement flags for the kitty keyboard protocol.
     ///

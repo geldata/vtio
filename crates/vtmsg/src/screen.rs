@@ -1,6 +1,6 @@
 //! Screen and line erase commands.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, write_csi};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, esc, write_csi};
 
 /// Erase Display Below (`ED`).
 ///
@@ -485,4 +485,118 @@ impl Encode for DeleteColumn {
     fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; self.0, "\'~")
     }
+}
+
+/// Fill Screen with E (`DECALN`).
+///
+/// Fill the entire screen with the character 'E'.
+///
+/// This command is primarily used for screen alignment testing. It fills
+/// the entire screen with the letter 'E' and moves the cursor to the top
+/// left corner (1,1).
+///
+/// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a8/> for
+/// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct FillScreenWithE;
+
+impl ConstEncode for FillScreenWithE {
+    const STR: &'static str = esc!("#8");
+}
+
+/// Set Double Height Line Top Half (`DECDHL`).
+///
+/// Display double width and double height text (top half).
+///
+/// Sets a per-line attribute that allows displaying double height text.
+/// For proper text display, two consecutive lines with identical text
+/// content need to be output. The first line needs to be set with this
+/// sequence, and the second line needs to be set with
+/// [`SetDoubleHeightLineBottomHalf`].
+///
+/// If the line mode is switched from single width to this mode, the
+/// number of columns is halved. If the cursor was in the second half of
+/// the row, the cursor is moved to the new right-most column. The
+/// columns no longer visible keep their contents and are revealed when
+/// [`SetSingleWidthLine`] is set for the line.
+///
+/// In left and right margin mode, this control is ignored.
+///
+/// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a3/> for
+/// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct SetDoubleHeightLineTopHalf;
+
+impl ConstEncode for SetDoubleHeightLineTopHalf {
+    const STR: &'static str = esc!("#3");
+}
+
+/// Set Double Height Line Bottom Half (`DECDHL`).
+///
+/// Display double width and double height text (bottom half).
+///
+/// Sets a per-line attribute that allows displaying double height text.
+/// For proper text display, two consecutive lines with identical text
+/// content need to be output. The first line needs to be set with
+/// [`SetDoubleHeightLineTopHalf`], and the second line needs to be set
+/// with this sequence.
+///
+/// If the line mode is switched from single width to this mode, the
+/// number of columns is halved. If the cursor was in the second half of
+/// the row, the cursor is moved to the new right-most column. The
+/// columns no longer visible keep their contents and are revealed when
+/// [`SetSingleWidthLine`] is set for the line.
+///
+/// In left and right margin mode, this control is ignored.
+///
+/// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a4/> for
+/// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct SetDoubleHeightLineBottomHalf;
+
+impl ConstEncode for SetDoubleHeightLineBottomHalf {
+    const STR: &'static str = esc!("#4");
+}
+
+/// Set Single Width Line (`DECSWL`).
+///
+/// Reset a line to normal single width and single height display mode.
+///
+/// This undoes the effect of [`SetDoubleHeightLineTopHalf`],
+/// [`SetDoubleHeightLineBottomHalf`], and [`SetDoubleWidthLine`]. The
+/// displayable columns are restored and the previously hidden text is
+/// revealed.
+///
+/// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a5/> for
+/// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct SetSingleWidthLine;
+
+impl ConstEncode for SetSingleWidthLine {
+    const STR: &'static str = esc!("#5");
+}
+
+/// Set Double Width Line (`DECDWL`).
+///
+/// Display double width and single height text.
+///
+/// Sets a per-line attribute that allows displaying double width text.
+/// Text is displayed using double the normal amount of cell spaces per
+/// character.
+///
+/// If the line mode is switched from single width to this mode, the
+/// number of columns is halved. If the cursor was in the second half of
+/// the row, the cursor is moved to the new right-most column. The
+/// columns no longer visible keep their contents and are revealed when
+/// [`SetSingleWidthLine`] is set for the line.
+///
+/// In left and right margin mode, this control is ignored.
+///
+/// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a6/> for
+/// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct SetDoubleWidthLine;
+
+impl ConstEncode for SetDoubleWidthLine {
+    const STR: &'static str = esc!("#6");
 }

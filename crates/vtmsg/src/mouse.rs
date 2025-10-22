@@ -3,7 +3,7 @@
 //! See <https://terminalguide.namepad.de/mouse/> for details.
 
 use crate::terminal_mode;
-use vtenc::const_composite;
+use vtenc::{ConstEncodedLen, Encode, EncodeError, const_composite, write_csi};
 
 //
 // Mouse event modes (mutually exclusive).
@@ -202,4 +202,68 @@ const_composite! {
         DisableMouseClickAndDragTrackingMode,
         DisableMouseDownUpTrackingMode,
     ];
+}
+
+/// Linux Mouse Pointer Style (`LINUX_MOUSE_POINTER_STYLE`).
+///
+/// Select Linux mouse pointer style with control over appearance.
+///
+/// This sequence allows setting the mouse pointer appearance by toggling
+/// attribute bits and character glyph bits in the Linux virtual console.
+///
+/// The `attr_xor` parameter controls toggling of display attributes
+/// similar to the Linux cursor style, but only allows toggling each
+/// aspect (not enabling/disabling). Each bit controls one color channel:
+///
+/// | bit value |          meaning              |
+/// |-----------|-------------------------------|
+/// |         1 | foreground blue channel       |
+/// |         2 | foreground green channel      |
+/// |         4 | foreground red channel        |
+/// |         8 | foreground brightness channel |
+/// |        16 | background blue channel       |
+/// |        32 | background green channel      |
+/// |        64 | background red channel        |
+/// |       128 | background brightness         |
+///
+/// The `char_xor` parameter allows toggling bits in the glyph index
+/// into the terminal's font, effectively changing which character is
+/// displayed at the mouse pointer position.
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sm__p/> for terminal
+/// support specifics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinuxMousePointerStyle {
+    /// XOR mask for attribute manipulation.
+    pub attr_xor: u8,
+    /// XOR mask for character glyph manipulation.
+    pub char_xor: u8,
+}
+
+impl LinuxMousePointerStyle {
+    /// Create a new Linux mouse pointer style with the specified
+    /// parameters.
+    #[must_use]
+    pub const fn new(attr_xor: u8, char_xor: u8) -> Self {
+        Self {
+            attr_xor,
+            char_xor,
+        }
+    }
+}
+
+impl ConstEncodedLen for LinuxMousePointerStyle {
+    // CSI (2) + max attr_xor (3) + ";" (1) + max char_xor (3) + "m" (1)
+    // = 10
+    const ENCODED_LEN: usize = 10;
+}
+
+impl Encode for LinuxMousePointerStyle {
+    #[inline]
+    fn encode<W: std::io::Write>(
+        &mut self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.attr_xor, ";", self.char_xor, "m")
+    }
 }

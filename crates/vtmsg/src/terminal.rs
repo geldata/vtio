@@ -1,6 +1,9 @@
 //! Buffer control/information messages.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, osc, write_csi};
+use vtenc::{
+    ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, osc, write_csi, write_dcs,
+    write_int, write_str_into,
+};
 
 use crate::terminal_mode;
 
@@ -445,6 +448,216 @@ pub struct RequestTertiaryDeviceAttributes;
 
 impl ConstEncode for RequestTertiaryDeviceAttributes {
     const STR: &'static str = csi!("=c");
+}
+
+/// Terminal conformance level for DA1 response.
+///
+/// The first parameter in a DA1 response indicates the terminal's
+/// conformance level.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum ConformanceLevel {
+    /// VT100 compatibility (Level 1).
+    VT100 = 1,
+    /// VT102 compatibility (Level 1).
+    VT102 = 6,
+    /// VT220 compatibility (Level 2).
+    VT220 = 62,
+    /// VT320 compatibility (Level 3).
+    VT320 = 63,
+    /// VT420/VT510/VT525 compatibility (Level 4).
+    VT420 = 64,
+}
+
+/// Terminal capability flags for DA1 response.
+///
+/// These flags indicate which features the terminal supports.
+/// Multiple capabilities can be combined in a single response.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[repr(u16)]
+pub enum TerminalCapability {
+    /// 132 columns mode (`DECCOLM`).
+    Columns132 = 1,
+    /// Printer port.
+    Printer = 2,
+    /// `ReGIS` graphics.
+    ReGISGraphics = 3,
+    /// `SIXEL` graphics.
+    SixelGraphics = 4,
+    /// Selective erase (`DECSED`, `DECSEL`).
+    SelectiveErase = 6,
+    /// Soft character sets (`DRCS` - Dynamic Redefinable Character Sets).
+    SoftCharacterSets = 7,
+    /// User-defined keys (`DECUDK`).
+    UserDefinedKeys = 8,
+    /// National Replacement Character sets (`NRC`).
+    NationalReplacementCharsets = 9,
+    /// Blink attribute (`SGR 5`).
+    Blink = 12,
+    /// Technical character set.
+    TechnicalCharset = 15,
+    /// Locator (Mouse) device.
+    LocatorDevice = 16,
+    /// User-defined keys (extended).
+    UserDefinedKeysExtended = 17,
+    /// National Replacement Character sets (extended).
+    NationalReplacementCharsetsExtended = 18,
+    /// 24 or more lines.
+    MoreThan24Lines = 19,
+    /// Multiple pages / horizontal scrolling.
+    HorizontalScrolling = 21,
+    /// ANSI color support.
+    Color = 22,
+    /// Soft key labels.
+    SoftKeyLabels = 23,
+    /// Rectangular area operations (`DECCRA`, `DECFRA`).
+    RectangularAreaOps = 24,
+    /// Locator events (motion/button).
+    LocatorEvents = 29,
+    /// Windowing extensions (`DECRQCRA`).
+    WindowingExtensions = 42,
+    /// Cursor position report format.
+    CursorPositionReportFormat = 44,
+    /// RGB color / extended color.
+    ExtendedColor = 46,
+    /// xterm/VT525-like (older xterm-style)
+    VT525Xterm = 52,
+    /// Modern xterm/VT525-like
+    VT525ModernXterm = 67,
+}
+
+/// Response to primary device attributes request (`DA1`).
+///
+/// Send terminal capabilities in response to a DA1 query.
+///
+/// The response format is `CSI ? [level] ; [cap1] ; [cap2] ; ... c`.
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sc/> for terminal
+/// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Hash)]
+pub struct PrimaryDeviceAttributesResponse {
+    /// Conformance level (VT100, VT220, etc.).
+    pub conformance_level: ConformanceLevel,
+    /// Terminal capabilities to report.
+    pub capabilities: Vec<TerminalCapability>,
+}
+
+impl PrimaryDeviceAttributesResponse {
+    #[inline]
+    #[must_use]
+    pub fn new(conformance_level: ConformanceLevel, capabilities: Vec<TerminalCapability>) -> Self {
+        Self {
+            conformance_level,
+            capabilities,
+        }
+    }
+}
+
+impl Encode for PrimaryDeviceAttributesResponse {
+    #[inline]
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        let mut written = write_csi!(buf; "?", self.conformance_level as i16)?;
+
+        for cap in &self.capabilities {
+            written += write_str_into(buf, ";")?;
+            written += write_int(buf, *cap as u16)?;
+        }
+
+        written += write_str_into(buf, "c")?;
+        Ok(written)
+    }
+}
+
+/// Response to secondary device attributes request (`DA2`).
+///
+/// Send terminal type and version information in response to a DA2
+/// query.
+///
+/// The response format is `CSI > [terminal_type] ; [version] ; [extra] c`.
+///
+/// Common terminal type codes:
+/// - 0: VT100
+/// - 1: VT220
+/// - 2: VT240
+/// - 18: VT330
+/// - 19: VT340
+/// - 24: VT320
+/// - 41: VT420
+/// - 61: VT510
+/// - 64: VT520
+/// - 65: VTE-based (e.g., GNOME Terminal)
+///
+/// The version field typically contains the terminal version or patch
+/// level.
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sc__q/> for terminal support
+/// specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct SecondaryDeviceAttributesResponse {
+    pub terminal_type: u16,
+    pub version: u16,
+    pub extra: Option<u16>,
+}
+
+impl Encode for SecondaryDeviceAttributesResponse {
+    #[inline]
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        let mut written = write_csi!(buf; ">", self.terminal_type, ";", self.version)?;
+        if let Some(extra) = self.extra {
+            written += write_str_into(buf, ";")?;
+            written += write_int(buf, extra)?;
+        }
+        written += write_str_into(buf, "c")?;
+        Ok(written)
+    }
+}
+
+/// Response to tertiary device attributes request (`DECRPTUI`).
+///
+/// Send terminal unit ID in response to a DA3 query.
+///
+/// The response format is `DCS ! | [hex_string] ST` where `hex_string`
+/// is the terminal's unit ID encoded as hexadecimal pairs.
+///
+/// This is less commonly supported than DA1 and DA2. When supported,
+/// the unit ID is typically a fixed string identifying the terminal
+/// hardware or implementation.
+///
+/// # Examples
+///
+/// Different terminals return different unit IDs encoded as hexadecimal:
+///
+/// - xterm (v336+): `DCS ! | 00000000 ST`
+/// - VTE (GNOME Terminal): `DCS ! | 7E565445 ST` ("~VTE")
+/// - Konsole: `DCS ! | 7E4B4445 ST` ("~KDE")
+/// - iTerm2: `DCS ! | 6954726D ST` ("iTrm")
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sc__r/> for terminal
+/// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Hash)]
+pub struct TertiaryDeviceAttributesResponse {
+    pub unit_id: [u8; 4],
+}
+
+impl Encode for TertiaryDeviceAttributesResponse {
+    #[inline]
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        let mut hex = [0u8; 8];
+        let s;
+
+        for (i, &b) in self.unit_id.iter().enumerate() {
+            hex[2 * i] = HEX[(b >> 4) as usize];
+            hex[2 * i + 1] = HEX[(b & 0x0F) as usize];
+        }
+
+        // SAFETY: we are hexlifying bytes above, so `hex`
+        // is always a valid ASCII string.
+        unsafe {
+            s = std::str::from_utf8_unchecked(&hex);
+        }
+
+        write_dcs!(buf; "!|", s)
+    }
 }
 
 /// Select VT-XXX Conformance Level (`DECSCL`).

@@ -153,9 +153,6 @@ mod tests {
         let mut buf = [0u8; 2];
 
         let result = ClearAll.encode(&mut &mut buf[..]);
-        assert!(matches!(
-            result,
-            Err(vtenc::EncodeError::BufferOverflow(_))
-        ));
+        assert!(matches!(result, Err(vtenc::EncodeError::BufferOverflow(_))));
     }
 }

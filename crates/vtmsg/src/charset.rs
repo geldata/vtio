@@ -1,6 +1,6 @@
 //! Terminal character set control and information messages.
 
-use vtenc::{ConstEncode, Encode, ConstEncodedLen, EncodeError, esc, write_esc};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, esc, write_esc};
 
 /// Enable UTF-8 mode.
 ///
@@ -276,8 +276,6 @@ impl CharsetCode {
             Self::Latin5 => "M",
         }
     }
-
-
 }
 
 /// Designate G0 Character Set (94 characters).

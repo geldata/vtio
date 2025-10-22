@@ -1,7 +1,8 @@
 //! Cursor movement and control commands.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, write_csi};
+use bitflags::bitflags;
 use crate::terminal_mode;
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, write_csi};
 
 terminal_mode!(
     /// Cursor Origin Mode (`DECOM`).
@@ -56,7 +57,6 @@ terminal_mode!(
     CursorVisibility,
     "?25"
 );
-
 
 /// Save cursor (`DECSC`).
 ///
@@ -221,7 +221,6 @@ pub struct CarriageReturn;
 impl ConstEncode for CarriageReturn {
     const STR: &'static str = "\r";
 }
-
 
 /// Set Cursor Position (`CUP`).
 ///
@@ -861,6 +860,173 @@ pub struct RequestCursorStyle;
 impl ConstEncode for RequestCursorStyle {
     const STR: &'static str = dcs!("$q q");
 }
+
+bitflags! {
+    /// Flags for Linux cursor style.
+    ///
+    /// These flags control the cursor appearance and behavior in the Linux
+    /// virtual console.
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct LinuxCursorStyleFlags: u8 {
+        /// Enable foreground and background change.
+        ///
+        /// When enabled the cursor changes the shown attributes of the
+        /// cell it is on. Some drivers force size = 1 (none) internally
+        /// if this is set.
+        const ENABLE_FG_BG_CHANGE = 16;
+
+        /// Ensure original background and cursor background differ.
+        ///
+        /// If the original and cursor background would be identical
+        /// invert all background color channels (but not brightness).
+        const ENSURE_BG_DIFFERS = 32;
+
+        /// Ensure cursor foreground and background differ.
+        ///
+        /// If the cursor background and foreground would be identical
+        /// invert all foreground color channels (but not brightness).
+        const ENSURE_FG_BG_DIFFER = 64;
+    }
+}
+
+/// Linux Cursor Style shape values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum LinuxCursorShape {
+    /// Default (depending on driver: off, underline or block).
+    Default = 0,
+    /// No cursor.
+    None = 1,
+    /// Underline cursor.
+    Underline = 2,
+    /// Lower third cursor.
+    LowerThird = 3,
+    /// Lower half cursor.
+    LowerHalf = 4,
+    /// Two thirds cursor.
+    TwoThirds = 5,
+    /// Block cursor.
+    Block = 6,
+}
+
+/// Linux Cursor Style.
+///
+/// Select Linux cursor style with fine-grained control over appearance.
+///
+/// This sequence allows setting the cursor shape, flags for attribute
+/// changes, and XOR/OR masks for foreground and background color
+/// manipulation.
+///
+/// The `shape` parameter combines the size (0-6) with optional flags
+/// (16, 32, 64).
+///
+/// The `xor` and `or` parameters define changes to foreground and
+/// background of the cell where the cursor is shown when the
+/// `ENABLE_FG_BG_CHANGE` flag is set. Each bit controls one color channel:
+///
+/// | bit value |          meaning              |
+/// |-----------|-------------------------------|
+/// |         1 | foreground blue channel       |
+/// |         2 | foreground green channel      |
+/// |         4 | foreground red channel        |
+/// |         8 | foreground brightness channel |
+/// |        16 | background blue channel       |
+/// |        32 | background green channel      |
+/// |        64 | background red channel        |
+/// |       128 | background brightness         |
+///
+/// The effective change for each bit depends on its value in both
+/// parameters:
+///
+/// | or bit | xor bit |   change  |
+/// |--------|---------|-----------|
+/// |    0   |    0    | no change |
+/// |    1   |    0    | enable    |
+/// |    0   |    1    | toggle    |
+/// |    1   |    1    | disable   |
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sc__p/> for terminal
+/// support specifics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinuxCursorStyle {
+    /// Cursor shape.
+    pub shape: LinuxCursorShape,
+    /// Cursor style flags.
+    pub flags: LinuxCursorStyleFlags,
+    /// XOR mask for color channel manipulation.
+    pub xor: u8,
+    /// OR mask for color channel manipulation.
+    pub or: u8,
+}
+
+impl LinuxCursorStyle {
+    /// Create a new Linux cursor style with the specified shape.
+    ///
+    /// Flags, xor, and or values are initialized to 0.
+    #[must_use]
+    pub const fn new(shape: LinuxCursorShape) -> Self {
+        Self {
+            shape,
+            flags: LinuxCursorStyleFlags::empty(),
+            xor: 0,
+            or: 0,
+        }
+    }
+
+    /// Create a new Linux cursor style with shape and flags.
+    ///
+    /// xor and or values are initialized to 0.
+    #[must_use]
+    pub const fn with_flags(
+        shape: LinuxCursorShape,
+        flags: LinuxCursorStyleFlags,
+    ) -> Self {
+        Self {
+            shape,
+            flags,
+            xor: 0,
+            or: 0,
+        }
+    }
+
+    /// Create a new Linux cursor style with all parameters.
+    #[must_use]
+    pub const fn with_colors(
+        shape: LinuxCursorShape,
+        flags: LinuxCursorStyleFlags,
+        xor: u8,
+        or: u8,
+    ) -> Self {
+        Self {
+            shape,
+            flags,
+            xor,
+            or,
+        }
+    }
+
+    fn shape_value(self) -> u8 {
+        (self.shape as u8) | self.flags.bits()
+    }
+}
+
+impl ConstEncodedLen for LinuxCursorStyle {
+    // CSI (2) + max shape (3) + ";" (1) + max xor (3) + ";" (1) + max or
+    // (3) + " q" (2) = 15
+    const ENCODED_LEN: usize = 15;
+}
+
+impl Encode for LinuxCursorStyle {
+    #[inline]
+    fn encode<W: std::io::Write>(
+        &mut self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
+        write_csi!(buf; self.shape_value(), ";", self.xor, ";", self.or, " q")
+    }
+}
+
 
 /// Request Cursor Position Report (`CPR`).
 ///
