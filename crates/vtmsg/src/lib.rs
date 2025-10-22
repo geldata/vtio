@@ -34,6 +34,7 @@
 
 pub mod charset;
 pub mod cursor;
+pub mod dsr;
 pub mod keyboard;
 pub mod macros;
 pub mod mouse;
