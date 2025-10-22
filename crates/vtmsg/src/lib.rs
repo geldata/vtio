@@ -43,7 +43,10 @@ pub mod screen;
 pub mod scroll;
 pub mod shell;
 pub mod terminal;
+pub mod traits;
 pub mod window;
+
+pub use crate::traits::TerseDisplay;
 
 #[cfg(test)]
 mod tests {
