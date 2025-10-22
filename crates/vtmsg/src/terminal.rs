@@ -5,326 +5,326 @@ use vtenc::{
     write_int, write_str_into,
 };
 
-use crate::terminal_mode;
+use vtderive::terminal_mode;
 
-terminal_mode!(
-    /// Insert mode (`IRM`).
-    ///
-    /// When enabled, newly printed characters are inserted at the cursor
-    /// position, shifting existing characters to the right.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p4/> for terminal
-    /// support specifics.
-    InsertMode,
-    "4"
-);
+/// Insert mode (`IRM`).
+///
+/// When enabled, newly printed characters are inserted at the cursor
+/// position, shifting existing characters to the right.
+///
+/// See <https://terminalguide.namepad.de/mode/p4/> for terminal
+/// support specifics.
+#[terminal_mode(params = "4")]
+pub struct InsertMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Cursor blinking mode (`ATT610_BLINK`).
-    ///
-    /// If set, the cursor is blinking.
-    ///
-    /// See also select cursor style for a more widely supported
-    /// alternative.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p12/> for terminal
-    /// support specifics.
-    EchoMode,
-    "12"
-);
+/// Cursor blinking mode (`ATT610_BLINK`).
+///
+/// If set, the cursor is blinking.
+///
+/// See also select cursor style for a more widely supported
+/// alternative.
+///
+/// See <https://terminalguide.namepad.de/mode/p12/> for terminal
+/// support specifics.
+#[terminal_mode(params = "12")]
+pub struct EchoMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Linefeed/Newline mode (`LNM`).
-    ///
-    /// Controls whether line feed characters also perform a carriage
-    /// return.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p20/> for terminal
-    /// support specifics.
-    LinefeedMode,
-    "20"
-);
+/// Linefeed/Newline mode (`LNM`).
+///
+/// Controls whether line feed characters also perform a carriage
+/// return.
+///
+/// See <https://terminalguide.namepad.de/mode/p20/> for terminal
+/// support specifics.
+#[terminal_mode(params = "20")]
+pub struct LinefeedMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Reserved for VT52 emulators (`DECANM`).
-    ///
-    /// Reserved for VT52 emulation.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p2/> for terminal
-    /// support specifics.
-    VT52Mode,
-    "?2"
-);
+/// Reserved for VT52 emulators (`DECANM`).
+///
+/// Reserved for VT52 emulation.
+///
+/// See <https://terminalguide.namepad.de/mode/p2/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "2")]
+pub struct VT52Mode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// 132 column mode (`DECCOLM`).
-    ///
-    /// Change terminal width between 80 and 132 column mode.
-    ///
-    /// This mode only is supported when enable support for 132 column
-    /// mode is set.
-    ///
-    /// Modern terminals don't have a fixed width and users generally
-    /// expect the terminal to keep the size they assigned to the
-    /// terminal. This control violates that expectation.
-    ///
-    /// If set the terminal is resized to 132 columns wide. If unset
-    /// the terminal is resized to 80 columns wide.
-    ///
-    /// If do not clear screen on 132 column mode change is not set,
-    /// the screen is cleared.
-    ///
-    /// The cursor is moved as invoking set cursor position with
-    /// `column` and `row` set to 1.
-    ///
-    /// If the mode is set, left and right margin is reset.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p3/> for terminal
-    /// support specifics.
-    HundredThirtyTwoColumnMode,
-    "?3"
-);
+/// 132 column mode (`DECCOLM`).
+///
+/// Change terminal width between 80 and 132 column mode.
+///
+/// This mode only is supported when enable support for 132 column
+/// mode is set.
+///
+/// Modern terminals don't have a fixed width and users generally
+/// expect the terminal to keep the size they assigned to the
+/// terminal. This control violates that expectation.
+///
+/// If set the terminal is resized to 132 columns wide. If unset
+/// the terminal is resized to 80 columns wide.
+///
+/// If do not clear screen on 132 column mode change is not set,
+/// the screen is cleared.
+///
+/// The cursor is moved as invoking set cursor position with
+/// `column` and `row` set to 1.
+///
+/// If the mode is set, left and right margin is reset.
+///
+/// See <https://terminalguide.namepad.de/mode/p3/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "3")]
+pub struct HundredThirtyTwoColumnMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Enable support for 132 column mode (`132COLS`).
-    ///
-    /// Enables support for 132 column mode.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p40/> for terminal
-    /// support specifics.
-    EnableSupportForHundredThirtyTwoColumnMode,
-    "?40"
-);
+/// Enable support for 132 column mode (`132COLS`).
+///
+/// Enables support for 132 column mode.
+///
+/// See <https://terminalguide.namepad.de/mode/p40/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "40")]
+pub struct EnableSupportForHundredThirtyTwoColumnMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Do not clear screen on 132 column mode change (`DECNCSM`).
-    ///
-    /// Do not clear screen on change of 132 column mode.
-    ///
-    /// Only available in xterm VT level 5 or above (non-default level).
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p95/> for terminal
-    /// support specifics.
-    KeepScreenOnHundredThirtyTwoColumnChangeMode,
-    "?95"
-);
+/// Do not clear screen on 132 column mode change (`DECNCSM`).
+///
+/// Do not clear screen on change of 132 column mode.
+///
+/// Only available in xterm VT level 5 or above (non-default level).
+///
+/// See <https://terminalguide.namepad.de/mode/p95/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "95")]
+pub struct KeepScreenOnHundredThirtyTwoColumnChangeMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Reverse display colors (`DECSCNM`).
-    ///
-    /// Reverses the foreground and background colors of some cells.
-    ///
-    /// Exact behavior is implementation specific. Most terminals swap
-    /// default (unnamed) background and foreground colors when
-    /// rendering.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p5/> for terminal
-    /// support specifics.
-    ReverseDisplayColorsMode,
-    "?5"
-);
+/// Reverse display colors (`DECSCNM`).
+///
+/// Reverses the foreground and background colors of some cells.
+///
+/// Exact behavior is implementation specific. Most terminals swap
+/// default (unnamed) background and foreground colors when
+/// rendering.
+///
+/// See <https://terminalguide.namepad.de/mode/p5/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "5")]
+pub struct ReverseDisplayColorsMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Wraparound mode (`DECAWM`).
-    ///
-    /// Enable or disable automatic line wrapping.
-    ///
-    /// If disabled, cursor will stop advancing on right-most column of
-    /// the scroll region or screen. Printing additional characters will
-    /// (repeatedly) overwrite the cell at the cursor position.
-    ///
-    /// If enabled, printing to the last cell in the scroll region or
-    /// screen will leave the cursor at that cell and set the pending
-    /// wrap state of the cursor. Printing while the pending wrap state
-    /// of the cursor is set will wrap back to the left-most column in
-    /// the scroll region, unset the pending wrap state and invoke
-    /// index. In some terminals it also saves the information that the
-    /// line was wrapped for resize and clipboard heuristics.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p7/> for terminal
-    /// support specifics.
-    LineWraparoundMode,
-    "?7"
-);
+/// Wraparound mode (`DECAWM`).
+///
+/// Enable or disable automatic line wrapping.
+///
+/// If disabled, cursor will stop advancing on right-most column of
+/// the scroll region or screen. Printing additional characters will
+/// (repeatedly) overwrite the cell at the cursor position.
+///
+/// If enabled, printing to the last cell in the scroll region or
+/// screen will leave the cursor at that cell and set the pending
+/// wrap state of the cursor. Printing while the pending wrap state
+/// of the cursor is set will wrap back to the left-most column in
+/// the scroll region, unset the pending wrap state and invoke
+/// index. In some terminals it also saves the information that the
+/// line was wrapped for resize and clipboard heuristics.
+///
+/// See <https://terminalguide.namepad.de/mode/p7/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "7")]
+pub struct LineWraparoundMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Scrollbar visibility (`RXVT_SCROLLBAR`).
-    ///
-    /// Show scrollbar.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p30/> for terminal
-    /// support specifics.
-    ScrollbarVisibilityMode,
-    "?30"
-);
+/// Scrollbar visibility (`RXVT_SCROLLBAR`).
+///
+/// Show scrollbar.
+///
+/// See <https://terminalguide.namepad.de/mode/p30/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "30")]
+pub struct ScrollbarVisibilityMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Alternate screen buffer (`ALTBUF`).
-    ///
-    /// Switch to alternate screen buffer.
-    ///
-    /// Terminals supporting this mode offer an alternate screen buffer
-    /// in addition to the primary buffer. The primary buffer usually
-    /// supports scroll-back. The alternate buffer is for full screen
-    /// applications. It does not support scroll-back (or displays
-    /// scroll-back from the primary screen). Switching to the alternate
-    /// screen buffer for fullscreen applications allows visually
-    /// switching back to the contents of the primary buffer after the
-    /// application terminates.
-    ///
-    /// Both buffers are partially independent. They have a separate
-    /// cell matrix and cursor save state.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p47/> for terminal
-    /// support specifics.
-    AlternateScreenBasicMode,
-    "?47"
-);
+/// Alternate screen buffer (`ALTBUF`).
+///
+/// Switch to alternate screen buffer.
+///
+/// Terminals supporting this mode offer an alternate screen buffer
+/// in addition to the primary buffer. The primary buffer usually
+/// supports scroll-back. The alternate buffer is for full screen
+/// applications. It does not support scroll-back (or displays
+/// scroll-back from the primary screen). Switching to the alternate
+/// screen buffer for fullscreen applications allows visually
+/// switching back to the contents of the primary buffer after the
+/// application terminates.
+///
+/// Both buffers are partially independent. They have a separate
+/// cell matrix and cursor save state.
+///
+/// See <https://terminalguide.namepad.de/mode/p47/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "47")]
+pub struct AlternateScreenBasicMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Alternate screen buffer with clear on exit.
-    ///
-    /// Like alternate screen buffer but clears the alternate buffer on
-    /// reset.
-    ///
-    /// The clear of the alternate buffer fills all cells in the
-    /// alternate buffer with space and the current SGR state.
-    ///
-    /// Leaving this mode might clear the text selection in terminals
-    /// that support copy and paste.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p1047/> for terminal
-    /// support specifics.
-    AlternateScreenClearOnExitMode,
-    "?1047"
-);
+/// Alternate screen buffer with clear on exit.
+///
+/// Like alternate screen buffer but clears the alternate buffer on
+/// reset.
+///
+/// The clear of the alternate buffer fills all cells in the
+/// alternate buffer with space and the current SGR state.
+///
+/// Leaving this mode might clear the text selection in terminals
+/// that support copy and paste.
+///
+/// See <https://terminalguide.namepad.de/mode/p1047/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "1047")]
+pub struct AlternateScreenClearOnExitMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Send Cursor Keys on Mouse Wheel on Alternate Screen.
-    ///
-    /// When the alternate screen is active and the mouse wheel is used
-    /// send arrow up and down.
-    ///
-    /// The number of arrow up or arrow down sequences that are
-    /// transmitted is implementation defined.
-    ///
-    /// All mouse reporting modes suppress this and report in their
-    /// specific format instead.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p1007/> for terminal
-    /// support specifics.
-    CursorKeysOnMouseWheelOnAlternateScreenMode,
-    "?1007"
-);
+/// Send Cursor Keys on Mouse Wheel on Alternate Screen.
+///
+/// When the alternate screen is active and the mouse wheel is used
+/// send arrow up and down.
+///
+/// The number of arrow up or arrow down sequences that are
+/// transmitted is implementation defined.
+///
+/// All mouse reporting modes suppress this and report in their
+/// specific format instead.
+///
+/// See <https://terminalguide.namepad.de/mode/p1007/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "1007")]
+pub struct CursorKeysOnMouseWheelOnAlternateScreenMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Alternate screen buffer with cursor save and clear on enter.
-    ///
-    /// Like alternate screen buffer but saves the cursor and clears the
-    /// alternate buffer on activation.
-    ///
-    /// The clear of the alternate buffer fills all cells in the
-    /// alternate buffer with space and the current SGR state.
-    ///
-    /// The cursor is saved before switching to alternate mode as if
-    /// save cursor was invoked. On reset the cursor is restored after
-    /// switching to the primary screen buffer as if restore cursor was
-    /// invoked.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p1049/> for terminal
-    /// support specifics.
-    AlternateScreenMode,
-    "?1049"
-);
+/// Alternate screen buffer with cursor save and clear on enter.
+///
+/// Like alternate screen buffer but saves the cursor and clears the
+/// alternate buffer on activation.
+///
+/// The clear of the alternate buffer fills all cells in the
+/// alternate buffer with space and the current SGR state.
+///
+/// The cursor is saved before switching to alternate mode as if
+/// save cursor was invoked. On reset the cursor is restored after
+/// switching to the primary screen buffer as if restore cursor was
+/// invoked.
+///
+/// See <https://terminalguide.namepad.de/mode/p1049/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "1049")]
+pub struct AlternateScreenMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Report focus change.
-    ///
-    /// When the terminal gains focus emit `ESC [ I`.
-    ///
-    /// When the terminal loses focus emit `ESC [ O`.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p1004/> for terminal
-    /// support specifics.
-    ReportFocusChangeMode,
-    "?1004"
-);
+/// Report focus change.
+///
+/// When the terminal gains focus emit `ESC [ I`.
+///
+/// When the terminal loses focus emit `ESC [ O`.
+///
+/// See <https://terminalguide.namepad.de/mode/p1004/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "1004")]
+pub struct ReportFocusChangeMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Inhibit scroll on application output.
-    ///
-    /// Disable automatic scroll to bottom when the application outputs
-    /// a printable character.
-    ///
-    /// Note: xterm implements inverted behavior.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p1010/> for terminal
-    /// support specifics.
-    InhibitScrollOnApplicationOutputMode,
-    "?1010"
-);
+/// Inhibit scroll on application output.
+///
+/// Disable automatic scroll to bottom when the application outputs
+/// a printable character.
+///
+/// Note: xterm implements inverted behavior.
+///
+/// See <https://terminalguide.namepad.de/mode/p1010/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "1010")]
+pub struct InhibitScrollOnApplicationOutputMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Scroll on keyboard input.
-    ///
-    /// If set, scrolls to the bottom on every keypress.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p1011/> for terminal
-    /// support specifics.
-    ScrollOnKeyboardInputMode,
-    "?1011"
-);
+/// Scroll on keyboard input.
+///
+/// If set, scrolls to the bottom on every keypress.
+///
+/// See <https://terminalguide.namepad.de/mode/p1011/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "1011")]
+pub struct ScrollOnKeyboardInputMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Bold/blinking cells are also bright.
-    ///
-    /// If a cell is rendered in bold, and its foreground color is one
-    /// of the 8 'named' dark colors, force that cell's foreground to be
-    /// its corresponding bright named color.
-    ///
-    /// If a cell is rendered as blinking, and its background color is
-    /// one of the 8 'named' dark colors, force that cell's background
-    /// to be its corresponding bright named color.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p1021/> for terminal
-    /// support specifics.
-    BoldBlinkingBrightMode,
-    "?1021"
-);
+/// Bold/blinking cells are also bright.
+///
+/// If a cell is rendered in bold, and its foreground color is one
+/// of the 8 'named' dark colors, force that cell's foreground to be
+/// its corresponding bright named color.
+///
+/// If a cell is rendered as blinking, and its background color is
+/// one of the 8 'named' dark colors, force that cell's background
+/// to be its corresponding bright named color.
+///
+/// See <https://terminalguide.namepad.de/mode/p1021/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "1021")]
+pub struct BoldBlinkingBrightMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Bracketed paste mode.
-    ///
-    /// Bracket clipboard paste contents in delimiter sequences.
-    ///
-    /// When pasting from the (e.g. system) clipboard add `ESC [ 200 ~`
-    /// before the clipboard contents and `ESC [ 201 ~` after the
-    /// clipboard contents. This allows applications to distinguish
-    /// clipboard contents from manually typed text.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p2004/> for terminal
-    /// support specifics.
-    BracketedPasteMode,
-    "?2004"
-);
+/// Bracketed paste mode.
+///
+/// Bracket clipboard paste contents in delimiter sequences.
+///
+/// When pasting from the (e.g. system) clipboard add `ESC [ 200 ~`
+/// before the clipboard contents and `ESC [ 201 ~` after the
+/// clipboard contents. This allows applications to distinguish
+/// clipboard contents from manually typed text.
+///
+/// See <https://terminalguide.namepad.de/mode/p2004/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "2004")]
+pub struct BracketedPasteMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Synchronized update mode.
-    ///
-    /// When the synchronization mode is enabled following render calls
-    /// will keep rendering the last rendered state. The terminal
-    /// keeps processing incoming text and sequences. When the
-    /// synchronized update mode is disabled again the renderer may fetch
-    /// the latest screen buffer state again, effectively avoiding the
-    /// tearing effect by unintentionally rendering in the middle a of
-    /// an application screen update.
-    ///
-    /// See <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec>
-    /// for more details and <https://terminalguide.namepad.de/mode/p2026/>
-    /// for terminal support specifics.
-    SynchronizedUpdateMode,
-    "?2006"
-);
+/// Synchronized update mode.
+///
+/// When the synchronization mode is enabled following render calls
+/// will keep rendering the last rendered state. The terminal
+/// keeps processing incoming text and sequences. When the
+/// synchronized update mode is disabled again the renderer may fetch
+/// the latest screen buffer state again, effectively avoiding the
+/// tearing effect by unintentionally rendering in the middle a of
+/// an application screen update.
+///
+/// See <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec>
+/// for more details and <https://terminalguide.namepad.de/mode/p2026/>
+/// for terminal support specifics.
+#[terminal_mode(private = '?', params = "2006")]
+pub struct SynchronizedUpdateMode {
+    pub enabled: bool,
+}
 
 /// Request default foreground color.
 ///

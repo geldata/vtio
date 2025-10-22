@@ -57,26 +57,26 @@
 //! - The cursor can move outside the scrolling region using explicit
 //!   positioning commands
 
-use crate::terminal_mode;
+use vtderive::terminal_mode;
 use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, dcs, write_csi};
 
-terminal_mode!(
-    /// Smooth Scroll Mode (`DECSCLM`).
-    ///
-    /// Control whether scrolling operations use smooth scrolling or
-    /// jump scrolling.
-    ///
-    /// When set, smooth scroll is enabled. The terminal adds lines to
-    /// the screen gradually at a fixed rate.
-    ///
-    /// When reset, jump scroll is enabled. The terminal adds lines to
-    /// the screen as fast as possible.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p4/> for terminal
-    /// support specifics.
-    SmoothScrollMode,
-    "?4"
-);
+/// Smooth Scroll Mode (`DECSCLM`).
+///
+/// Control whether scrolling operations use smooth scrolling or
+/// jump scrolling.
+///
+/// When set, smooth scroll is enabled. The terminal adds lines to
+/// the screen gradually at a fixed rate.
+///
+/// When reset, jump scroll is enabled. The terminal adds lines to
+/// the screen as fast as possible.
+///
+/// See <https://terminalguide.namepad.de/mode/p4/> for terminal
+/// support specifics.
+#[terminal_mode(private = '?', params = "4")]
+pub struct SmoothScrollMode {
+    pub enabled: bool,
+}
 
 /// Set Top and Bottom Margins (`DECSTBM`).
 ///

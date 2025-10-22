@@ -617,10 +617,14 @@ version = "0.0.0"
 dependencies = [
  "bitflags",
  "bytes",
+ "linkme",
  "paste",
  "serde",
+ "smallvec",
+ "vtderive",
  "vtenc",
  "vtinput",
+ "vtparser",
 ]
 
 [[package]]

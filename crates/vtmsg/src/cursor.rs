@@ -1,64 +1,64 @@
 //! Cursor movement and control commands.
 
-use crate::terminal_mode;
+use vtderive::terminal_mode;
 use bitflags::bitflags;
 use vtenc::{
     ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, write_csi, write_dcs,
 };
 
-terminal_mode!(
-    /// Cursor Origin Mode (`DECOM`).
-    ///
-    /// If set, the origin of the coordinate system is relative to the
-    /// current scroll region.
-    ///
-    /// The origin is used by cursor positioning commands such as
-    /// [`CursorPosition`], [`CursorVerticalAbsolute`], [`CursorHorizontalAbsolute`], and
-    /// cursor position reports.
-    ///
-    /// When this mode is set, certain sequences will force the cursor to be
-    /// in the scrolling region, including carriage return, next line,
-    /// cursor next/previous line operations.
-    ///
-    /// If set, the cursor is moved to the top left of the current scroll
-    /// region.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p6/> for
-    /// terminal support specifics.
-    RelativeCursorOriginMode,
-    "?6"
-);
+/// Cursor Origin Mode (`DECOM`).
+///
+/// If set, the origin of the coordinate system is relative to the
+/// current scroll region.
+///
+/// The origin is used by cursor positioning commands such as
+/// [`CursorPosition`], [`CursorVerticalAbsolute`], [`CursorHorizontalAbsolute`], and
+/// cursor position reports.
+///
+/// When this mode is set, certain sequences will force the cursor to be
+/// in the scrolling region, including carriage return, next line,
+/// cursor next/previous line operations.
+///
+/// If set, the cursor is moved to the top left of the current scroll
+/// region.
+///
+/// See <https://terminalguide.namepad.de/mode/p6/> for
+/// terminal support specifics.
+#[terminal_mode(private = '?', params = "6")]
+pub struct RelativeCursorOriginMode {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Cursor Blinking (`ATT610_BLINK`).
-    ///
-    /// If set, the cursor is blinking.
-    ///
-    /// This mode interacts with the blinking part of the Select Cursor Style
-    /// (`DECSCUSR`) setting. In xterm, this mode is synchronized with the
-    /// blinking part of the cursor style. In urxvt, this mode is additive to
-    /// the cursor style setting.
-    ///
-    /// See also [`SetCursorStyle`] for a more widely supported alternative.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p12/> for
-    /// terminal support specifics.
-    CursorBlinking,
-    "?12"
-);
+/// Cursor Blinking (`ATT610_BLINK`).
+///
+/// If set, the cursor is blinking.
+///
+/// This mode interacts with the blinking part of the Select Cursor Style
+/// (`DECSCUSR`) setting. In xterm, this mode is synchronized with the
+/// blinking part of the cursor style. In urxvt, this mode is additive to
+/// the cursor style setting.
+///
+/// See also [`SetCursorStyle`] for a more widely supported alternative.
+///
+/// See <https://terminalguide.namepad.de/mode/p12/> for
+/// terminal support specifics.
+#[terminal_mode(private = '?', params = "12")]
+pub struct CursorBlinking {
+    pub enabled: bool,
+}
 
-terminal_mode!(
-    /// Cursor Visibility Mode (`DECTCEM`).
-    ///
-    /// Set visibility of the cursor.
-    ///
-    /// If set, the cursor is visible. If reset, the cursor is hidden.
-    ///
-    /// See <https://terminalguide.namepad.de/mode/p25/> for
-    /// terminal support specifics.
-    CursorVisibility,
-    "?25"
-);
+/// Cursor Visibility Mode (`DECTCEM`).
+///
+/// Set visibility of the cursor.
+///
+/// If set, the cursor is visible. If reset, the cursor is hidden.
+///
+/// See <https://terminalguide.namepad.de/mode/p25/> for
+/// terminal support specifics.
+#[terminal_mode(private = '?', params = "25")]
+pub struct CursorVisibility {
+    pub enabled: bool,
+}
 
 /// Save cursor (`DECSC`).
 ///

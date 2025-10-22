@@ -26,8 +26,6 @@ struct EscapeSequenceAttributes {
     intermediate: Vec<u8>,
     /// Final byte that terminates the sequence.
     final_byte: Option<u8>,
-    /// Optional custom handler function name.
-    handler: Option<String>,
 }
 
 /// Parse the private marker attribute.
@@ -163,24 +161,7 @@ fn parse_finalbyte(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8
     }
 }
 
-/// Parse the handler function name attribute.
-///
-/// Extract a function identifier from `handler = function_name`.
-fn parse_handler(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<String> {
-    if let Expr::Path(path) = value
-        && let Some(ident) = path.path.get_ident()
-    {
-        return Some(ident.to_string());
-    }
 
-    diagnostics.push(
-        value
-            .span()
-            .error("handler must be a function identifier")
-            .help("example: handler = handle_sequence"),
-    );
-    None
-}
 
 /// Parse all escape sequence attributes from the macro input.
 ///
@@ -196,7 +177,6 @@ fn parse_escape_sequence_attributes(
         params: Vec::new(),
         intermediate: Vec::new(),
         final_byte: None,
-        handler: None,
     };
 
     for meta in meta_list {
@@ -216,14 +196,14 @@ fn parse_escape_sequence_attributes(
                     "params" => attrs.params = parse_params(&value, diagnostics),
                     "intermediate" => attrs.intermediate = parse_intermediate(&value, diagnostics),
                     "finalbyte" => attrs.final_byte = parse_finalbyte(&value, diagnostics),
-                    "handler" => attrs.handler = parse_handler(&value, diagnostics),
+
                     unknown => {
                         diagnostics.push(
                             key_ident
                                 .span()
                                 .error(format!("unknown attribute: {}", unknown))
                                 .help(
-                                    "valid attributes are: private, params, intermediate, finalbyte, handler",
+                                    "valid attributes are: private, params, intermediate, finalbyte",
                                 ),
                         );
                     }
@@ -343,34 +323,81 @@ fn generate_prefix_bytes(private: Option<u8>, params: &[Vec<u8>]) -> Vec<u8> {
     prefix
 }
 
-/// Generate the registry entry for the escape sequence.
+/// Generate a registry entry and handler for an escape sequence.
 fn generate_registry_entry(
     struct_name: &Ident,
     intro: &str,
     prefix_bytes: &[u8],
     final_byte: u8,
-    handler: Option<&str>,
+    var_params: Option<&[(String, syn::Type)]>,
 ) -> proc_macro2::TokenStream {
     let registry_name = syn::Ident::new(
         &format!("__{}_REGISTRY_ENTRY", struct_name.to_string().to_uppercase()),
         struct_name.span(),
     );
 
-    let handler_fn = if let Some(h) = handler {
-        let handler_ident = syn::Ident::new(h, struct_name.span());
-        quote! { #handler_ident }
+    let handler_name = syn::Ident::new(
+        &format!("{}_handler", struct_name.to_string().to_lowercase()),
+        struct_name.span(),
+    );
+
+    // Generate handler function
+    let handler_body = if let Some(params) = var_params {
+        // Variable sequence - parse params and call new
+        let param_parsing: Vec<_> = params
+            .iter()
+            .enumerate()
+            .map(|(i, (name, ty))| {
+                let field_name = syn::Ident::new(name, struct_name.span());
+                let ty_str = quote!(#ty).to_string();
+
+                match ty_str.trim() {
+                    "bool" => quote! {
+                        let #field_name: #ty = params.get(#i)
+                            .and_then(|p| p.first())
+                            .map(|&v| v != 0)
+                            .unwrap_or(false);
+                    },
+                    _ => quote! {
+                        let #field_name: #ty = params.get(#i)
+                            .and_then(|p| p.first())
+                            .copied()
+                            .unwrap_or(0) as #ty;
+                    },
+                }
+            })
+            .collect();
+
+        let field_names: Vec<_> = params
+            .iter()
+            .map(|(name, _)| syn::Ident::new(name, struct_name.span()))
+            .collect();
+
+        quote! {
+            #(#param_parsing)*
+            let _seq = #struct_name::new(#(#field_names),*);
+        }
     } else {
-        let default_handler = syn::Ident::new(
-            &format!("{}_handler", struct_name.to_string().to_lowercase()),
-            struct_name.span(),
-        );
-        quote! { #default_handler }
+        // Const sequence - just construct unit struct
+        quote! {
+            let _seq = #struct_name;
+        }
+    };
+
+    let handler_fn = quote! {
+        fn #handler_name(params: &::vtparser::EscapeSequenceParams) {
+            #handler_body
+        }
     };
 
     let intro_variant = syn::Ident::new(intro, struct_name.span());
     let struct_name_str = struct_name.to_string();
 
     quote! {
+        #[doc(hidden)]
+        #handler_fn
+
+        #[doc(hidden)]
         #[::linkme::distributed_slice(::vtparser::ESCAPE_SEQUENCE_REGISTRY)]
         static #registry_name: ::vtparser::EscapeSequenceMatchEntry =
             ::vtparser::EscapeSequenceMatchEntry {
@@ -378,7 +405,7 @@ fn generate_registry_entry(
                 intro: ::vtparser::EscapeSequenceIntroducer::#intro_variant,
                 prefix: &[#(#prefix_bytes),*],
                 final_byte: #final_byte,
-                handler: #handler_fn,
+                handler: #handler_name,
             };
     }
 }
@@ -417,7 +444,7 @@ fn generate_escape_sequence_impl(
 
     // Extract variable parameters from struct fields
     let var_params = extract_var_params_from_struct(&input);
-    
+
     // Check if params and var_params are both specified
     if !attrs.params.is_empty() && var_params.is_some() {
         diagnostics.push(
@@ -449,7 +476,7 @@ fn generate_escape_sequence_impl(
             intro,
             &prefix_bytes,
             final_byte,
-            attrs.handler.as_deref(),
+            None, // const sequence
         );
 
         // Generate the const string for ConstEncode
@@ -485,7 +512,6 @@ fn generate_escape_sequence_impl(
             var_params: &var_params,
             intermediate: &attrs.intermediate,
             final_byte,
-            handler: attrs.handler.as_deref(),
         })
     }
 }
@@ -499,7 +525,7 @@ fn generate_const_str(
     final_byte: u8,
 ) -> String {
     let mut result = String::from("\x1B");
-    
+
     // Add introducer
     match intro {
         "CSI" => result.push('['),
@@ -514,12 +540,12 @@ fn generate_const_str(
         "DECKPNM" => result.push('>'),
         _ => {}
     }
-    
+
     // Add private marker
     if let Some(byte) = private {
         result.push(byte as char);
     }
-    
+
     // Add params
     for (i, param) in params.iter().enumerate() {
         if i > 0 {
@@ -527,17 +553,17 @@ fn generate_const_str(
         }
         result.push_str(&String::from_utf8_lossy(param));
     }
-    
+
     // Add intermediate bytes
     for &byte in intermediate {
         if byte != 0 {
             result.push(byte as char);
         }
     }
-    
+
     // Add final byte
     result.push(final_byte as char);
-    
+
     result
 }
 
@@ -551,7 +577,6 @@ struct VariableSequenceParams<'a> {
     var_params: &'a [(String, syn::Type)],
     intermediate: &'a [u8],
     final_byte: u8,
-    handler: Option<&'a str>,
 }
 
 /// Generate a variable (non-const) sequence implementation.
@@ -565,16 +590,34 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         var_params,
         intermediate,
         final_byte,
-        handler,
     } = params;
     // Struct is already defined by the user, we just need to generate the impls
+
+    // Generate new constructor
+    let field_names: Vec<_> = var_params
+        .iter()
+        .map(|(name, _)| syn::Ident::new(name, struct_name.span()))
+        .collect();
+
+    let field_types: Vec<_> = var_params.iter().map(|(_, ty)| ty).collect();
+
+    let new_constructor = quote! {
+        impl #struct_name {
+            #[inline]
+            pub fn new(#(#field_names: #field_types),*) -> Self {
+                Self {
+                    #(#field_names),*
+                }
+            }
+        }
+    };
 
     // Calculate encoded length (upper bound)
     let intro_len = 2; // ESC + introducer
     let private_len = if private.is_some() { 1 } else { 0 };
     let intermediate_len = intermediate.iter().filter(|&&b| b != 0).count();
     let final_len = 1;
-    
+
     // For integers, use max digits (u8=3, u16=5, u32=10, u64=20, etc.)
     let total_param_len: usize = var_params
         .iter()
@@ -593,7 +636,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             }
         })
         .sum::<usize>() + if var_params.len() > 1 { var_params.len() - 1 } else { 0 };
-    
+
     let encoded_len = intro_len + private_len + total_param_len + intermediate_len + final_len;
 
     // Generate encode implementation
@@ -665,17 +708,18 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     let intermediate_const = generate_intermediate_const(intermediate);
     let final_const = generate_final_const(final_byte);
 
-    // Generate registry entry with empty prefix
     let registry_entry = generate_registry_entry(
         struct_name,
         intro,
         &[],
         final_byte,
-        handler,
+        Some(var_params), // variable sequence with params
     );
 
     quote! {
         #input
+
+        #new_constructor
 
         impl ::vtparser::EscapeSequence for #struct_name {
             const INTRO: ::vtparser::EscapeSequenceIntroducer =
@@ -730,10 +774,9 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 /// - `params` (optional): Array of string literals for const parameters (only for unit structs)
 /// - `intermediate` (optional): String literal for intermediate bytes
 /// - `finalbyte` (required): Character literal for final byte
-/// - `handler` (optional): Function identifier for custom handler
 ///
 /// For variable sequences, define the struct with fields. The fields will be used as
-/// parameters in the encoded sequence.
+/// parameters in the encoded sequence. A `new` constructor will be generated automatically.
 #[proc_macro_attribute]
 pub fn csi(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
@@ -924,4 +967,162 @@ pub fn deckpnm(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
 
     TokenStream::from(generate_escape_sequence_impl(input, "DECKPNM", attrs, &mut diagnostics))
+}
+
+/// Attribute macro for terminal mode control structures.
+///
+/// Generates three structs for controlling terminal modes:
+/// - `Enable{Name}` - Sets the mode (CSI code h)
+/// - `Disable{Name}` - Resets the mode (CSI code l)
+/// - `Request{Name}` - Requests the mode state (CSI code $p)
+///
+/// The base struct should have an `enabled: bool` field and will be used
+/// for mode state responses (CSI code;value$y).
+///
+/// # Example
+///
+/// ```ignore
+/// #[terminal_mode(private = '?', params = "6")]
+/// pub struct RelativeCursorOriginMode {
+///     pub enabled: bool,
+/// }
+/// ```
+///
+/// Expands to four structs with appropriate CSI encodings.
+///
+/// # Attributes
+///
+/// - `private` (optional): Character literal for private marker byte (e.g., '?')
+/// - `params` (required): String literal for the mode parameters (e.g., "6", "1037")
+#[proc_macro_attribute]
+pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemStruct);
+    let meta_list =
+        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+
+    let mut diagnostics = Vec::new();
+
+    // Parse attributes
+    let mut private_char: Option<char> = None;
+    let mut params_str: Option<String> = None;
+
+    for meta in meta_list {
+        if let Meta::NameValue(MetaNameValue {
+            ref path,
+            ref value,
+            ..
+        }) = meta
+        {
+            let ident = path.get_ident().map(|i| i.to_string());
+            match ident.as_deref() {
+                Some("private") => {
+                    if let Expr::Lit(ExprLit {
+                        lit: Lit::Char(ch),
+                        ..
+                    }) = value
+                    {
+                        private_char = Some(ch.value());
+                    } else {
+                        diagnostics.push(
+                            value
+                                .span()
+                                .error("private must be a char literal")
+                                .help("example: private = '?'"),
+                        );
+                    }
+                }
+                Some("params") => {
+                    if let Expr::Lit(ExprLit {
+                        lit: Lit::Str(s), ..
+                    }) = value
+                    {
+                        params_str = Some(s.value());
+                    } else {
+                        diagnostics.push(
+                            value
+                                .span()
+                                .error("params must be a string literal")
+                                .help("example: params = \"6\""),
+                        );
+                    }
+                }
+                _ => {
+                    diagnostics.push(
+                        meta.span()
+                            .error("unknown attribute")
+                            .help("supported attributes: private, params"),
+                    );
+                }
+            }
+        } else {
+            diagnostics.push(
+                meta.span()
+                    .error("expected name-value attribute")
+                    .help("example: private = '?', params = \"6\""),
+            );
+        }
+    }
+
+    // Validate required attributes
+    let params = match params_str {
+        Some(p) => p,
+        None => {
+            diagnostics.push(input.span().error("params attribute is required"));
+            String::new()
+        }
+    };
+
+    if !diagnostics.is_empty() {
+        let mut diags = TokenStream::new();
+        for diagnostic in diagnostics {
+            diags.extend(TokenStream::from(diagnostic.emit_as_item_tokens()));
+        }
+        return diags;
+    }
+
+    // Extract struct metadata
+    let base_name = &input.ident;
+    let vis = &input.vis;
+    let attrs = &input.attrs;
+
+    // Build param array for CSI attributes
+    let params_array = quote! { [#params] };
+
+    // Build private attribute
+    let private_attr = if let Some(ch) = private_char {
+        quote! { private = #ch, }
+    } else {
+        quote! {}
+    };
+
+    // Generate the three control structs
+    let enable_name = Ident::new(&format!("Enable{}", base_name), base_name.span());
+    let disable_name = Ident::new(&format!("Disable{}", base_name), base_name.span());
+    let request_name = Ident::new(&format!("Request{}", base_name), base_name.span());
+
+    let expanded = quote! {
+        #(#attrs)*
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+        #[::vtderive::csi(#private_attr params = #params_array, finalbyte = 'h')]
+        #vis struct #enable_name;
+
+        #(#attrs)*
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+        #[::vtderive::csi(#private_attr params = #params_array, finalbyte = 'l')]
+        #vis struct #disable_name;
+
+        #(#attrs)*
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+        #[::vtderive::csi(#private_attr params = #params_array, intermediate = "$", finalbyte = 'p')]
+        #vis struct #request_name;
+
+        #(#attrs)*
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+        #[::vtderive::csi(#private_attr intermediate = "$", finalbyte = 'y')]
+        #vis struct #base_name {
+            pub enabled: bool,
+        }
+    };
+
+    TokenStream::from(expanded)
 }
