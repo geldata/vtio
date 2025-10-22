@@ -167,7 +167,7 @@ impl Encode for SetLeftAndRightMargins {
 /// Where `Pt` is the top margin line number and `Pb` is the bottom
 /// margin line number.
 ///
-/// See <https://vt100.net/docs/vt510-rm/DECRQSS.html> for
+/// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-r/> for
 /// terminal support specifics.
 pub struct RequestTopBottomMargins;
 
@@ -190,7 +190,7 @@ impl ConstEncode for RequestTopBottomMargins {
 /// Where `Pl` is the left margin column number and `Pr` is the right
 /// margin column number.
 ///
-/// See <https://vt100.net/docs/vt510-rm/DECRQSS.html> for
+/// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-s/> for
 /// terminal support specifics.
 pub struct RequestLeftRightMargins;
 
