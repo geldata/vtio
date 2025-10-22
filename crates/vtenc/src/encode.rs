@@ -110,14 +110,8 @@ pub trait WriteSeq {
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError>;
 }
 
-impl<T: WriteSeq + Copy> WriteSeq for &mut T {
-     #[inline]
-     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        (**self).write_seq(sink)
-     }
- }
-
 pub trait IntoSeq {
+    #[allow(clippy::wrong_self_convention)]
     fn into_seq(&self) -> impl WriteSeq;
 }
 
@@ -142,145 +136,44 @@ impl WriteSeq for String {
     }
 }
 
-impl WriteSeq for u8 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
+macro_rules! write_int_seq {
+    ($(#[$meta:meta])* $type:ty) => {
+        $(#[$meta])*
+        impl $crate::encode::WriteSeq for $type {
+            #[inline]
+            fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+                write_int(sink, *self)
+            }
+        }
+
+        $(#[$meta])*
+        impl $crate::encode::WriteSeq for &$type {
+            #[inline]
+            fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+                write_int(sink, **self)
+            }
+        }
+
+        $(#[$meta])*
+        impl $crate::encode::WriteSeq for &mut $type {
+            #[inline]
+            fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+                write_int(sink, **self)
+            }
+        }
+    };
 }
 
-impl WriteSeq for &u8 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for u16 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &u16 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for u32 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &u32 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for u64 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &u64 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for usize {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &usize {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for i8 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &i8 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for i16 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &i16 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for i32 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &i32 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for i64 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &i64 {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
-
-impl WriteSeq for isize {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, *self)
-    }
-}
-
-impl WriteSeq for &isize {
-    #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        write_int(sink, **self)
-    }
-}
+write_int_seq!(u8);
+write_int_seq!(u16);
+write_int_seq!(u32);
+write_int_seq!(u64);
+write_int_seq!(usize);
+write_int_seq!(i8);
+write_int_seq!(i16);
+write_int_seq!(i32);
+write_int_seq!(i64);
+write_int_seq!(isize);
 
 impl WriteSeq for char {
     #[inline]
@@ -300,6 +193,15 @@ impl WriteSeq for &char {
     }
 }
 
+impl WriteSeq for &mut char {
+    #[inline]
+    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+        let mut buf = [0u8; 4];
+        let s = self.encode_utf8(&mut buf);
+        write_str_into(sink, s)
+    }
+}
+
 impl WriteSeq for bool {
     #[inline]
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
@@ -308,6 +210,13 @@ impl WriteSeq for bool {
 }
 
 impl WriteSeq for &bool {
+    #[inline]
+    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+        write_str_into(sink, if **self { "1" } else { "0" })
+    }
+}
+
+impl WriteSeq for &mut bool {
     #[inline]
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         write_str_into(sink, if **self { "1" } else { "0" })
