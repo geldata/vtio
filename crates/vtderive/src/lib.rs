@@ -969,6 +969,153 @@ pub fn deckpnm(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(generate_escape_sequence_impl(input, "DECKPNM", attrs, &mut diagnostics))
 }
 
+/// Generate implementation for plain ESC sequences.
+///
+/// Plain ESC sequences don't have an introducer byte after ESC, they go
+/// directly to intermediate bytes and final byte.
+fn generate_esc_sequence_impl(
+    input: ItemStruct,
+    attrs: EscapeSequenceAttributes,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> proc_macro2::TokenStream {
+    let struct_name = &input.ident;
+
+    // Extract variable parameters from struct fields
+    let var_params = extract_var_params_from_struct(&input);
+
+    // Check if params and var_params are both specified
+    if !attrs.params.is_empty() && var_params.is_some() {
+        diagnostics.push(
+            struct_name
+                .span()
+                .error("cannot specify params attribute for structs with fields")
+                .help("use params for unit structs (const sequences) or add fields for variable sequences"),
+        );
+        let tokens: proc_macro2::TokenStream = diagnostics
+            .drain(..)
+            .map(|d| d.emit_as_item_tokens())
+            .collect();
+        return tokens;
+    }
+
+    let is_const = var_params.is_none();
+
+    if is_const {
+        // For const sequences, finalbyte is required
+        let Some(final_byte) = attrs.final_byte else {
+            diagnostics.push(
+                struct_name
+                    .span()
+                    .error("finalbyte attribute is required for const sequences")
+                    .help("add finalbyte = 'X' where X is the final byte character"),
+            );
+            let tokens: proc_macro2::TokenStream = diagnostics
+                .drain(..)
+                .map(|d| d.emit_as_item_tokens())
+                .collect();
+            return tokens;
+        };
+
+        if !diagnostics.is_empty() {
+            let tokens: proc_macro2::TokenStream = diagnostics
+                .drain(..)
+                .map(|d| d.emit_as_item_tokens())
+                .collect();
+            return tokens;
+        }
+
+        // Generate const sequence
+        // Build the const string: ESC + intermediate + final_byte
+        let mut const_str = String::from("\x1B");
+        
+        // Add intermediate bytes
+        for &byte in &attrs.intermediate {
+            if byte != 0 {
+                const_str.push(byte as char);
+            }
+        }
+        
+        // Add final byte
+        const_str.push(final_byte as char);
+
+        quote! {
+            #input
+
+            impl ::vtenc::encode::ConstEncode for #struct_name {
+                const STR: &'static str = #const_str;
+            }
+        }
+    } else {
+        // Generate variable sequence
+        // For variable sequences, finalbyte is optional - fields provide the variable content
+        if !diagnostics.is_empty() {
+            let tokens: proc_macro2::TokenStream = diagnostics
+                .drain(..)
+                .map(|d| d.emit_as_item_tokens())
+                .collect();
+            return tokens;
+        }
+
+        let var_params = var_params.unwrap();
+        let intermediate = &attrs.intermediate;
+        
+        // Build intermediate string for write_esc macro
+        let intermediate_str = intermediate
+            .iter()
+            .filter(|&&b| b != 0)
+            .map(|&b| b as char)
+            .collect::<String>();
+        
+        // Generate field references for write_esc macro
+        let field_idents: Vec<_> = var_params
+            .iter()
+            .map(|(field_name, _)| syn::Ident::new(field_name, struct_name.span()))
+            .collect();
+
+        quote! {
+            #input
+
+            impl ::vtenc::encode::ConstEncodedLen for #struct_name {
+                const ENCODED_LEN: usize = 4; // Conservative upper bound: ESC + intermediate + 2-byte charset
+            }
+
+            impl ::vtenc::encode::Encode for #struct_name {
+                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtenc::encode::EncodeError> {
+                    ::vtenc::write_esc!(buf; #intermediate_str, #(self.#field_idents),*)
+                }
+            }
+        }
+    }
+}
+
+/// Attribute macro for plain ESC sequences.
+///
+/// Generate implementations for escape sequences that start with ESC (\x1B)
+/// followed by optional intermediate bytes and a final byte.
+///
+/// # Example
+///
+/// ```ignore
+/// #[esc(finalbyte = 'G', intermediate = "%")]
+/// struct EnableUTF8Mode;
+/// ```
+///
+/// # Attributes
+///
+/// - `finalbyte` (required): Character literal for the final byte
+/// - `intermediate` (optional): String literal for intermediate bytes
+#[proc_macro_attribute]
+pub fn esc(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemStruct);
+    let meta_list =
+        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+
+    let mut diagnostics = Vec::new();
+    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
+
+    TokenStream::from(generate_esc_sequence_impl(input, attrs, &mut diagnostics))
+}
+
 /// Attribute macro for terminal mode control structures.
 ///
 /// Generates three structs for controlling terminal modes:

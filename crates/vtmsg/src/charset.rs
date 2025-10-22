@@ -1,6 +1,7 @@
 //! Terminal character set control and information messages.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, esc, write_esc};
+use vtderive::esc;
+use vtenc::{ConstEncode, WriteSeq};
 
 /// Enable UTF-8 mode.
 ///
@@ -8,23 +9,17 @@ use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, esc, write_esc};
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zpercent_cg/> for
 /// terminal support specifics and details.
+#[esc(finalbyte = 'G', intermediate = "%")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct EnableUTF8Mode;
-
-impl ConstEncode for EnableUTF8Mode {
-    const STR: &'static str = esc!("%G");
-}
 
 /// Disable UTF-8 mode.
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zpercent_x40_at/> for
 /// terminal support specifics and details.
+#[esc(finalbyte = '@', intermediate = "%")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DisableUTF8Mode;
-
-impl ConstEncode for DisableUTF8Mode {
-    const STR: &'static str = esc!("%@");
-}
 
 /// Shift Out (SO).
 ///
@@ -60,12 +55,9 @@ impl ConstEncode for ShiftIn {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_sn/> for terminal support
 /// specifics and details.
+#[esc(finalbyte = 'n')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct LockingShift2;
-
-impl ConstEncode for LockingShift2 {
-    const STR: &'static str = esc!("n");
-}
 
 /// Locking Shift 3 (LS3).
 ///
@@ -73,12 +65,9 @@ impl ConstEncode for LockingShift2 {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_so/> for terminal support
 /// specifics and details.
+#[esc(finalbyte = 'o')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct LockingShift3;
-
-impl ConstEncode for LockingShift3 {
-    const STR: &'static str = esc!("o");
-}
 
 /// Locking Shift 1 Right (LS1R).
 ///
@@ -86,12 +75,9 @@ impl ConstEncode for LockingShift3 {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_x7e_tilde/> for terminal
 /// support specifics and details.
+#[esc(finalbyte = '~')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct LockingShift1Right;
-
-impl ConstEncode for LockingShift1Right {
-    const STR: &'static str = esc!("~");
-}
 
 /// Locking Shift 2 Right (LS2R).
 ///
@@ -99,12 +85,9 @@ impl ConstEncode for LockingShift1Right {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_x7d_right_brace/> for
 /// terminal support specifics and details.
+#[esc(finalbyte = '}')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct LockingShift2Right;
-
-impl ConstEncode for LockingShift2Right {
-    const STR: &'static str = esc!("}");
-}
 
 /// Locking Shift 3 Right (LS3R).
 ///
@@ -112,12 +95,9 @@ impl ConstEncode for LockingShift2Right {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_x7c_pipe/> for terminal
 /// support specifics and details.
+#[esc(finalbyte = '|')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct LockingShift3Right;
-
-impl ConstEncode for LockingShift3Right {
-    const STR: &'static str = esc!("|");
-}
 
 /// Single Shift 2 (SS2).
 ///
@@ -125,12 +105,9 @@ impl ConstEncode for LockingShift3Right {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_cn/> for terminal
 /// support specifics and details.
+#[esc(finalbyte = 'N')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct SingleShift2;
-
-impl ConstEncode for SingleShift2 {
-    const STR: &'static str = esc!("N");
-}
 
 /// Single Shift 3 (SS3).
 ///
@@ -138,12 +115,9 @@ impl ConstEncode for SingleShift2 {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_co/> for terminal
 /// support specifics and details.
+#[esc(finalbyte = 'O')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct SingleShift3;
-
-impl ConstEncode for SingleShift3 {
-    const STR: &'static str = esc!("O");
-}
 
 /// Character set codes used in charset designation sequences.
 ///
@@ -278,6 +252,12 @@ impl CharsetCode {
     }
 }
 
+impl vtenc::IntoSeq for CharsetCode {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.code()
+    }
+}
+
 /// Designate G0 Character Set (94 characters).
 ///
 /// Designate a 94-character set to the G0 character set register.
@@ -285,20 +265,10 @@ impl CharsetCode {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
+#[esc(intermediate = "(")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DesignateG0 {
     pub charset: CharsetCode,
-}
-
-impl ConstEncodedLen for DesignateG0 {
-    // ESC ( + charset code (1-2 bytes)
-    const ENCODED_LEN: usize = 4;
-}
-
-impl Encode for DesignateG0 {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_esc!(buf; "(", self.charset.code())
-    }
 }
 
 /// Designate G1 Character Set (94 characters).
@@ -308,20 +278,10 @@ impl Encode for DesignateG0 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
+#[esc(intermediate = ")")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DesignateG1 {
     pub charset: CharsetCode,
-}
-
-impl ConstEncodedLen for DesignateG1 {
-    // ESC ) + charset code (1-2 bytes)
-    const ENCODED_LEN: usize = 4;
-}
-
-impl Encode for DesignateG1 {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_esc!(buf; ")", self.charset.code())
-    }
 }
 
 /// Designate G2 Character Set (94 characters).
@@ -331,20 +291,10 @@ impl Encode for DesignateG1 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
+#[esc(intermediate = "*")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DesignateG2 {
     pub charset: CharsetCode,
-}
-
-impl ConstEncodedLen for DesignateG2 {
-    // ESC * + charset code (1-2 bytes)
-    const ENCODED_LEN: usize = 4;
-}
-
-impl Encode for DesignateG2 {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_esc!(buf; "*", self.charset.code())
-    }
 }
 
 /// Designate G3 Character Set (94 characters).
@@ -354,20 +304,10 @@ impl Encode for DesignateG2 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
+#[esc(intermediate = "+")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DesignateG3 {
     pub charset: CharsetCode,
-}
-
-impl ConstEncodedLen for DesignateG3 {
-    // ESC + + charset code (1-2 bytes)
-    const ENCODED_LEN: usize = 4;
-}
-
-impl Encode for DesignateG3 {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_esc!(buf; "+", self.charset.code())
-    }
 }
 
 /// Designate G1 Character Set (96 characters).
@@ -377,20 +317,10 @@ impl Encode for DesignateG3 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
+#[esc(intermediate = "-")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DesignateG1_96 {
     pub charset: CharsetCode,
-}
-
-impl ConstEncodedLen for DesignateG1_96 {
-    // ESC - + charset code (1 byte for 96-char sets)
-    const ENCODED_LEN: usize = 3;
-}
-
-impl Encode for DesignateG1_96 {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_esc!(buf; "-", self.charset.code())
-    }
 }
 
 /// Designate G2 Character Set (96 characters).
@@ -400,20 +330,10 @@ impl Encode for DesignateG1_96 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
+#[esc(intermediate = ".")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DesignateG2_96 {
     pub charset: CharsetCode,
-}
-
-impl ConstEncodedLen for DesignateG2_96 {
-    // ESC . + charset code (1 byte for 96-char sets)
-    const ENCODED_LEN: usize = 3;
-}
-
-impl Encode for DesignateG2_96 {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_esc!(buf; ".", self.charset.code())
-    }
 }
 
 /// Designate G3 Character Set (96 characters).
@@ -423,18 +343,58 @@ impl Encode for DesignateG2_96 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
+#[esc(intermediate = "/")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DesignateG3_96 {
     pub charset: CharsetCode,
 }
 
-impl ConstEncodedLen for DesignateG3_96 {
-    // ESC / + charset code (1 byte for 96-char sets)
-    const ENCODED_LEN: usize = 3;
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vtenc::{ConstEncode, Encode};
 
-impl Encode for DesignateG3_96 {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_esc!(buf; "/", self.charset.code())
+    #[test]
+    fn test_const_esc_sequences() {
+        assert_eq!(EnableUTF8Mode::STR, "\x1B%G");
+        assert_eq!(DisableUTF8Mode::STR, "\x1B%@");
+        assert_eq!(LockingShift2::STR, "\x1Bn");
+        assert_eq!(LockingShift3::STR, "\x1Bo");
+        assert_eq!(SingleShift2::STR, "\x1BN");
+        assert_eq!(SingleShift3::STR, "\x1BO");
+        assert_eq!(LockingShift1Right::STR, "\x1B~");
+        assert_eq!(LockingShift2Right::STR, "\x1B}");
+        assert_eq!(LockingShift3Right::STR, "\x1B|");
+    }
+
+    #[test]
+    fn test_variable_esc_sequences() {
+        let mut buf = Vec::new();
+        let mut msg = DesignateG0 {
+            charset: CharsetCode::Ascii,
+        };
+        msg.encode(&mut buf).unwrap();
+        assert_eq!(buf, b"\x1B(B");
+
+        let mut buf = Vec::new();
+        let mut msg = DesignateG1 {
+            charset: CharsetCode::DecSpecialGraphic,
+        };
+        msg.encode(&mut buf).unwrap();
+        assert_eq!(buf, b"\x1B)0");
+
+        let mut buf = Vec::new();
+        let mut msg = DesignateG0 {
+            charset: CharsetCode::DecSuppGraphic,
+        };
+        msg.encode(&mut buf).unwrap();
+        assert_eq!(buf, b"\x1B(%5");
+
+        let mut buf = Vec::new();
+        let mut msg = DesignateG2_96 {
+            charset: CharsetCode::Latin1Supplemental,
+        };
+        msg.encode(&mut buf).unwrap();
+        assert_eq!(buf, b"\x1B.A");
     }
 }
