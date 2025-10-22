@@ -41,6 +41,7 @@ pub mod macros;
 pub mod mouse;
 pub mod screen;
 pub mod scroll;
+pub mod shell;
 pub mod terminal;
 pub mod window;
 
