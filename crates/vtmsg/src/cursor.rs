@@ -1,8 +1,10 @@
 //! Cursor movement and control commands.
 
-use bitflags::bitflags;
 use crate::terminal_mode;
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, write_csi};
+use bitflags::bitflags;
+use vtenc::{
+    ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, write_csi, write_dcs,
+};
 
 terminal_mode!(
     /// Cursor Origin Mode (`DECOM`).
@@ -978,10 +980,7 @@ impl LinuxCursorStyle {
     ///
     /// xor and or values are initialized to 0.
     #[must_use]
-    pub const fn with_flags(
-        shape: LinuxCursorShape,
-        flags: LinuxCursorStyleFlags,
-    ) -> Self {
+    pub const fn with_flags(shape: LinuxCursorShape, flags: LinuxCursorStyleFlags) -> Self {
         Self {
             shape,
             flags,
@@ -1019,14 +1018,10 @@ impl ConstEncodedLen for LinuxCursorStyle {
 
 impl Encode for LinuxCursorStyle {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; self.shape_value(), ";", self.xor, ";", self.or, " q")
     }
 }
-
 
 /// Request Cursor Position Report (`CPR`).
 ///
@@ -1073,5 +1068,217 @@ impl Encode for CursorPositionReport {
     #[inline]
     fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; self.row, ";", self.col, "R")
+    }
+}
+
+/// Request Cursor Information Report (`DECCIR`).
+///
+/// Request detailed cursor information including position, attributes,
+/// protection status, flags, and character set information.
+///
+/// The terminal replies with a DCS sequence containing:
+/// - Cursor position (row and column)
+/// - Current text attributes (bold, underline, blink, inverse)
+/// - Character protection status
+/// - Various cursor flags (origin mode, single shift, pending wrap)
+/// - Character set information (GL, GR, and G0-G3 sets)
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-1/> for
+/// terminal support specifics.
+pub struct RequestCursorInformationReport;
+
+impl ConstEncode for RequestCursorInformationReport {
+    const STR: &'static str = csi!("1$w");
+}
+
+bitflags! {
+    /// Cursor attribute flags for cursor information report.
+    ///
+    /// These flags encode the currently active text attributes.
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct CursorAttributes: u8 {
+        /// Bold text attribute.
+        const BOLD = 1;
+        /// Underline text attribute.
+        const UNDERLINE = 2;
+        /// Blink text attribute.
+        const BLINK = 4;
+        /// Inverse (reverse video) text attribute.
+        const INVERSE = 8;
+    }
+}
+
+bitflags! {
+    /// Cursor state flags for cursor information report.
+    ///
+    /// These flags encode various cursor and terminal state information.
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct CursorStateFlags: u8 {
+        /// Cursor origin mode is set.
+        const ORIGIN_MODE = 1;
+        /// Single shift for G2 is active.
+        const SINGLE_SHIFT_G2 = 2;
+        /// Single shift for G3 is active.
+        const SINGLE_SHIFT_G3 = 4;
+        /// Pending wrap is set.
+        const PENDING_WRAP = 8;
+    }
+}
+
+/// Cursor Information Report (`DECCIR`).
+///
+/// Response from the terminal to [`RequestCursorInformationReport`].
+///
+/// Contains detailed information about the cursor state including
+/// position, attributes, protection, flags, and character set
+/// configuration.
+///
+/// The report is encoded as a DCS sequence.
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-1/> for
+/// terminal support specifics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CursorInformationReport {
+    /// Cursor row position.
+    pub row: u16,
+    /// Cursor column position.
+    pub col: u16,
+    /// Current text attributes.
+    pub attributes: CursorAttributes,
+    /// Character protection enabled.
+    pub protected: bool,
+    /// Cursor state flags.
+    pub flags: CursorStateFlags,
+    /// Character set invoked into GL (0-3 for G0-G3).
+    pub gl: u8,
+    /// Character set invoked into GR (1-3 for G1-G3).
+    pub gr: u8,
+    /// Character set designations for G0, G1, G2, G3.
+    pub gsets: String,
+}
+
+impl CursorInformationReport {
+    /// Create a new cursor information report with the specified
+    /// parameters.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        row: u16,
+        col: u16,
+        attributes: CursorAttributes,
+        protected: bool,
+        flags: CursorStateFlags,
+        gl: u8,
+        gr: u8,
+        gsets: String,
+    ) -> Self {
+        Self {
+            row,
+            col,
+            attributes,
+            protected,
+            flags,
+            gl,
+            gr,
+            gsets,
+        }
+    }
+
+    fn encode_byte(value: u8) -> char {
+        char::from(0x40 + value)
+    }
+}
+
+impl Encode for CursorInformationReport {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        let attrs_byte = Self::encode_byte(self.attributes.bits());
+        let protection_byte = if self.protected { 'A' } else { '@' };
+        let flags_byte = Self::encode_byte(self.flags.bits());
+
+        write_dcs!(
+            buf;
+            "1$u",
+            self.row,
+            ";",
+            self.col,
+            ";1;",
+            attrs_byte,
+            ";",
+            protection_byte,
+            ";",
+            flags_byte,
+            ";",
+            self.gl,
+            ";",
+            self.gr,
+            ";O;",
+            self.gsets.as_str()
+        )
+    }
+}
+
+/// Request Tab Stop Report (`DECTABSR`).
+///
+/// Request a report of the currently set tab stops.
+///
+/// The terminal replies with a DCS sequence containing the column
+/// numbers of all set tab stops, separated by forward slashes (/).
+///
+/// All explicitly set tab stops and default tab stops that fit within
+/// the current terminal width are reported.
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-2/> for
+/// terminal support specifics.
+pub struct RequestTabStopReport;
+
+impl ConstEncode for RequestTabStopReport {
+    const STR: &'static str = csi!("2$w");
+}
+
+/// Tab Stop Report (`DECTABSR`).
+///
+/// Response from the terminal to [`RequestTabStopReport`].
+///
+/// Contains the column numbers of all currently set tab stops,
+/// formatted as a slash-separated string (e.g., "9/17/25/33").
+///
+/// The report is encoded as a DCS sequence.
+///
+/// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-2/> for
+/// terminal support specifics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TabStopReport {
+    /// Tab stop column positions.
+    pub tab_stops: Vec<u16>,
+}
+
+impl TabStopReport {
+    /// Create a new tab stop report with the specified tab stop
+    /// positions.
+    #[must_use]
+    pub fn new(tab_stops: Vec<u16>) -> Self {
+        Self { tab_stops }
+    }
+
+    /// Create a tab stop report from a slice of tab stop positions.
+    #[must_use]
+    pub fn from_slice(tab_stops: &[u16]) -> Self {
+        Self {
+            tab_stops: tab_stops.to_vec(),
+        }
+    }
+}
+
+impl Encode for TabStopReport {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        let stops = self
+            .tab_stops
+            .iter()
+            .map(u16::to_string)
+            .collect::<Vec<String>>()
+            .join("/");
+        write_dcs!(buf; "2$u", stops)
     }
 }

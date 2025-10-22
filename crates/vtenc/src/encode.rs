@@ -110,6 +110,13 @@ pub trait WriteSeq {
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError>;
 }
 
+impl<T: WriteSeq + Copy> WriteSeq for &mut T {
+    #[inline]
+    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+        (**self).write_seq(sink)
+    }
+}
+
 impl WriteSeq for &str {
     #[inline]
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
@@ -117,10 +124,10 @@ impl WriteSeq for &str {
     }
 }
 
-impl<T: WriteSeq + Copy> WriteSeq for &mut T {
+impl WriteSeq for String {
     #[inline]
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        (**self).write_seq(sink)
+        write_str_into(sink, self)
     }
 }
 
