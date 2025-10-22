@@ -2,8 +2,10 @@
 //!
 //! See <https://terminalguide.namepad.de/mouse/> for details.
 
-use crate::terminal_mode;
 use vtenc::{ConstEncodedLen, Encode, EncodeError, const_composite, write_csi};
+
+use crate::terminal_mode;
+use crate::keyboard::KeyModifiers;
 
 //
 // Mouse event modes (mutually exclusive).
@@ -266,4 +268,141 @@ impl Encode for LinuxMousePointerStyle {
     ) -> Result<usize, EncodeError> {
         write_csi!(buf; self.attr_xor, ";", self.char_xor, "m")
     }
+}
+
+impl Encode for MouseEvent {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        let mods = self.modifiers;
+
+        // Calculate modifier offset for SGR mode
+        let mod_offset = if mods.contains(KeyModifiers::SHIFT) {
+            4
+        } else {
+            0
+        } + if mods.contains(KeyModifiers::ALT) {
+            8
+        } else {
+            0
+        } + if mods.contains(KeyModifiers::CONTROL) {
+            16
+        } else {
+            0
+        };
+
+        // Map mouse event kinds to SGR button codes
+        let (base_button, final_char) = match self.kind {
+            MouseEventKind::Down(button) => {
+                let btn_code = match button {
+                    MouseButton::Left => 0,
+                    MouseButton::Middle => 1,
+                    MouseButton::Right => 2,
+                };
+                (btn_code, b'M')
+            }
+            MouseEventKind::Up(button) => {
+                let btn_code = match button {
+                    MouseButton::Left => 0,
+                    MouseButton::Middle => 1,
+                    MouseButton::Right => 2,
+                };
+                (btn_code, b'm')
+            }
+            MouseEventKind::Drag(button) => {
+                let btn_code = match button {
+                    MouseButton::Left => 0,
+                    MouseButton::Middle => 1,
+                    MouseButton::Right => 2,
+                };
+                // Add drag bit (bit 5 = 32)
+                (btn_code + 32, b'M')
+            }
+            MouseEventKind::Moved => {
+                // Mouse move without button
+                (3 + 32, b'M')
+            }
+            MouseEventKind::ScrollUp => (1 << 6, b'M'),
+            MouseEventKind::ScrollDown => (1 << 6 | 1, b'M'),
+            MouseEventKind::ScrollLeft => (1 << 6 | 2, b'M'),
+            MouseEventKind::ScrollRight => (1 << 6 | 3, b'M'),
+        };
+
+        let button_code = base_button + mod_offset;
+
+        // Convert coordinates (0-based to 1-based for SGR)
+        let x = self.column + 1;
+        let y = self.row + 1;
+
+        // Generate SGR sequence: ESC[<btn;col;row(M|m)
+        write_csi!(buf; "<", button_code, ";", x, ";", y, final_char as char)
+    }
+}
+
+/// Represents a mouse event.
+///
+/// # Platform-specific Notes
+///
+/// ## Mouse Buttons
+///
+/// Some platforms/terminals do not report mouse button for the
+/// `MouseEventKind::Up` and `MouseEventKind::Drag` events. `MouseButton::Left`
+/// is returned if we don't know which button was used.
+///
+/// ## Key Modifiers
+///
+/// Some platforms/terminals does not report all key modifiers
+/// combinations for all mouse event types. For example - macOS reports
+/// `Ctrl` + left mouse button click as a right mouse button click.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct MouseEvent {
+    /// The kind of mouse event that was caused.
+    pub kind: MouseEventKind,
+    /// The column that the event occurred on.
+    pub column: u16,
+    /// The row that the event occurred on.
+    pub row: u16,
+    /// The key modifiers active when the event occurred.
+    pub modifiers: KeyModifiers,
+}
+
+/// A mouse event kind.
+///
+/// # Platform-specific Notes
+///
+/// ## Mouse Buttons
+///
+/// Some platforms/terminals do not report mouse button for the
+/// `MouseEventKind::Up` and `MouseEventKind::Drag` events. `MouseButton::Left`
+/// is returned if we don't know which button was used.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum MouseEventKind {
+    /// Pressed mouse button. Contains the button that was pressed.
+    Down(MouseButton),
+    /// Released mouse button. Contains the button that was released.
+    Up(MouseButton),
+    /// Moved the mouse cursor while pressing the contained mouse button.
+    Drag(MouseButton),
+    /// Moved the mouse cursor while not pressing a mouse button.
+    Moved,
+    /// Scrolled mouse wheel downwards (towards the user).
+    ScrollDown,
+    /// Scrolled mouse wheel upwards (away from the user).
+    ScrollUp,
+    /// Scrolled mouse wheel left (mostly on a laptop touchpad).
+    ScrollLeft,
+    /// Scrolled mouse wheel right (mostly on a laptop touchpad).
+    ScrollRight,
+}
+
+/// Represents a mouse button.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum MouseButton {
+    /// Left mouse button.
+    Left,
+    /// Right mouse button.
+    Right,
+    /// Middle mouse button.
+    Middle,
 }
