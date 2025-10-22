@@ -1,7 +1,7 @@
 //! Terminal character set control and information messages.
 
-use vtderive::esc;
-use vtenc::{ConstEncode, WriteSeq};
+use vtderive::{c0, esc};
+use vtenc::WriteSeq;
 
 /// Enable UTF-8 mode.
 ///
@@ -28,12 +28,9 @@ pub struct DisableUTF8Mode;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_c0-n/> for terminal support
 /// specifics and details.
+#[c0(code = 0x0E)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ShiftOut;
-
-impl ConstEncode for ShiftOut {
-    const STR: &'static str = "\x0E";
-}
 
 /// Shift In (SI).
 ///
@@ -42,12 +39,9 @@ impl ConstEncode for ShiftOut {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_c0-o/> for terminal support
 /// specifics and details.
+#[c0(code = 0x0F)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ShiftIn;
-
-impl ConstEncode for ShiftIn {
-    const STR: &'static str = "\x0F";
-}
 
 /// Locking Shift 2 (LS2).
 ///
@@ -353,6 +347,12 @@ pub struct DesignateG3_96 {
 mod tests {
     use super::*;
     use vtenc::{ConstEncode, Encode};
+
+    #[test]
+    fn test_c0_control_codes() {
+        assert_eq!(ShiftOut::STR, "\x0E");
+        assert_eq!(ShiftIn::STR, "\x0F");
+    }
 
     #[test]
     fn test_const_esc_sequences() {

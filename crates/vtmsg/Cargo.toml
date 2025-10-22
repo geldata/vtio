@@ -24,5 +24,4 @@ vtparser = { version = "0.0.0", path = "../vtparser" }
 smallvec = { version = "1.15.1", features = ["const_new", "const_generics"] }
 
 [dev-dependencies]
-vtinput = { path = "../vtinput" }
 bytes = "1.0"

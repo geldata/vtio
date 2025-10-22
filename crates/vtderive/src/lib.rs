@@ -1116,6 +1116,105 @@ pub fn esc(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(generate_esc_sequence_impl(input, attrs, &mut diagnostics))
 }
 
+/// Attribute macro for C0 control characters.
+///
+/// Generate ConstEncode implementation for single-byte C0 control codes.
+///
+/// # Example
+///
+/// ```ignore
+/// #[c0(code = 0x0E)]
+/// struct ShiftOut;
+/// ```
+///
+/// # Attributes
+///
+/// - `code` (required): Integer literal (0x00-0x1F) for the control code byte
+#[proc_macro_attribute]
+pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemStruct);
+    let meta_list =
+        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+
+    let mut diagnostics = Vec::new();
+    let struct_name = &input.ident;
+
+    // Parse the code attribute
+    let mut code: Option<u8> = None;
+
+    for meta in meta_list {
+        match meta {
+            Meta::NameValue(MetaNameValue {
+                path,
+                value:
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Int(lit_int),
+                        ..
+                    }),
+                ..
+            }) if path.is_ident("code") => {
+                match lit_int.base10_parse::<u8>() {
+                    Ok(val) if val <= 0x1F => {
+                        code = Some(val);
+                    }
+                    Ok(_) => {
+                        diagnostics.push(
+                            lit_int
+                                .span()
+                                .error("C0 control code must be in range 0x00-0x1F"),
+                        );
+                    }
+                    Err(e) => {
+                        diagnostics.push(lit_int.span().error(format!("invalid integer: {}", e)));
+                    }
+                }
+            }
+            _ => {
+                diagnostics.push(
+                    meta.span()
+                        .error("unsupported attribute")
+                        .help("only 'code' attribute is supported"),
+                );
+            }
+        }
+    }
+
+    let Some(code) = code else {
+        diagnostics.push(
+            struct_name
+                .span()
+                .error("code attribute is required")
+                .help("add code = 0x.. where 0x.. is the control code byte (0x00-0x1F)"),
+        );
+        let tokens: proc_macro2::TokenStream = diagnostics
+            .drain(..)
+            .map(|d| d.emit_as_item_tokens())
+            .collect();
+        return TokenStream::from(tokens);
+    };
+
+    if !diagnostics.is_empty() {
+        let tokens: proc_macro2::TokenStream = diagnostics
+            .drain(..)
+            .map(|d| d.emit_as_item_tokens())
+            .collect();
+        return TokenStream::from(tokens);
+    }
+
+    // Generate the const string
+    let const_str = format!("{}", code as char);
+
+    let expanded = quote! {
+        #input
+
+        impl ::vtenc::encode::ConstEncode for #struct_name {
+            const STR: &'static str = #const_str;
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
 /// Attribute macro for terminal mode control structures.
 ///
 /// Generates three structs for controlling terminal modes:

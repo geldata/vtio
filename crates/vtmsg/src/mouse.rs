@@ -406,3 +406,47 @@ pub enum MouseButton {
     /// Middle mouse button.
     Middle,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_mouse_event_down() {
+        let mut event = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        };
+        let mut buf = [0u8; 64];
+        let len = event.encode(&mut &mut buf[..]).unwrap();
+        assert_eq!(&buf[..len], b"\x1b[<0;1;1M");
+    }
+
+    #[test]
+    fn test_encode_mouse_event_up() {
+        let mut event = MouseEvent {
+            kind: MouseEventKind::Up(MouseButton::Left),
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        };
+        let mut buf = [0u8; 64];
+        let len = event.encode(&mut &mut buf[..]).unwrap();
+        assert_eq!(&buf[..len], b"\x1b[<0;1;1m");
+    }
+
+    #[test]
+    fn test_encode_mouse_event_scroll() {
+        let mut event = MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::NONE,
+        };
+        let mut buf = [0u8; 64];
+        let len = event.encode(&mut &mut buf[..]).unwrap();
+        assert_eq!(&buf[..len], b"\x1b[<64;1;1M");
+    }
+}

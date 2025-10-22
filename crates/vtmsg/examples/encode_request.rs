@@ -1,5 +1,5 @@
 use vtenc::Encode;
-use vtmsg::SetSize;
+use vtmsg::window::SetSize;
 
 /// Encode a terminal resize sequence (CSI 8;rows;cols t) into a buffer.
 ///
