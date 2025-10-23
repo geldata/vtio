@@ -2,7 +2,7 @@
 
 use bitflags::bitflags;
 use vtderive::{c0, csi, dcs, esc, terminal_mode};
-use vtenc::{Encode, EncodeError, IntoSeq, WriteSeq, write_dcs};
+use vtenc::{IntoSeq, WriteSeq};
 
 /// Cursor Origin Mode (`DECOM`).
 ///
@@ -1198,44 +1198,180 @@ pub struct RequestTabStopReport;
 ///
 /// Response from the terminal to [`RequestTabStopReport`].
 ///
-/// Contains the column numbers of all currently set tab stops,
-/// formatted as a slash-separated string (e.g., "9/17/25/33").
+/// Contains the column numbers of all currently set tab stops.
 ///
-/// The report is encoded as a DCS sequence.
+/// The report is encoded as a DCS sequence with the format:
+/// `DCS 2 $ u <data> ST` where data is tab stops separated by `/`.
 ///
+/// Example: `DCS 2 $ u 9/17/25/33 ST`
+///
+/// See <https://vt100.net/docs/vt510-rm/DECTABSR> for the VT510 specification.
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-2/> for
 /// terminal support specifics.
+#[dcs(params = ["2"], intermediate = "$", finalbyte = 'u')]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TabStopReport {
-    /// Tab stop column positions.
-    pub tab_stops: Vec<u16>,
+    /// Tab stop column positions, encoded as slash-separated string.
+    pub tab_stops: TabStops,
 }
 
-impl TabStopReport {
-    /// Create a new tab stop report with the specified tab stop
-    /// positions.
+/// Tab stops wrapper for encoding.
+///
+/// Encodes a vector of tab stop positions as a slash-separated string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TabStops(pub Vec<u16>);
+
+impl TabStops {
+    /// Create from a vector of tab stop positions.
     #[must_use]
-    pub fn new(tab_stops: Vec<u16>) -> Self {
-        Self { tab_stops }
+    pub fn new(stops: Vec<u16>) -> Self {
+        Self(stops)
     }
 
-    /// Create a tab stop report from a slice of tab stop positions.
+    /// Create from a slice of tab stop positions.
     #[must_use]
-    pub fn from_slice(tab_stops: &[u16]) -> Self {
-        Self {
-            tab_stops: tab_stops.to_vec(),
-        }
+    pub fn from_slice(stops: &[u16]) -> Self {
+        Self(stops.to_vec())
     }
 }
 
-impl Encode for TabStopReport {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        let stops = self
-            .tab_stops
+impl IntoSeq for TabStops {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.0
             .iter()
             .map(u16::to_string)
             .collect::<Vec<String>>()
-            .join("/");
-        write_dcs!(buf; "2$u", stops)
+            .join("/")
+    }
+}
+
+impl From<Vec<u16>> for TabStops {
+    fn from(stops: Vec<u16>) -> Self {
+        Self(stops)
+    }
+}
+
+impl From<u8> for TabStops {
+    fn from(_value: u8) -> Self {
+        // Default to empty tab stops when parsing from registry
+        Self(Vec::new())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vtenc::encode::Encode;
+
+    #[test]
+    fn test_cursor_information_report_encoding() {
+        // Test encoding of DECCIR (Cursor Information Report)
+        // Format: DCS 1 $ u Pr; Pc; Pp; Srend; Satt; Sflag; Pgl; Pgr; Scss; Sdesig ST
+        //
+        // This test creates a report matching the VT510 documentation example:
+        // - Cursor at row 10, column 20, page 1
+        // - No visual attributes set (Srend = '@' = 0x40)
+        // - No protection attributes (Satt = '@' = 0x40)
+        // - No flags set: DECOM reset, no SS2/SS3, no autowrap pending (Sflag = '@' = 0x40)
+        // - G0 mapped into GL (Pgl = 0)
+        // - G2 mapped into GR (Pgr = 2)
+        // - All character sets have 94 characters (Scss = '@' = 0x40)
+        // - Character set designations: ASCII in G0/G1, DEC Supplemental in G2/G3
+        //
+        // Expected output: DCS 1 $ u 10;20;1;@;@;@;0;2;@;BB%5%5 ST
+        let mut report = CursorInformationReport::from_parts(
+            10,                               // Pr (row)
+            20,                               // Pc (column)
+            1,                                // Pp (page)
+            CursorAttributes::empty(),        // Srend (no visual attributes)
+            false,                            // Satt (not protected = '@')
+            CursorStateFlags::empty(),        // Sflag (no flags)
+            0,                                // Pgl (G0 in GL)
+            2,                                // Pgr (G2 in GR)
+            CharacterSetSizes::all_94(),      // Scss (all 94-char sets)
+            "BB%5%5".to_string(),             // Sdesig (ASCII in G0/G1, DEC Supp in G2/G3)
+        );
+
+        let mut buf = Vec::new();
+        let len = report.encode(&mut buf).unwrap();
+
+        // Expected format: ESC P 1 $ u Pr; Pc; Pp; Srend; Satt; Sflag; Pgl; Pgr; Scss; Sdesig ESC \
+        // ESC = 0x1B, P = 0x50, 1 = 0x31 (param), $ = 0x24, u = 0x75, \ = 0x5C
+        assert_eq!(buf[0], 0x1B, "Should start with ESC");
+        assert_eq!(buf[1], 0x50, "Should have P (DCS)");
+        assert_eq!(buf[2], b'1', "Should have param '1'");
+        assert_eq!(buf[3], 0x24, "Should have $ (intermediate)");
+        assert_eq!(buf[4], 0x75, "Should have u (final byte)");
+
+        // Check that the sequence contains the expected data
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("10;"), "Should contain row (10)");
+        assert!(output.contains(";20;"), "Should contain col (20)");
+        assert!(output.contains(";1;"), "Should contain page (1)");
+        assert!(output.contains(";@;"), "Should contain @ for attributes/protection/flags");
+        assert!(output.contains("0;2"), "Should contain gl (0) and gr (2)");
+        assert!(output.contains("BB%5%5"), "Should contain gsets (BB%5%5)");
+
+        // Check that it ends with ST (ESC \)
+        assert_eq!(buf[len - 2], 0x1B, "Should end with ESC");
+        assert_eq!(buf[len - 1], 0x5C, "Should end with backslash (ST)");
+
+        // Verify the full expected format
+        // DCS 1 $ u 10;20;1;@;@;@;0;2;@;BB%5%5 ST
+        let expected_data = "10;20;1;@;@;@;0;2;@;BB%5%5";
+        assert!(
+            output.contains(expected_data),
+            "Should contain expected data format, got: {:?}",
+            output
+        );
+
+        // Verify length is reasonable
+        assert!(len > 20, "Encoded length should be substantial");
+    }
+
+    #[test]
+    fn test_tab_stop_report_encoding() {
+        // Test encoding of DECTABSR (Tab Stop Report)
+        // Format: DCS 2 $ u <data> ST where data is tab stops separated by /
+        //
+        // This test creates a report matching the VT510 documentation example:
+        // - Tab stops at columns 9, 17, 25, 33, 41, 49, 57, 65, 73
+        //
+        // Expected output: DCS 2 $ u 9/17/25/33/41/49/57/65/73 ST
+        let mut report = TabStopReport::new(
+            TabStops::new(vec![9, 17, 25, 33, 41, 49, 57, 65, 73]),
+        );
+
+        let mut buf = Vec::new();
+        let len = report.encode(&mut buf).unwrap();
+
+        // Expected format: ESC P 2 $ u <data> ESC \
+        // ESC = 0x1B, P = 0x50, 2 = 0x32 (param), $ = 0x24, u = 0x75, \ = 0x5C
+        assert_eq!(buf[0], 0x1B, "Should start with ESC");
+        assert_eq!(buf[1], 0x50, "Should have P (DCS)");
+        assert_eq!(buf[2], b'2', "Should have param '2'");
+        assert_eq!(buf[3], 0x24, "Should have $ (intermediate)");
+        assert_eq!(buf[4], 0x75, "Should have u (final byte)");
+
+        // Check that the sequence contains the expected data
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("9/17/25/33"), "Should contain tab stops separated by /");
+        assert!(output.contains("41/49/57/65/73"), "Should contain remaining tab stops");
+
+        // Check that it ends with ST (ESC \)
+        assert_eq!(buf[len - 2], 0x1B, "Should end with ESC");
+        assert_eq!(buf[len - 1], 0x5C, "Should end with backslash (ST)");
+
+        // Verify the full expected format
+        // DCS 2 $ u 9/17/25/33/41/49/57/65/73 ST
+        let expected_data = "9/17/25/33/41/49/57/65/73";
+        assert!(
+            output.contains(expected_data),
+            "Should contain expected data format, got: {:?}",
+            output
+        );
+
+        // Verify length is reasonable
+        assert!(len > 20, "Encoded length should be substantial");
     }
 }
