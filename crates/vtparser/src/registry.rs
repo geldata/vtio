@@ -131,3 +131,80 @@ pub struct EscapeSequenceMatchEntry {
 
 #[distributed_slice]
 pub static ESCAPE_SEQUENCE_REGISTRY: [EscapeSequenceMatchEntry] = [..];
+
+/// Trait for types that can be parsed from escape sequence parameters.
+///
+/// This trait allows types to define how they should be extracted from
+/// the parameter list in escape sequence handlers. Implementing this trait
+/// makes types automatically usable in procedural macro generated handlers.
+pub trait FromEscapeParam: Sized {
+    /// Parse this type from a parameter at the given index.
+    ///
+    /// Returns the parsed value, or a default if parsing fails or the
+    /// parameter is not present.
+    fn from_escape_param(params: &EscapeSequenceParams, index: usize) -> Self;
+
+    /// Default implementation for types that implement `From<u8>`.
+    ///
+    /// Extract first byte from parameter and convert via From trait.
+    fn from_escape_param_default(params: &EscapeSequenceParams, index: usize) -> Self
+    where
+        Self: From<u8>,
+    {
+        params
+            .get(index)
+            .and_then(|p| p.first())
+            .copied()
+            .map_or_else(|| Self::from(0), Self::from)
+    }
+}
+
+impl FromEscapeParam for bool {
+    fn from_escape_param(params: &EscapeSequenceParams, index: usize) -> Self {
+        params
+            .get(index)
+            .and_then(|p| p.first())
+            .is_some_and(|&v| v != 0)
+    }
+}
+
+impl FromEscapeParam for String {
+    fn from_escape_param(params: &EscapeSequenceParams, index: usize) -> Self {
+        params
+            .get(index)
+            .map(|p| String::from_utf8_lossy(p).into_owned())
+            .unwrap_or_default()
+    }
+}
+
+impl FromEscapeParam for char {
+    fn from_escape_param(params: &EscapeSequenceParams, index: usize) -> Self {
+        params
+            .get(index)
+            .and_then(|p| p.first())
+            .copied()
+            .map_or('\0', |b| b as char)
+    }
+}
+
+// Macro to implement FromEscapeParam for numeric types
+macro_rules! impl_from_escape_param_numeric {
+    ($($t:ty),+ $(,)?) => {
+        $(
+            impl FromEscapeParam for $t {
+                #[allow(clippy::cast_lossless, clippy::cast_possible_wrap)]
+                fn from_escape_param(params: &EscapeSequenceParams, index: usize) -> Self {
+                    params
+                        .get(index)
+                        .and_then(|p| p.first())
+                        .copied()
+                        .unwrap_or(0) as $t
+                }
+            }
+        )+
+    };
+}
+
+impl_from_escape_param_numeric! {
+    u8, i8, u16, i16, u32, i32, u64, i64, usize, isize
+}

@@ -14,7 +14,7 @@
 //! `iTerm2`, `VSCode`, `WezTerm`, and others.
 
 use std::io;
-use vtenc::{format_osc, write_osc, ConstEncode, EncodeError, ConstEncodedLen, Encode};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_osc, write_osc};
 
 /// A command that marks the beginning of a shell prompt.
 ///

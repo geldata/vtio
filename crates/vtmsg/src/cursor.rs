@@ -1068,7 +1068,9 @@ impl CharacterSetSizes {
     /// Create with all character sets having 96 characters.
     #[must_use]
     pub const fn all_96() -> Self {
-        Self::from_bits_truncate(Self::G0_96.bits() | Self::G1_96.bits() | Self::G2_96.bits() | Self::G3_96.bits())
+        Self::from_bits_truncate(
+            Self::G0_96.bits() | Self::G1_96.bits() | Self::G2_96.bits() | Self::G3_96.bits(),
+        )
     }
 }
 
@@ -1280,16 +1282,16 @@ mod tests {
         //
         // Expected output: DCS 1 $ u 10;20;1;@;@;@;0;2;@;BB%5%5 ST
         let mut report = CursorInformationReport::from_parts(
-            10,                               // Pr (row)
-            20,                               // Pc (column)
-            1,                                // Pp (page)
-            CursorAttributes::empty(),        // Srend (no visual attributes)
-            false,                            // Satt (not protected = '@')
-            CursorStateFlags::empty(),        // Sflag (no flags)
-            0,                                // Pgl (G0 in GL)
-            2,                                // Pgr (G2 in GR)
-            CharacterSetSizes::all_94(),      // Scss (all 94-char sets)
-            "BB%5%5".to_string(),             // Sdesig (ASCII in G0/G1, DEC Supp in G2/G3)
+            10,                          // Pr (row)
+            20,                          // Pc (column)
+            1,                           // Pp (page)
+            CursorAttributes::empty(),   // Srend (no visual attributes)
+            false,                       // Satt (not protected = '@')
+            CursorStateFlags::empty(),   // Sflag (no flags)
+            0,                           // Pgl (G0 in GL)
+            2,                           // Pgr (G2 in GR)
+            CharacterSetSizes::all_94(), // Scss (all 94-char sets)
+            "BB%5%5".to_string(),        // Sdesig (ASCII in G0/G1, DEC Supp in G2/G3)
         );
 
         let mut buf = Vec::new();
@@ -1308,7 +1310,10 @@ mod tests {
         assert!(output.contains("10;"), "Should contain row (10)");
         assert!(output.contains(";20;"), "Should contain col (20)");
         assert!(output.contains(";1;"), "Should contain page (1)");
-        assert!(output.contains(";@;"), "Should contain @ for attributes/protection/flags");
+        assert!(
+            output.contains(";@;"),
+            "Should contain @ for attributes/protection/flags"
+        );
         assert!(output.contains("0;2"), "Should contain gl (0) and gr (2)");
         assert!(output.contains("BB%5%5"), "Should contain gsets (BB%5%5)");
 
@@ -1338,9 +1343,7 @@ mod tests {
         // - Tab stops at columns 9, 17, 25, 33, 41, 49, 57, 65, 73
         //
         // Expected output: DCS 2 $ u 9/17/25/33/41/49/57/65/73 ST
-        let mut report = TabStopReport::new(
-            TabStops::new(vec![9, 17, 25, 33, 41, 49, 57, 65, 73]),
-        );
+        let mut report = TabStopReport::new(TabStops::new(vec![9, 17, 25, 33, 41, 49, 57, 65, 73]));
 
         let mut buf = Vec::new();
         let len = report.encode(&mut buf).unwrap();
@@ -1355,8 +1358,14 @@ mod tests {
 
         // Check that the sequence contains the expected data
         let output = String::from_utf8_lossy(&buf);
-        assert!(output.contains("9/17/25/33"), "Should contain tab stops separated by /");
-        assert!(output.contains("41/49/57/65/73"), "Should contain remaining tab stops");
+        assert!(
+            output.contains("9/17/25/33"),
+            "Should contain tab stops separated by /"
+        );
+        assert!(
+            output.contains("41/49/57/65/73"),
+            "Should contain remaining tab stops"
+        );
 
         // Check that it ends with ST (ESC \)
         assert_eq!(buf[len - 2], 0x1B, "Should end with ESC");
@@ -1373,5 +1382,55 @@ mod tests {
 
         // Verify length is reasonable
         assert!(len > 20, "Encoded length should be substantial");
+    }
+}
+
+// Implement FromEscapeParam for types that implement From<u8>
+impl vtparser::FromEscapeParam for CursorStyle {
+    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
+        Self::from_escape_param_default(params, index)
+    }
+}
+
+impl vtparser::FromEscapeParam for LinuxCursorShape {
+    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
+        Self::from_escape_param_default(params, index)
+    }
+}
+
+impl vtparser::FromEscapeParam for CursorAttributes {
+    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
+        Self::from_escape_param_default(params, index)
+    }
+}
+
+impl vtparser::FromEscapeParam for CursorStateFlags {
+    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
+        Self::from_escape_param_default(params, index)
+    }
+}
+
+// Implement FromEscapeParam for bitflags types
+impl vtparser::FromEscapeParam for CharacterSetSizes {
+    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
+        params
+            .get(index)
+            .and_then(|p| p.first())
+            .map(|&b| Self::from_bits_truncate(b))
+            .unwrap_or_else(Self::empty)
+    }
+}
+
+impl vtparser::FromEscapeParam for TabStops {
+    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
+        // TabStops is a Vec<u16> wrapper, parse as String with slash separators
+        params
+            .get(index)
+            .map(|p| {
+                let s = String::from_utf8_lossy(p);
+                let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
+                Self(positions)
+            })
+            .unwrap_or_else(|| Self(Vec::new()))
     }
 }

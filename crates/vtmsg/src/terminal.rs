@@ -1,8 +1,8 @@
 //! Buffer control/information messages.
 
 use vtenc::{
-    ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, format_dcs, format_esc, format_osc, write_csi, write_dcs,
-    write_int, write_str_into,
+    ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, format_dcs, format_esc,
+    format_osc, write_csi, write_dcs, write_int, write_str_into,
 };
 
 use vtderive::terminal_mode;

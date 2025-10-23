@@ -3,10 +3,6 @@
 pub mod registry;
 
 pub use registry::{
-    EscapeSequence,
-    EscapeSequenceIntroducer,
-    EscapeSequenceMatchEntry,
-    EscapeSequenceParam,
-    EscapeSequenceParams,
-    ESCAPE_SEQUENCE_REGISTRY,
+    ESCAPE_SEQUENCE_REGISTRY, EscapeSequence, EscapeSequenceIntroducer, EscapeSequenceMatchEntry,
+    EscapeSequenceParam, EscapeSequenceParams, FromEscapeParam,
 };

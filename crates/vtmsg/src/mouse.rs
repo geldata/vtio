@@ -4,8 +4,8 @@
 
 use vtenc::{ConstEncodedLen, Encode, EncodeError, const_composite, write_csi};
 
-use vtderive::terminal_mode;
 use crate::keyboard::KeyModifiers;
+use vtderive::terminal_mode;
 
 //
 // Mouse event modes (mutually exclusive).
@@ -247,10 +247,7 @@ impl LinuxMousePointerStyle {
     /// parameters.
     #[must_use]
     pub const fn new(attr_xor: u8, char_xor: u8) -> Self {
-        Self {
-            attr_xor,
-            char_xor,
-        }
+        Self { attr_xor, char_xor }
     }
 }
 
@@ -262,10 +259,7 @@ impl ConstEncodedLen for LinuxMousePointerStyle {
 
 impl Encode for LinuxMousePointerStyle {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; self.attr_xor, ";", self.char_xor, "m")
     }
 }

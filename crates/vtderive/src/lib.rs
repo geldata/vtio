@@ -8,8 +8,8 @@ use proc_macro::TokenStream;
 use proc_macro2_diagnostics::{Diagnostic, SpanDiagnosticExt};
 use quote::quote;
 use syn::{
-    parse_macro_input, punctuated::Punctuated, spanned::Spanned, Expr, ExprLit, Ident,
-    ItemStruct, Lit, Meta, MetaNameValue, Token,
+    Expr, ExprLit, Ident, ItemStruct, Lit, Meta, MetaNameValue, Token, parse_macro_input,
+    punctuated::Punctuated, spanned::Spanned,
 };
 
 /// Emit diagnostics as TokenStream and return early.
@@ -20,6 +20,275 @@ fn emit_diagnostics(diagnostics: &mut Vec<Diagnostic>) -> proc_macro2::TokenStre
         .drain(..)
         .map(|d| d.emit_as_item_tokens())
         .collect()
+}
+
+/// Create a "required attribute" diagnostic error.
+///
+/// Helper to reduce repetition for missing required attribute errors.
+fn error_required_attr(span: proc_macro2::Span, attr_name: &str, example: &str) -> Diagnostic {
+    span.error(format!("{} attribute is required", attr_name))
+        .help(format!("add {} = {}", attr_name, example))
+}
+
+/// Create an "unsupported attribute" diagnostic error.
+///
+/// Helper to reduce repetition for unsupported attribute errors.
+#[allow(dead_code)]
+fn error_unsupported_attr(span: proc_macro2::Span, valid_attrs: &str) -> Diagnostic {
+    span.error("unsupported attribute")
+        .help(format!("valid attributes are: {}", valid_attrs))
+}
+
+/// Create a "cannot combine attributes" diagnostic error.
+///
+/// Helper to reduce repetition for conflicting attribute errors.
+fn error_conflicting_attrs(span: proc_macro2::Span, message: &str, help: &str) -> Diagnostic {
+    span.error(message).help(help)
+}
+
+/// Get type string representation from a syn::Type.
+///
+/// Helper to avoid repeating the quote + to_string + trim pattern.
+fn type_to_string(ty: &syn::Type) -> String {
+    quote!(#ty).to_string().replace(" ", "")
+}
+
+/// Check if a type is a unit type `()`.
+///
+/// Helper to reduce repetition when filtering unit type fields.
+fn is_unit_type(ty: &syn::Type) -> bool {
+    type_to_string(ty) == "()"
+}
+
+/// Filter intermediate bytes to exclude zero padding.
+///
+/// Helper to reduce repetition when processing intermediate byte sequences.
+fn filter_intermediate_bytes(intermediate: &[u8]) -> impl Iterator<Item = &u8> {
+    intermediate.iter().filter(|&&b| b != 0)
+}
+
+/// Extract field identifier from a syn::Field.
+///
+/// Helper to reduce repetition when extracting field names.
+fn field_ident(field: &syn::Field) -> &syn::Ident {
+    field.ident.as_ref().expect("field must have an identifier")
+}
+
+/// Builder for generating write operation token streams.
+///
+/// Consolidates repetitive write operation generation patterns.
+struct WriteOperationBuilder {
+    operations: Vec<proc_macro2::TokenStream>,
+}
+
+impl WriteOperationBuilder {
+    /// Create a new write operation builder.
+    fn new() -> Self {
+        Self {
+            operations: Vec::new(),
+        }
+    }
+
+    /// Add a string write operation.
+    fn write_str(&mut self, s: &str) -> &mut Self {
+        self.operations.push(generate_write_str(s));
+        self
+    }
+
+    /// Add a character write operation.
+    fn write_char(&mut self, ch: char) -> &mut Self {
+        self.operations.push(generate_write_char(ch));
+        self
+    }
+
+    /// Add a field write operation.
+    fn write_field(&mut self, field_name: &syn::Ident) -> &mut Self {
+        self.operations.push(generate_write_field(field_name));
+        self
+    }
+
+    /// Add a separator if the index is greater than 0.
+    fn write_separator(&mut self, index: usize) -> &mut Self {
+        if index > 0 {
+            self.operations.push(generate_separator(index));
+        }
+        self
+    }
+
+    /// Add intermediate bytes, filtering out zero padding.
+    fn write_intermediate_bytes(&mut self, intermediate: &[u8]) -> &mut Self {
+        for &byte in filter_intermediate_bytes(intermediate) {
+            self.write_char(byte as char);
+        }
+        self
+    }
+
+    /// Add optional private byte.
+    fn write_private(&mut self, private: Option<u8>) -> &mut Self {
+        if let Some(byte) = private {
+            self.write_char(byte as char);
+        }
+        self
+    }
+
+    /// Build the final token stream.
+    fn build(self) -> Vec<proc_macro2::TokenStream> {
+        self.operations
+    }
+}
+
+/// Builder for constructing const escape sequence strings.
+///
+/// Consolidates repetitive string building patterns.
+struct ConstStrBuilder {
+    result: String,
+}
+
+impl ConstStrBuilder {
+    /// Create a new const string builder with an introducer.
+    fn new(intro: &str) -> Self {
+        Self {
+            result: get_intro_str(intro).to_string(),
+        }
+    }
+
+    /// Add optional private marker byte.
+    fn private(mut self, private: Option<u8>) -> Self {
+        if let Some(byte) = private {
+            self.result.push(byte as char);
+        }
+        self
+    }
+
+    /// Add parameter sequences.
+    fn params(mut self, params: &[Vec<u8>]) -> Self {
+        for (i, param) in params.iter().enumerate() {
+            if i > 0 {
+                self.result.push(';');
+            }
+            self.result.push_str(&String::from_utf8_lossy(param));
+        }
+        self
+    }
+
+    /// Add intermediate bytes, filtering out zero padding.
+    fn intermediate(mut self, intermediate: &[u8]) -> Self {
+        for &byte in filter_intermediate_bytes(intermediate) {
+            self.result.push(byte as char);
+        }
+        self
+    }
+
+    /// Add final byte.
+    fn final_byte(mut self, final_byte: u8) -> Self {
+        self.result.push(final_byte as char);
+        self
+    }
+
+    /// Add optional data string (for DCS sequences).
+    fn data(mut self, data: Option<&str>) -> Self {
+        if let Some(data_str) = data {
+            self.result.push_str(data_str);
+        }
+        self
+    }
+
+    /// Add string terminator for specific sequence types.
+    fn string_terminator(mut self, intro: &str) -> Self {
+        if matches!(intro, "DCS" | "PM" | "APC") {
+            self.result.push_str("\x1B\\");
+        }
+        self
+    }
+
+    /// Build the final const string.
+    fn build(self) -> String {
+        self.result
+    }
+}
+
+/// Generate a separator token stream for indexed items.
+///
+/// Returns a semicolon write statement if index > 0, empty otherwise.
+fn generate_separator(index: usize) -> proc_macro2::TokenStream {
+    if index > 0 {
+        quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
+    } else {
+        quote! {}
+    }
+}
+
+/// Generate a write statement for a string literal.
+///
+/// Helper to generate quote! blocks for writing strings to buffers.
+fn generate_write_str(s: &str) -> proc_macro2::TokenStream {
+    quote! {
+        __total += ::vtenc::encode::write_str_into(buf, #s)?;
+    }
+}
+
+/// Generate a write statement for a character.
+///
+/// Helper to generate quote! blocks for writing characters to buffers.
+fn generate_write_char(ch: char) -> proc_macro2::TokenStream {
+    quote! {
+        __total += ::vtenc::encode::WriteSeq::write_seq(&(#ch), buf)?;
+    }
+}
+
+/// Generate a write statement for a field.
+///
+/// Helper to generate quote! blocks for writing struct fields to buffers.
+fn generate_write_field(field_name: &syn::Ident) -> proc_macro2::TokenStream {
+    quote! {
+        __total += ::vtenc::encode::WriteSeq::write_seq(&self.#field_name, buf)?;
+    }
+}
+
+/// Parse a string literal from an attribute value.
+///
+/// Generic helper to extract string literals with proper error handling.
+fn parse_string_literal(
+    value: &Expr,
+    attr_name: &str,
+    example: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<String> {
+    if let Expr::Lit(ExprLit {
+        lit: Lit::Str(s), ..
+    }) = value
+    {
+        Some(s.value())
+    } else {
+        diagnostics.push(
+            value
+                .span()
+                .error(format!("{} must be a string literal", attr_name))
+                .help(format!("example: {} = \"{}\"", attr_name, example)),
+        );
+        None
+    }
+}
+
+/// Parse a name-value attribute pair.
+///
+/// Helper to extract key-value pairs from Meta::NameValue with unified error handling.
+fn parse_name_value_attr<'a>(
+    meta: &'a Meta,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(String, &'a Expr)> {
+    if let Meta::NameValue(MetaNameValue { path, value, .. }) = meta {
+        if let Some(ident) = path.get_ident() {
+            return Some((ident.to_string(), value));
+        } else {
+            diagnostics.push(
+                path.span()
+                    .error("expected identifier")
+                    .help("attribute key must be a simple identifier"),
+            );
+        }
+    }
+    None
 }
 
 /// Parsed escape sequence attribute values.
@@ -51,8 +320,7 @@ fn parse_char_as_byte(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<u8> {
     if let Expr::Lit(ExprLit {
-        lit: Lit::Char(ch),
-        ..
+        lit: Lit::Char(ch), ..
     }) = value
     {
         Some(ch.value() as u8)
@@ -121,12 +389,11 @@ fn extract_var_params_from_struct(input: &ItemStruct) -> Option<Vec<(String, syn
                 .named
                 .iter()
                 .filter_map(|field| {
-                    let name = field.ident.as_ref().unwrap().to_string();
+                    let name = field_ident(field).to_string();
                     let ty = field.ty.clone();
 
                     // Skip unit type fields
-                    let ty_str = quote!(#ty).to_string();
-                    if ty_str.trim() == "()" {
+                    if is_unit_type(&ty) {
                         return None;
                     }
 
@@ -147,7 +414,7 @@ fn extract_var_params_from_struct(input: &ItemStruct) -> Option<Vec<(String, syn
 #[derive(Clone)]
 enum DcsDataParam {
     /// A field from the struct
-    Field(String, syn::Type),
+    Field(Box<(String, syn::Type)>),
     /// A constant literal value
     Literal(String),
 }
@@ -173,28 +440,26 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
                 .named
                 .iter()
                 .filter_map(|field| {
-                    let name = field.ident.as_ref().unwrap().to_string();
+                    let name = field_ident(field).to_string();
 
                     // Check for #[literal("value")] attribute
                     for attr in &field.attrs {
-                        if attr.path().is_ident("literal") {
-                            if let Ok(list) = attr.meta.require_list() {
-                                if let Ok(value) = list.parse_args::<syn::LitStr>() {
-                                    return Some(DcsDataParam::Literal(value.value()));
-                                }
-                            }
+                        if attr.path().is_ident("literal")
+                            && let Ok(list) = attr.meta.require_list()
+                            && let Ok(value) = list.parse_args::<syn::LitStr>()
+                        {
+                            return Some(DcsDataParam::Literal(value.value()));
                         }
                     }
 
                     // Regular field - check if it's a unit type (these are for const markers)
                     let ty = &field.ty;
-                    let ty_str = quote!(#ty).to_string();
-                    if ty_str.trim() == "()" {
+                    if is_unit_type(ty) {
                         // Unit type without #[literal] is skipped
                         return None;
                     }
 
-                    Some(DcsDataParam::Field(name, field.ty.clone()))
+                    Some(DcsDataParam::Field(Box::new((name, field.ty.clone()))))
                 })
                 .collect();
             if params.is_empty() {
@@ -212,11 +477,8 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
 /// Extract up to 2 bytes from a string literal like `intermediate = " "`.
 /// Validates that the string has at most 2 characters.
 fn parse_intermediate(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8> {
-    if let Expr::Lit(ExprLit {
-        lit: Lit::Str(s), ..
-    }) = value
-    {
-        let intermediate: Vec<u8> = s.value().chars().map(|c| c as u8).collect();
+    if let Some(s) = parse_string_literal(value, "intermediate", " ", diagnostics) {
+        let intermediate: Vec<u8> = s.chars().map(|c| c as u8).collect();
         if intermediate.len() > 2 {
             diagnostics.push(
                 value
@@ -227,12 +489,6 @@ fn parse_intermediate(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8
         }
         intermediate
     } else {
-        diagnostics.push(
-            value
-                .span()
-                .error("intermediate must be a string literal")
-                .help("example: intermediate = \" \""),
-        );
         Vec::new()
     }
 }
@@ -248,23 +504,8 @@ fn parse_finalbyte(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8
 ///
 /// Extract a string from a string literal like `data = " q"`.
 fn parse_data(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<String> {
-    if let Expr::Lit(ExprLit {
-        lit: Lit::Str(s), ..
-    }) = value
-    {
-        Some(s.value())
-    } else {
-        diagnostics.push(
-            value
-                .span()
-                .error("data must be a string literal")
-                .help("example: data = \" q\""),
-        );
-        None
-    }
+    parse_string_literal(value, "data", " q", diagnostics)
 }
-
-
 
 /// Parse all escape sequence attributes from the macro input.
 ///
@@ -284,128 +525,146 @@ fn parse_escape_sequence_attributes(
     };
 
     for meta in meta_list {
-        match meta {
-            Meta::NameValue(MetaNameValue { path, value, .. }) => {
-                let Some(key_ident) = path.get_ident() else {
+        if let Some((key, value)) = parse_name_value_attr(&meta, diagnostics) {
+            match key.as_str() {
+                "private" => attrs.private = parse_private(value, diagnostics),
+                "params" => attrs.params = parse_params(value, diagnostics),
+                "intermediate" => attrs.intermediate = parse_intermediate(value, diagnostics),
+                "finalbyte" => attrs.final_byte = parse_finalbyte(value, diagnostics),
+                "data" => attrs.data = parse_data(value, diagnostics),
+                unknown => {
                     diagnostics.push(
-                        path.span()
-                            .error("expected identifier")
-                            .help("attribute key must be a simple identifier"),
+                        meta.span()
+                            .error(format!("unknown attribute: {}", unknown))
+                            .help(
+                                "valid attributes are: private, params, intermediate, finalbyte, data",
+                            ),
                     );
-                    continue;
-                };
-
-                match key_ident.to_string().as_str() {
-                    "private" => attrs.private = parse_private(&value, diagnostics),
-                    "params" => attrs.params = parse_params(&value, diagnostics),
-                    "intermediate" => attrs.intermediate = parse_intermediate(&value, diagnostics),
-                    "finalbyte" => attrs.final_byte = parse_finalbyte(&value, diagnostics),
-                    "data" => attrs.data = parse_data(&value, diagnostics),
-
-                    unknown => {
-                        diagnostics.push(
-                            key_ident
-                                .span()
-                                .error(format!("unknown attribute: {}", unknown))
-                                .help(
-                                    "valid attributes are: private, params, intermediate, finalbyte, data",
-                                ),
-                        );
-                    }
                 }
             }
-            _ => {
-                diagnostics.push(
-                    meta.span()
-                        .error("expected name-value pairs in attribute")
-                        .help("example: #[csi(private = '?', params = [\"6\"], finalbyte = 'h')]"),
-                );
-            }
+        } else if !matches!(meta, Meta::NameValue(_)) {
+            diagnostics.push(
+                meta.span()
+                    .error("expected name-value pairs in attribute")
+                    .help("example: #[csi(private = '?', params = [\"6\"], finalbyte = 'h')]"),
+            );
         }
     }
 
     attrs
 }
 
-/// Generate the PRIVATE constant.
+/// Builder for generating EscapeSequence trait const declarations.
 ///
-/// Produce `const PRIVATE: Option<u8> = Some(byte)` or `None` depending on
-/// whether a private marker was specified.
-fn generate_private_const(private: Option<u8>) -> proc_macro2::TokenStream {
-    if let Some(byte) = private {
-        quote! { const PRIVATE: Option<u8> = Some(#byte); }
-    } else {
-        quote! { const PRIVATE: Option<u8> = None; }
-    }
+/// Unifies generation of PRIVATE, PARAMS, INTERMEDIATE, and FINAL constants.
+struct EscapeSequenceConsts<'a> {
+    private: Option<u8>,
+    params: &'a [Vec<u8>],
+    intermediate: &'a [u8],
+    final_byte: u8,
 }
 
-/// Generate the PARAMS constant.
-///
-/// Produce a `const PARAMS: EscapeSequenceParams` declaration using
-/// `SmallVec::from_const` with proper padding. Each param is padded to 32
-/// bytes, and the params array is padded to 8 elements.
-fn generate_params_const(params: &[Vec<u8>]) -> proc_macro2::TokenStream {
-    if params.is_empty() {
-        quote! {
-            const PARAMS: ::vtparser::EscapeSequenceParams = const {
-                ::smallvec::SmallVec::new_const()
-            };
-        }
-    } else {
-        let param_inits: Vec<_> = params
-            .iter()
-            .map(|param| {
-                let mut padded = param.clone();
-                padded.resize(32, 0);
-                let bytes = padded.iter();
-                quote! {
-                    ::smallvec::SmallVec::from_const([#(#bytes),*])
-                }
-            })
-            .collect();
-
-        let num_params = params.len();
-        let padding_params = (0..(8 - num_params)).map(|_| {
-            quote! { ::smallvec::SmallVec::new_const() }
-        });
-
-        quote! {
-            const PARAMS: ::vtparser::EscapeSequenceParams = const {
-                ::smallvec::SmallVec::from_const([
-                    #(#param_inits,)*
-                    #(#padding_params),*
-                ])
-            };
+impl<'a> EscapeSequenceConsts<'a> {
+    /// Create new const generator.
+    fn new(
+        private: Option<u8>,
+        params: &'a [Vec<u8>],
+        intermediate: &'a [u8],
+        final_byte: u8,
+    ) -> Self {
+        Self {
+            private,
+            params,
+            intermediate,
+            final_byte,
         }
     }
-}
 
-/// Generate the INTERMEDIATE constant.
-///
-/// Produce `const INTERMEDIATE: [u8; 2] = [byte0, byte1]` with zero
-/// padding as needed to fill the 2-element array.
-fn generate_intermediate_const(intermediate: &[u8]) -> proc_macro2::TokenStream {
-    let value = match intermediate.len() {
-        0 => quote! { [0, 0] },
-        1 => {
-            let byte = intermediate[0];
-            quote! { [#byte, 0] }
+    /// Generate all EscapeSequence trait consts.
+    fn generate_all(&self) -> proc_macro2::TokenStream {
+        let private = self.generate_private();
+        let params = self.generate_params();
+        let intermediate = self.generate_intermediate();
+        let final_byte = self.generate_final();
+
+        quote! {
+            #private
+            #params
+            #intermediate
+            #final_byte
         }
-        _ => {
-            let byte0 = intermediate[0];
-            let byte1 = intermediate[1];
-            quote! { [#byte0, #byte1] }
+    }
+
+    /// Generate the PRIVATE constant.
+    fn generate_private(&self) -> proc_macro2::TokenStream {
+        if let Some(byte) = self.private {
+            quote! { const PRIVATE: Option<u8> = Some(#byte); }
+        } else {
+            quote! { const PRIVATE: Option<u8> = None; }
         }
-    };
+    }
 
-    quote! { const INTERMEDIATE: [u8; 2] = #value; }
-}
+    /// Generate the PARAMS constant with SmallVec padding.
+    fn generate_params(&self) -> proc_macro2::TokenStream {
+        if self.params.is_empty() {
+            quote! {
+                const PARAMS: ::vtparser::EscapeSequenceParams = const {
+                    ::smallvec::SmallVec::new_const()
+                };
+            }
+        } else {
+            let param_inits: Vec<_> = self
+                .params
+                .iter()
+                .map(|param| {
+                    let mut padded = param.clone();
+                    padded.resize(32, 0);
+                    let bytes = padded.iter();
+                    quote! {
+                        ::smallvec::SmallVec::from_const([#(#bytes),*])
+                    }
+                })
+                .collect();
 
-/// Generate the FINAL constant.
-///
-/// Produce `const FINAL: u8 = byte` with the final byte value.
-fn generate_final_const(final_byte: u8) -> proc_macro2::TokenStream {
-    quote! { const FINAL: u8 = #final_byte; }
+            let num_params = self.params.len();
+            let padding_params = (0..(8 - num_params)).map(|_| {
+                quote! { ::smallvec::SmallVec::new_const() }
+            });
+
+            quote! {
+                const PARAMS: ::vtparser::EscapeSequenceParams = const {
+                    ::smallvec::SmallVec::from_const([
+                        #(#param_inits,)*
+                        #(#padding_params),*
+                    ])
+                };
+            }
+        }
+    }
+
+    /// Generate the INTERMEDIATE constant with zero padding.
+    fn generate_intermediate(&self) -> proc_macro2::TokenStream {
+        let value = match self.intermediate.len() {
+            0 => quote! { [0, 0] },
+            1 => {
+                let byte = self.intermediate[0];
+                quote! { [#byte, 0] }
+            }
+            _ => {
+                let byte0 = self.intermediate[0];
+                let byte1 = self.intermediate[1];
+                quote! { [#byte0, #byte1] }
+            }
+        };
+
+        quote! { const INTERMEDIATE: [u8; 2] = #value; }
+    }
+
+    /// Generate the FINAL constant.
+    fn generate_final(&self) -> proc_macro2::TokenStream {
+        let final_byte = self.final_byte;
+        quote! { const FINAL: u8 = #final_byte; }
+    }
 }
 
 /// Generate the prefix bytes for the registry entry.
@@ -437,7 +696,10 @@ fn generate_registry_entry(
     var_params: Option<&[(String, syn::Type)]>,
 ) -> proc_macro2::TokenStream {
     let registry_name = syn::Ident::new(
-        &format!("__{}_REGISTRY_ENTRY", struct_name.to_string().to_uppercase()),
+        &format!(
+            "__{}_REGISTRY_ENTRY",
+            struct_name.to_string().to_uppercase()
+        ),
         struct_name.span(),
     );
 
@@ -446,7 +708,9 @@ fn generate_registry_entry(
         struct_name.span(),
     );
 
-    // Helper function to generate parameter parsing code for a field
+    // Helper function to generate parameter parsing code for a field.
+    //
+    // Uses the FromEscapeParam trait for extensible parameter parsing.
     fn generate_param_parsing(
         i: usize,
         name: &str,
@@ -454,33 +718,9 @@ fn generate_registry_entry(
         struct_span: proc_macro2::Span,
     ) -> proc_macro2::TokenStream {
         let field_name = syn::Ident::new(name, struct_span);
-        let ty_str = quote!(#ty).to_string();
 
-        match ty_str.trim() {
-            "bool" => quote! {
-                let #field_name: #ty = params.get(#i)
-                    .and_then(|p| p.first())
-                    .map(|&v| v != 0)
-                    .unwrap_or(false);
-            },
-            "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "isize" => quote! {
-                let #field_name: #ty = params.get(#i)
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(0) as #ty;
-            },
-            "String" => quote! {
-                let #field_name: #ty = params.get(#i)
-                    .map(|p| ::std::string::String::from_utf8_lossy(p).into_owned())
-                    .unwrap_or_default();
-            },
-            _ => quote! {
-                let #field_name: #ty = params.get(#i)
-                    .and_then(|p| p.first())
-                    .copied()
-                    .map(|v| <#ty>::from(v))
-                    .unwrap_or_else(|| <#ty>::from(0));
-            },
+        quote! {
+            let #field_name: #ty = <#ty as ::vtparser::FromEscapeParam>::from_escape_param(params, #i);
         }
     }
 
@@ -546,12 +786,11 @@ fn generate_escape_sequence_impl(
 
     // Validate required attributes
     let Some(final_byte) = attrs.final_byte else {
-        diagnostics.push(
-            struct_name
-                .span()
-                .error("finalbyte attribute is required")
-                .help("add finalbyte = 'X' where X is the final byte character"),
-        );
+        diagnostics.push(error_required_attr(
+            struct_name.span(),
+            "finalbyte",
+            "'X' where X is the final byte character",
+        ));
         return emit_diagnostics(diagnostics);
     };
 
@@ -576,23 +815,21 @@ fn generate_escape_sequence_impl(
     // Check if params and var_params are both specified
     // For DCS sequences, params are allowed with fields (params go in header, fields in data)
     if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" {
-        diagnostics.push(
-            struct_name
-                .span()
-                .error("cannot specify params attribute for structs with fields")
-                .help("use params for unit structs (const sequences) or add fields for variable sequences"),
-        );
+        diagnostics.push(error_conflicting_attrs(
+            struct_name.span(),
+            "cannot specify params attribute for structs with fields",
+            "use params for unit structs (const sequences) or add fields for variable sequences",
+        ));
         return emit_diagnostics(diagnostics);
     }
 
     // Check if data attribute is used with variable sequences
     if attrs.data.is_some() && var_params.is_some() {
-        diagnostics.push(
-            struct_name
-                .span()
-                .error("cannot specify data attribute for structs with fields")
-                .help("data attribute is only valid for unit structs (const sequences)"),
-        );
+        diagnostics.push(error_conflicting_attrs(
+            struct_name.span(),
+            "cannot specify data attribute for structs with fields",
+            "data attribute is only valid for unit structs (const sequences)",
+        ));
         return emit_diagnostics(diagnostics);
     }
 
@@ -601,10 +838,12 @@ fn generate_escape_sequence_impl(
 
     if is_const {
         // Generate const sequence
-        let private_const = generate_private_const(attrs.private);
-        let params_const = generate_params_const(&attrs.params);
-        let intermediate_const = generate_intermediate_const(&attrs.intermediate);
-        let final_const = generate_final_const(final_byte);
+        let consts = EscapeSequenceConsts::new(
+            attrs.private,
+            &attrs.params,
+            &attrs.intermediate,
+            final_byte,
+        );
 
         let prefix_bytes = generate_prefix_bytes(attrs.private, &attrs.params);
         let registry_entry = generate_registry_entry(
@@ -625,16 +864,15 @@ fn generate_escape_sequence_impl(
             attrs.data.as_deref(),
         );
 
+        let consts_impl = consts.generate_all();
+
         quote! {
             #input
 
             impl ::vtparser::EscapeSequence for #struct_name {
                 const INTRO: ::vtparser::EscapeSequenceIntroducer =
                     ::vtparser::EscapeSequenceIntroducer::#intro_variant;
-                #private_const
-                #params_const
-                #intermediate_const
-                #final_const
+                #consts_impl
             }
 
             impl ::vtenc::encode::ConstEncode for #struct_name {
@@ -670,43 +908,14 @@ fn generate_const_str(
     final_byte: u8,
     data: Option<&str>,
 ) -> String {
-    // Reuse the introducer string from get_intro_str
-    let mut result = get_intro_str(intro).to_string();
-
-    // Add private marker
-    if let Some(byte) = private {
-        result.push(byte as char);
-    }
-
-    // Add params
-    for (i, param) in params.iter().enumerate() {
-        if i > 0 {
-            result.push(';');
-        }
-        result.push_str(&String::from_utf8_lossy(param));
-    }
-
-    // Add intermediate bytes
-    for &byte in intermediate {
-        if byte != 0 {
-            result.push(byte as char);
-        }
-    }
-
-    // Add final byte
-    result.push(final_byte as char);
-
-    // Add data (for DCS sequences)
-    if let Some(data_str) = data {
-        result.push_str(data_str);
-    }
-
-    // Add string terminator for DCS/PM/APC sequences
-    if matches!(intro, "DCS" | "PM" | "APC") {
-        result.push_str("\x1B\\");
-    }
-
-    result
+    ConstStrBuilder::new(intro)
+        .private(private)
+        .params(params)
+        .intermediate(intermediate)
+        .final_byte(final_byte)
+        .data(data)
+        .string_terminator(intro)
+        .build()
 }
 
 /// Parameters for generating a variable sequence.
@@ -769,19 +978,22 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
     // For initialization, include ALL fields from the input struct
     let all_field_inits: Vec<_> = if let syn::Fields::Named(ref fields) = input.fields {
-        fields.named.iter().map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let ty = &field.ty;
-            let ty_str = quote!(#ty).to_string();
+        fields
+            .named
+            .iter()
+            .map(|field| {
+                let field_name = field_ident(field);
+                let ty = &field.ty;
 
-            if ty_str.trim() == "()" {
-                // Unit type - initialize with ()
-                quote! { #field_name: () }
-            } else {
-                // Regular field - use parameter
-                quote! { #field_name }
-            }
-        }).collect()
+                if is_unit_type(ty) {
+                    // Unit type - initialize with ()
+                    quote! { #field_name: () }
+                } else {
+                    // Regular field - use parameter
+                    quote! { #field_name }
+                }
+            })
+            .collect()
     } else {
         vec![]
     };
@@ -801,13 +1013,13 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     // Calculate encoded length (upper bound)
     let intro_len = 2; // ESC + introducer
     let private_len = if private.is_some() { 1 } else { 0 };
-    let intermediate_len = intermediate.iter().filter(|&&b| b != 0).count();
+    let intermediate_len = filter_intermediate_bytes(intermediate).count();
     let final_len = 1;
 
     // Helper function to calculate max encoded length for a type
     fn type_max_encoded_len(ty: &syn::Type) -> usize {
-        let ty_str = quote!(#ty).to_string();
-        match ty_str.trim() {
+        let ty_str = type_to_string(ty);
+        match ty_str.as_str() {
             "u8" | "i8" => 3,
             "u16" | "i16" => 5,
             "u32" | "i32" => 10,
@@ -816,7 +1028,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             "bool" => 1,
             "char" => 4,
             "String" => 100, // variable length string
-            _ => 20, // conservative default
+            _ => 20,         // conservative default
         }
     }
 
@@ -824,137 +1036,72 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     let total_param_len: usize = var_params
         .iter()
         .map(|(_, ty)| type_max_encoded_len(ty))
-        .sum::<usize>() + if var_params.len() > 1 { var_params.len() - 1 } else { 0 };
+        .sum::<usize>()
+        + if var_params.len() > 1 {
+            var_params.len() - 1
+        } else {
+            0
+        };
 
     let encoded_len = intro_len + private_len + total_param_len + intermediate_len + final_len;
-
-
 
     // Generate encode implementation
     let intro_str = get_intro_str(intro);
 
-    let write_intro = quote! {
-        __total += ::vtenc::encode::write_str_into(buf, #intro_str)?;
-    };
+    // Build write operations using WriteOperationBuilder
+    let mut write_ops = WriteOperationBuilder::new();
 
-    let write_private = if let Some(byte) = private {
-        let ch = byte as char;
-        quote! {
-            __total += ::vtenc::encode::WriteSeq::write_seq(&(#ch), buf)?;
-        }
-    } else {
-        quote! {}
-    };
+    write_ops.write_str(intro_str);
+    write_ops.write_private(private);
 
     // Write const params (for DCS sequences with both params and fields)
-    let write_const_params: Vec<_> = const_params
-        .iter()
-        .enumerate()
-        .map(|(i, param)| {
-            let param_str = String::from_utf8_lossy(param).into_owned();
-            let separator = if i > 0 {
-                quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
-            } else {
-                quote! {}
-            };
-            quote! {
-                #separator
-                __total += ::vtenc::encode::write_str_into(buf, #param_str)?;
-            }
-        })
-        .collect();
+    for (i, param) in const_params.iter().enumerate() {
+        write_ops.write_separator(i);
+        let param_str = String::from_utf8_lossy(param).into_owned();
+        write_ops.write_str(&param_str);
+    }
 
-    // Only write regular params if NOT using DCS data params
-    let write_params: Vec<_> = if dcs_data_params.is_some() && matches!(intro, "DCS") {
-        vec![]
-    } else {
-        var_params
-            .iter()
-            .enumerate()
-            .map(|(i, (name, _))| {
-                let field_name = syn::Ident::new(name, struct_name.span());
-                let separator = if i > 0 {
-                    quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
-                } else {
-                    quote! {}
-                };
-                quote! {
-                    #separator
-                    __total += ::vtenc::encode::WriteSeq::write_seq(&self.#field_name, buf)?;
+    write_ops.write_intermediate_bytes(intermediate);
+    write_ops.write_char(final_byte as char);
+
+    // Write regular params if NOT using DCS data params
+    if dcs_data_params.is_none() || !matches!(intro, "DCS") {
+        for (i, (name, _)) in var_params.iter().enumerate() {
+            write_ops.write_separator(i);
+            let field_name = syn::Ident::new(name, struct_name.span());
+            write_ops.write_field(&field_name);
+        }
+    }
+
+    // Write DCS data params (for DCS sequences with dcs_data_params)
+    if let Some(data_params) = dcs_data_params
+        && matches!(intro, "DCS")
+    {
+        for (i, param) in data_params.iter().enumerate() {
+            write_ops.write_separator(i);
+            match param {
+                DcsDataParam::Field(boxed) => {
+                    let (field_name, _ty) = &**boxed;
+                    let field_ident = syn::Ident::new(field_name, struct_name.span());
+                    write_ops.write_field(&field_ident);
                 }
-            })
-            .collect()
-    };
-
-    let write_intermediate: Vec<_> = intermediate
-        .iter()
-        .filter(|&&b| b != 0)
-        .map(|&byte| {
-            let ch = byte as char;
-            quote! {
-                __total += ::vtenc::encode::WriteSeq::write_seq(&(#ch), buf)?;
+                DcsDataParam::Literal(lit) => {
+                    write_ops.write_str(lit);
+                }
             }
-        })
-        .collect();
-
-    let write_final = {
-        let ch = final_byte as char;
-        quote! {
-            __total += ::vtenc::encode::WriteSeq::write_seq(&(#ch), buf)?;
         }
-    };
-
-    // Generate DCS data params writing (for DCS sequences with dcs_data_params)
-    let write_data_params: Vec<_> = if let Some(data_params) = dcs_data_params {
-        if matches!(intro, "DCS") {
-            data_params
-                .iter()
-                .enumerate()
-                .map(|(i, param)| {
-                    let separator = if i > 0 {
-                        quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
-                    } else {
-                        quote! {}
-                    };
-
-                    match param {
-                        DcsDataParam::Field(field_name, _ty) => {
-                            let field_ident = syn::Ident::new(field_name, struct_name.span());
-                            quote! {
-                                #separator
-                                __total += ::vtenc::encode::WriteSeq::write_seq(&self.#field_ident, buf)?;
-                            }
-                        }
-                        DcsDataParam::Literal(lit) => {
-                            quote! {
-                                #separator
-                                __total += ::vtenc::encode::write_str_into(buf, #lit)?;
-                            }
-                        }
-                    }
-                })
-                .collect()
-        } else {
-            vec![]
-        }
-    } else {
-        vec![]
-    };
+    }
 
     // Add string terminator for DCS/PM/APC variable sequences
-    let write_string_terminator = if matches!(intro, "DCS" | "PM" | "APC") {
-        vec![quote! {
-            __total += ::vtenc::encode::write_str_into(buf, "\x1B\\")?;
-        }]
-    } else {
-        vec![]
-    };
+    if matches!(intro, "DCS" | "PM" | "APC") {
+        write_ops.write_str("\x1B\\");
+    }
+
+    let all_write_ops = write_ops.build();
 
     // Generate const params (empty for variable sequences)
-    let private_const = generate_private_const(private);
-    let params_const = generate_params_const(&[]);
-    let intermediate_const = generate_intermediate_const(intermediate);
-    let final_const = generate_final_const(final_byte);
+    let consts = EscapeSequenceConsts::new(private, &[], intermediate, final_byte);
+    let consts_impl = consts.generate_all();
 
     let registry_entry = generate_registry_entry(
         struct_name,
@@ -972,10 +1119,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         impl ::vtparser::EscapeSequence for #struct_name {
             const INTRO: ::vtparser::EscapeSequenceIntroducer =
                 ::vtparser::EscapeSequenceIntroducer::#intro_variant;
-            #private_const
-            #params_const
-            #intermediate_const
-            #final_const
+            #consts_impl
         }
 
         impl ::vtenc::encode::ConstEncodedLen for #struct_name {
@@ -986,14 +1130,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             #[inline]
             fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtenc::encode::EncodeError> {
                 let mut __total = 0usize;
-                #write_intro
-                #write_private
-                #(#write_const_params)*
-                #(#write_intermediate)*
-                #write_final
-                #(#write_params)*
-                #(#write_data_params)*
-                #(#write_string_terminator)*
+                #(#all_write_ops)*
                 Ok(__total)
             }
         }
@@ -1191,12 +1328,11 @@ fn generate_esc_sequence_impl(
 
     // Check if params and var_params are both specified
     if !attrs.params.is_empty() && var_params.is_some() {
-        diagnostics.push(
-            struct_name
-                .span()
-                .error("cannot specify params attribute for structs with fields")
-                .help("use params for unit structs (const sequences) or add fields for variable sequences"),
-        );
+        diagnostics.push(error_conflicting_attrs(
+            struct_name.span(),
+            "cannot specify params attribute for structs with fields",
+            "use params for unit structs (const sequences) or add fields for variable sequences",
+        ));
         return emit_diagnostics(diagnostics);
     }
 
@@ -1205,12 +1341,11 @@ fn generate_esc_sequence_impl(
     if is_const {
         // For const sequences, finalbyte is required
         let Some(final_byte) = attrs.final_byte else {
-            diagnostics.push(
-                struct_name
-                    .span()
-                    .error("finalbyte attribute is required for const sequences")
-                    .help("add finalbyte = 'X' where X is the final byte character"),
-            );
+            diagnostics.push(error_required_attr(
+                struct_name.span(),
+                "finalbyte",
+                "'X' where X is the final byte character (for const sequences)",
+            ));
             return emit_diagnostics(diagnostics);
         };
 
@@ -1250,11 +1385,9 @@ fn generate_esc_sequence_impl(
         let intermediate = &attrs.intermediate;
 
         // Build intermediate string for write_esc macro
-        let intermediate_str = intermediate
-            .iter()
-            .filter(|&&b| b != 0)
+        let intermediate_str: String = filter_intermediate_bytes(intermediate)
             .map(|&b| b as char)
-            .collect::<String>();
+            .collect();
 
         // Generate field references for write_esc macro
         let field_idents: Vec<_> = var_params
@@ -1297,8 +1430,7 @@ fn generate_esc_sequence_impl(
 #[proc_macro_attribute]
 pub fn esc(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+    let meta_list = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
 
     let mut diagnostics = Vec::new();
     let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
@@ -1323,8 +1455,7 @@ pub fn esc(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+    let meta_list = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
 
     let mut diagnostics = Vec::new();
     let struct_name = &input.ident;
@@ -1342,23 +1473,21 @@ pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
                         ..
                     }),
                 ..
-            }) if path.is_ident("code") => {
-                match lit_int.base10_parse::<u8>() {
-                    Ok(val) if val <= 0x1F => {
-                        code = Some(val);
-                    }
-                    Ok(_) => {
-                        diagnostics.push(
-                            lit_int
-                                .span()
-                                .error("C0 control code must be in range 0x00-0x1F"),
-                        );
-                    }
-                    Err(e) => {
-                        diagnostics.push(lit_int.span().error(format!("invalid integer: {}", e)));
-                    }
+            }) if path.is_ident("code") => match lit_int.base10_parse::<u8>() {
+                Ok(val) if val <= 0x1F => {
+                    code = Some(val);
                 }
-            }
+                Ok(_) => {
+                    diagnostics.push(
+                        lit_int
+                            .span()
+                            .error("C0 control code must be in range 0x00-0x1F"),
+                    );
+                }
+                Err(e) => {
+                    diagnostics.push(lit_int.span().error(format!("invalid integer: {}", e)));
+                }
+            },
             _ => {
                 diagnostics.push(
                     meta.span()
@@ -1370,12 +1499,11 @@ pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     let Some(code) = code else {
-        diagnostics.push(
-            struct_name
-                .span()
-                .error("code attribute is required")
-                .help("add code = 0x.. where 0x.. is the control code byte (0x00-0x1F)"),
-        );
+        diagnostics.push(error_required_attr(
+            struct_name.span(),
+            "code",
+            "0x.. where 0x.. is the control code byte (0x00-0x1F)",
+        ));
         return TokenStream::from(emit_diagnostics(&mut diagnostics));
     };
 
@@ -1425,8 +1553,7 @@ pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+    let meta_list = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
 
     let mut diagnostics = Vec::new();
 
@@ -1435,44 +1562,16 @@ pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut params_str: Option<String> = None;
 
     for meta in meta_list {
-        if let Meta::NameValue(MetaNameValue {
-            ref path,
-            ref value,
-            ..
-        }) = meta
-        {
-            let ident = path.get_ident().map(|i| i.to_string());
-            match ident.as_deref() {
-                Some("private") => {
-                    if let Expr::Lit(ExprLit {
-                        lit: Lit::Char(ch),
-                        ..
-                    }) = value
+        if let Some((key, value)) = parse_name_value_attr(&meta, &mut diagnostics) {
+            match key.as_str() {
+                "private" => {
+                    if let Some(byte) = parse_char_as_byte(value, "private", "?", &mut diagnostics)
                     {
-                        private_char = Some(ch.value());
-                    } else {
-                        diagnostics.push(
-                            value
-                                .span()
-                                .error("private must be a char literal")
-                                .help("example: private = '?'"),
-                        );
+                        private_char = Some(byte as char);
                     }
                 }
-                Some("params") => {
-                    if let Expr::Lit(ExprLit {
-                        lit: Lit::Str(s), ..
-                    }) = value
-                    {
-                        params_str = Some(s.value());
-                    } else {
-                        diagnostics.push(
-                            value
-                                .span()
-                                .error("params must be a string literal")
-                                .help("example: params = \"6\""),
-                        );
-                    }
+                "params" => {
+                    params_str = parse_string_literal(value, "params", "6", &mut diagnostics);
                 }
                 _ => {
                     diagnostics.push(
@@ -1482,7 +1581,7 @@ pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
                     );
                 }
             }
-        } else {
+        } else if !matches!(meta, Meta::NameValue(_)) {
             diagnostics.push(
                 meta.span()
                     .error("expected name-value attribute")
@@ -1495,7 +1594,11 @@ pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
     let params = match params_str {
         Some(p) => p,
         None => {
-            diagnostics.push(input.span().error("params attribute is required"));
+            diagnostics.push(error_required_attr(
+                input.span(),
+                "params",
+                "\"6\" (or other mode parameter)",
+            ));
             String::new()
         }
     };

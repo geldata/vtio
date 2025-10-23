@@ -133,10 +133,7 @@ impl ConstEncodedLen for PrinterStatusReport {
 
 impl Encode for PrinterStatusReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.status, "n")
     }
 }
@@ -197,10 +194,7 @@ impl ConstEncodedLen for UdkStatusReport {
 
 impl Encode for UdkStatusReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.status, "n")
     }
 }
@@ -249,10 +243,7 @@ impl ConstEncodedLen for KeyboardStatusReport {
 
 impl Encode for KeyboardStatusReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?27;", self.dialect, "n")
     }
 }
@@ -311,10 +302,7 @@ impl ConstEncodedLen for LocatorStatusReport {
 
 impl Encode for LocatorStatusReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.status, "n")
     }
 }
@@ -360,10 +348,7 @@ impl ConstEncodedLen for LocatorTypeReport {
 
 impl Encode for LocatorTypeReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?57;", self.locator_type, "n")
     }
 }
@@ -425,10 +410,7 @@ impl ConstEncodedLen for DataIntegrityStatusReport {
 
 impl Encode for DataIntegrityStatusReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.status, "n")
     }
 }
@@ -498,10 +480,7 @@ impl ConstEncodedLen for MultipleSessionStatusReport {
 
 impl Encode for MultipleSessionStatusReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.status, "n")
     }
 }
@@ -546,10 +525,7 @@ impl ConstEncodedLen for MacroSpaceStatusReport {
 
 impl Encode for MacroSpaceStatusReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?63;", self.space, "n")
     }
 }
@@ -585,10 +561,7 @@ impl ConstEncodedLen for RequestMemoryChecksum {
 
 impl Encode for RequestMemoryChecksum {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?63;", self.id, "n")
     }
 }
@@ -621,10 +594,7 @@ impl ConstEncodedLen for MemoryChecksumReport {
 
 impl Encode for MemoryChecksumReport {
     #[inline]
-    fn encode<W: std::io::Write>(
-        &mut self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?63;", self.id, ";", self.checksum, "n")
     }
 }

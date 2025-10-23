@@ -1763,5 +1763,4 @@ mod tests {
         let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[15~");
     }
-
 }
