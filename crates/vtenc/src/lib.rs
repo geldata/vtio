@@ -14,7 +14,7 @@ pub use encode::{ConstEncode, ConstEncodedLen, Encode, EncodeError, IntoSeq, Wri
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! csi {
+macro_rules! format_csi {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1B[", $($arg),+)
     };
@@ -51,7 +51,7 @@ macro_rules! write_csi {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! osc {
+macro_rules! format_osc {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1B]", $($arg),+, "\x1B\\")
     };
@@ -86,7 +86,7 @@ macro_rules! write_osc {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! ss2 {
+macro_rules! format_ss2 {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1BN", $($arg),+)
     };
@@ -114,7 +114,7 @@ macro_rules! write_ss2 {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! ss3 {
+macro_rules! format_ss3 {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1BO", $($arg),+)
     };
@@ -142,7 +142,7 @@ macro_rules! write_ss3 {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! dcs {
+macro_rules! format_dcs {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1BP", $($arg),+, "\x1B\\")
     };
@@ -171,7 +171,7 @@ macro_rules! write_dcs {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! pm {
+macro_rules! format_pm {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1B^", $($arg),+, "\x1B\\")
     };
@@ -201,7 +201,7 @@ macro_rules! write_pm {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! apc {
+macro_rules! format_apc {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1B_", $($arg),+, "\x1B\\")
     };
@@ -230,7 +230,7 @@ macro_rules! write_apc {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! esc {
+macro_rules! format_esc {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1B", $($arg),+)
     };
@@ -258,7 +258,7 @@ macro_rules! write_esc {
 /// All arguments must be string literals that can be concatenated at
 /// compile-time using `concat!`.
 #[macro_export]
-macro_rules! escst {
+macro_rules! format_escst {
     ($($arg:expr),+ $(,)?) => {
         concat!("\x1B", $($arg),+, "\x1B\\")
     };

@@ -1,7 +1,7 @@
 //! Buffer control/information messages.
 
 use vtenc::{
-    ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, osc, write_csi, write_dcs,
+    ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, format_dcs, format_esc, format_osc, write_csi, write_dcs,
     write_int, write_str_into,
 };
 
@@ -339,7 +339,7 @@ pub struct SynchronizedUpdateMode {
 pub struct RequestDefaultForeground;
 
 impl ConstEncode for RequestDefaultForeground {
-    const STR: &'static str = osc!("10;?");
+    const STR: &'static str = format_osc!("10;?");
 }
 
 /// Request default background color.
@@ -355,7 +355,7 @@ impl ConstEncode for RequestDefaultForeground {
 pub struct RequestDefaultBackground;
 
 impl ConstEncode for RequestDefaultBackground {
-    const STR: &'static str = osc!("11;?");
+    const STR: &'static str = format_osc!("11;?");
 }
 
 /// Request text attributes (SGR) using `DECRQSS`.
@@ -366,7 +366,7 @@ impl ConstEncode for RequestDefaultBackground {
 pub struct RequestTextAttributes;
 
 impl ConstEncode for RequestTextAttributes {
-    const STR: &'static str = dcs!("$qm");
+    const STR: &'static str = format_dcs!("$qm");
 }
 
 /// Full Reset (`RIS`).
@@ -387,7 +387,7 @@ impl ConstEncode for RequestTextAttributes {
 pub struct FullReset;
 
 impl ConstEncode for FullReset {
-    const STR: &'static str = esc!("c");
+    const STR: &'static str = format_esc!("c");
 }
 
 /// Request Terminal ID (`DECID`).
@@ -400,7 +400,7 @@ impl ConstEncode for FullReset {
 pub struct RequestTerminalID;
 
 impl ConstEncode for RequestTerminalID {
-    const STR: &'static str = esc!("Z");
+    const STR: &'static str = format_esc!("Z");
 }
 
 /// Request primary device attributes (`DA1`).
@@ -416,7 +416,7 @@ impl ConstEncode for RequestTerminalID {
 pub struct RequestPrimaryDeviceAttributes;
 
 impl ConstEncode for RequestPrimaryDeviceAttributes {
-    const STR: &'static str = csi!("c");
+    const STR: &'static str = format_csi!("c");
 }
 
 /// Request secondary device attributes (`DA2`).
@@ -431,7 +431,7 @@ impl ConstEncode for RequestPrimaryDeviceAttributes {
 pub struct RequestSecondaryDeviceAttributes;
 
 impl ConstEncode for RequestSecondaryDeviceAttributes {
-    const STR: &'static str = csi!(">c");
+    const STR: &'static str = format_csi!(">c");
 }
 
 /// Request tertiary device attributes (`DA3`).
@@ -447,7 +447,7 @@ impl ConstEncode for RequestSecondaryDeviceAttributes {
 pub struct RequestTertiaryDeviceAttributes;
 
 impl ConstEncode for RequestTertiaryDeviceAttributes {
-    const STR: &'static str = csi!("=c");
+    const STR: &'static str = format_csi!("=c");
 }
 
 /// Terminal conformance level for DA1 response.
@@ -722,5 +722,5 @@ impl Encode for SelectVTConformanceLevel {
 pub struct RequestVTConformanceLevel;
 
 impl ConstEncode for RequestVTConformanceLevel {
-    const STR: &'static str = dcs!("$q\"p");
+    const STR: &'static str = format_dcs!("$q\"p");
 }

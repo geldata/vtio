@@ -3,7 +3,7 @@
 use vtderive::{c0, csi, esc, terminal_mode};
 use bitflags::bitflags;
 use vtenc::{
-    ConstEncode, ConstEncodedLen, Encode, EncodeError, dcs, write_csi, write_dcs,
+    ConstEncode, ConstEncodedLen, Encode, EncodeError, format_dcs, write_csi, write_dcs,
 };
 
 /// Cursor Origin Mode (`DECOM`).
@@ -690,7 +690,7 @@ impl Encode for SetCursorStyle {
 pub struct RequestCursorStyle;
 
 impl ConstEncode for RequestCursorStyle {
-    const STR: &'static str = dcs!("$q q");
+    const STR: &'static str = format_dcs!("$q q");
 }
 
 bitflags! {

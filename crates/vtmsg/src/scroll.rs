@@ -58,7 +58,7 @@
 //!   positioning commands
 
 use vtderive::terminal_mode;
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, dcs, write_csi};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_dcs, write_csi};
 
 /// Smooth Scroll Mode (`DECSCLM`).
 ///
@@ -172,7 +172,7 @@ impl Encode for SetLeftAndRightMargins {
 pub struct RequestTopBottomMargins;
 
 impl ConstEncode for RequestTopBottomMargins {
-    const STR: &'static str = dcs!("$qr");
+    const STR: &'static str = format_dcs!("$qr");
 }
 
 /// Request left and right margins (`DECRQSS` - `DECSLRM`).
@@ -195,7 +195,7 @@ impl ConstEncode for RequestTopBottomMargins {
 pub struct RequestLeftRightMargins;
 
 impl ConstEncode for RequestLeftRightMargins {
-    const STR: &'static str = dcs!("$qs");
+    const STR: &'static str = format_dcs!("$qs");
 }
 
 /// Scroll Up (`SU`).

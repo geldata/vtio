@@ -1,6 +1,6 @@
 //! Screen and line erase commands.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, esc, write_csi};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, format_esc, write_csi};
 
 /// Erase Display Below (`ED`).
 ///
@@ -24,7 +24,7 @@ use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, esc, write_c
 pub struct EraseDisplayBelow;
 
 impl ConstEncode for EraseDisplayBelow {
-    const STR: &'static str = csi!("J");
+    const STR: &'static str = format_csi!("J");
 }
 
 /// Erase Display Above (`ED`).
@@ -47,7 +47,7 @@ impl ConstEncode for EraseDisplayBelow {
 pub struct EraseDisplayAbove;
 
 impl ConstEncode for EraseDisplayAbove {
-    const STR: &'static str = csi!("1J");
+    const STR: &'static str = format_csi!("1J");
 }
 
 /// Erase Display Complete (`ED`).
@@ -70,7 +70,7 @@ impl ConstEncode for EraseDisplayAbove {
 pub struct EraseDisplayComplete;
 
 impl ConstEncode for EraseDisplayComplete {
-    const STR: &'static str = csi!("2J");
+    const STR: &'static str = format_csi!("2J");
 }
 
 /// Erase Display Scroll-back (`ED`).
@@ -91,7 +91,7 @@ impl ConstEncode for EraseDisplayComplete {
 pub struct EraseDisplayScrollback;
 
 impl ConstEncode for EraseDisplayScrollback {
-    const STR: &'static str = csi!("3J");
+    const STR: &'static str = format_csi!("3J");
 }
 
 /// Erase Line Right (`EL`).
@@ -111,7 +111,7 @@ impl ConstEncode for EraseDisplayScrollback {
 pub struct EraseLineRight;
 
 impl ConstEncode for EraseLineRight {
-    const STR: &'static str = csi!("K");
+    const STR: &'static str = format_csi!("K");
 }
 
 /// Erase Line Left (`EL`).
@@ -131,7 +131,7 @@ impl ConstEncode for EraseLineRight {
 pub struct EraseLineLeft;
 
 impl ConstEncode for EraseLineLeft {
-    const STR: &'static str = csi!("1K");
+    const STR: &'static str = format_csi!("1K");
 }
 
 /// Erase Line Complete (`EL`).
@@ -152,7 +152,7 @@ impl ConstEncode for EraseLineLeft {
 pub struct EraseLineComplete;
 
 impl ConstEncode for EraseLineComplete {
-    const STR: &'static str = csi!("2K");
+    const STR: &'static str = format_csi!("2K");
 }
 
 /// Selective Erase Display Below (`DECSED`).
@@ -174,7 +174,7 @@ impl ConstEncode for EraseLineComplete {
 pub struct SelectiveEraseDisplayBelow;
 
 impl ConstEncode for SelectiveEraseDisplayBelow {
-    const STR: &'static str = csi!("?J");
+    const STR: &'static str = format_csi!("?J");
 }
 
 /// Selective Erase Display Above (`DECSED`).
@@ -196,7 +196,7 @@ impl ConstEncode for SelectiveEraseDisplayBelow {
 pub struct SelectiveEraseDisplayAbove;
 
 impl ConstEncode for SelectiveEraseDisplayAbove {
-    const STR: &'static str = csi!("?1J");
+    const STR: &'static str = format_csi!("?1J");
 }
 
 /// Selective Erase Display Complete (`DECSED`).
@@ -215,7 +215,7 @@ impl ConstEncode for SelectiveEraseDisplayAbove {
 pub struct SelectiveEraseDisplayComplete;
 
 impl ConstEncode for SelectiveEraseDisplayComplete {
-    const STR: &'static str = csi!("?2J");
+    const STR: &'static str = format_csi!("?2J");
 }
 
 /// Selective Erase Line Right (`DECSEL`).
@@ -235,7 +235,7 @@ impl ConstEncode for SelectiveEraseDisplayComplete {
 pub struct SelectiveEraseLineRight;
 
 impl ConstEncode for SelectiveEraseLineRight {
-    const STR: &'static str = csi!("?K");
+    const STR: &'static str = format_csi!("?K");
 }
 
 /// Selective Erase Line Left (`DECSEL`).
@@ -255,7 +255,7 @@ impl ConstEncode for SelectiveEraseLineRight {
 pub struct SelectiveEraseLineLeft;
 
 impl ConstEncode for SelectiveEraseLineLeft {
-    const STR: &'static str = csi!("?1K");
+    const STR: &'static str = format_csi!("?1K");
 }
 
 /// Selective Erase Line Complete (`DECSEL`).
@@ -274,7 +274,7 @@ impl ConstEncode for SelectiveEraseLineLeft {
 pub struct SelectiveEraseLineComplete;
 
 impl ConstEncode for SelectiveEraseLineComplete {
-    const STR: &'static str = csi!("?2K");
+    const STR: &'static str = format_csi!("?2K");
 }
 
 /// Insert Line (`IL`).
@@ -501,7 +501,7 @@ impl Encode for DeleteColumn {
 pub struct FillScreenWithE;
 
 impl ConstEncode for FillScreenWithE {
-    const STR: &'static str = esc!("#8");
+    const STR: &'static str = format_esc!("#8");
 }
 
 /// Set Double Height Line Top Half (`DECDHL`).
@@ -528,7 +528,7 @@ impl ConstEncode for FillScreenWithE {
 pub struct SetDoubleHeightLineTopHalf;
 
 impl ConstEncode for SetDoubleHeightLineTopHalf {
-    const STR: &'static str = esc!("#3");
+    const STR: &'static str = format_esc!("#3");
 }
 
 /// Set Double Height Line Bottom Half (`DECDHL`).
@@ -555,7 +555,7 @@ impl ConstEncode for SetDoubleHeightLineTopHalf {
 pub struct SetDoubleHeightLineBottomHalf;
 
 impl ConstEncode for SetDoubleHeightLineBottomHalf {
-    const STR: &'static str = esc!("#4");
+    const STR: &'static str = format_esc!("#4");
 }
 
 /// Set Single Width Line (`DECSWL`).
@@ -573,7 +573,7 @@ impl ConstEncode for SetDoubleHeightLineBottomHalf {
 pub struct SetSingleWidthLine;
 
 impl ConstEncode for SetSingleWidthLine {
-    const STR: &'static str = esc!("#5");
+    const STR: &'static str = format_esc!("#5");
 }
 
 /// Set Double Width Line (`DECDWL`).
@@ -598,5 +598,5 @@ impl ConstEncode for SetSingleWidthLine {
 pub struct SetDoubleWidthLine;
 
 impl ConstEncode for SetDoubleWidthLine {
-    const STR: &'static str = esc!("#6");
+    const STR: &'static str = format_esc!("#6");
 }

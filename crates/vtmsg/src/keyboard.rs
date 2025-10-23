@@ -4,7 +4,7 @@ use std::fmt::{self, Display, Write};
 use std::hash::{Hash, Hasher};
 
 use bitflags::bitflags;
-use vtenc::{ConstEncode, Encode, EncodeError, csi, esc, write_csi};
+use vtenc::{ConstEncode, Encode, EncodeError, format_csi, format_esc, write_csi};
 
 use crate::TerseDisplay;
 use vtderive::terminal_mode;
@@ -218,7 +218,7 @@ impl Encode for PushKeyboardEnhancementFlags {
 pub struct PopKeyboardEnhancementFlags;
 
 impl ConstEncode for PopKeyboardEnhancementFlags {
-    const STR: &'static str = csi!("<1u");
+    const STR: &'static str = format_csi!("<1u");
 }
 
 /// Set Application Keypad Mode (`DECKPAM`).
@@ -231,7 +231,7 @@ impl ConstEncode for PopKeyboardEnhancementFlags {
 pub struct SetApplicationKeypadMode;
 
 impl ConstEncode for SetApplicationKeypadMode {
-    const STR: &'static str = esc!("=");
+    const STR: &'static str = format_esc!("=");
 }
 
 /// Reset Application Keypad Mode (`DECKPNM`).
@@ -244,7 +244,7 @@ impl ConstEncode for SetApplicationKeypadMode {
 pub struct ResetApplicationKeypadMode;
 
 impl ConstEncode for ResetApplicationKeypadMode {
-    const STR: &'static str = esc!(">");
+    const STR: &'static str = format_esc!(">");
 }
 
 impl Encode for KeyEvent {

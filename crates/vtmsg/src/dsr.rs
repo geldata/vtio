@@ -5,7 +5,7 @@
 //!
 //! See <https://terminalguide.namepad.de/seq/csi_sn/> for details.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, write_csi};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, write_csi};
 
 /// Request Operating Status (`DSR`).
 ///
@@ -23,7 +23,7 @@ use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, write_csi};
 pub struct RequestOperatingStatus;
 
 impl ConstEncode for RequestOperatingStatus {
-    const STR: &'static str = csi!("5n");
+    const STR: &'static str = format_csi!("5n");
 }
 
 /// Operating Status Report (`DSR`).
@@ -38,7 +38,7 @@ impl ConstEncode for RequestOperatingStatus {
 pub struct OperatingStatusReport;
 
 impl ConstEncode for OperatingStatusReport {
-    const STR: &'static str = csi!("0n");
+    const STR: &'static str = format_csi!("0n");
 }
 
 /// Request Operating Status (private mode) (`DSR`).
@@ -55,7 +55,7 @@ impl ConstEncode for OperatingStatusReport {
 pub struct RequestOperatingStatusPrivate;
 
 impl ConstEncode for RequestOperatingStatusPrivate {
-    const STR: &'static str = csi!("?5n");
+    const STR: &'static str = format_csi!("?5n");
 }
 
 /// Operating Status Report (private mode) (`DSR`).
@@ -67,7 +67,7 @@ impl ConstEncode for RequestOperatingStatusPrivate {
 pub struct OperatingStatusReportPrivate;
 
 impl ConstEncode for OperatingStatusReportPrivate {
-    const STR: &'static str = csi!("?0n");
+    const STR: &'static str = format_csi!("?0n");
 }
 
 /// Request Printer Status (`DSR`).
@@ -83,7 +83,7 @@ impl ConstEncode for OperatingStatusReportPrivate {
 pub struct RequestPrinterStatus;
 
 impl ConstEncode for RequestPrinterStatus {
-    const STR: &'static str = csi!("?15n");
+    const STR: &'static str = format_csi!("?15n");
 }
 
 /// Printer Status Report (`DSR`).
@@ -154,7 +154,7 @@ impl Encode for PrinterStatusReport {
 pub struct RequestUdkStatus;
 
 impl ConstEncode for RequestUdkStatus {
-    const STR: &'static str = csi!("?25n");
+    const STR: &'static str = format_csi!("?25n");
 }
 
 /// User Defined Key Status Report (`DSR`).
@@ -218,7 +218,7 @@ impl Encode for UdkStatusReport {
 pub struct RequestKeyboardStatus;
 
 impl ConstEncode for RequestKeyboardStatus {
-    const STR: &'static str = csi!("?26n");
+    const STR: &'static str = format_csi!("?26n");
 }
 
 /// Keyboard Status Report (`DSR`).
@@ -268,7 +268,7 @@ impl Encode for KeyboardStatusReport {
 pub struct RequestLocatorStatus;
 
 impl ConstEncode for RequestLocatorStatus {
-    const STR: &'static str = csi!("?55n");
+    const STR: &'static str = format_csi!("?55n");
 }
 
 /// DEC Locator Status Report (`DSR`).
@@ -330,7 +330,7 @@ impl Encode for LocatorStatusReport {
 pub struct RequestLocatorType;
 
 impl ConstEncode for RequestLocatorType {
-    const STR: &'static str = csi!("?56n");
+    const STR: &'static str = format_csi!("?56n");
 }
 
 /// DEC Locator Type Report (`DSR`).
@@ -381,7 +381,7 @@ impl Encode for LocatorTypeReport {
 pub struct RequestDataIntegrityStatus;
 
 impl ConstEncode for RequestDataIntegrityStatus {
-    const STR: &'static str = csi!("?75n");
+    const STR: &'static str = format_csi!("?75n");
 }
 
 /// Data Integrity Status Report (`DSR`).
@@ -446,7 +446,7 @@ impl Encode for DataIntegrityStatusReport {
 pub struct RequestMultipleSessionStatus;
 
 impl ConstEncode for RequestMultipleSessionStatus {
-    const STR: &'static str = csi!("?85n");
+    const STR: &'static str = format_csi!("?85n");
 }
 
 /// Multiple Session Status Report (`DSR`).
@@ -517,7 +517,7 @@ impl Encode for MultipleSessionStatusReport {
 pub struct RequestMacroSpaceStatus;
 
 impl ConstEncode for RequestMacroSpaceStatus {
-    const STR: &'static str = csi!("?62n");
+    const STR: &'static str = format_csi!("?62n");
 }
 
 /// Macro Space Status Report (`DSR`).

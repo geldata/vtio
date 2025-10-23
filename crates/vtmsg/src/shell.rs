@@ -14,7 +14,7 @@
 //! `iTerm2`, `VSCode`, `WezTerm`, and others.
 
 use std::io;
-use vtenc::{osc, write_osc, ConstEncode, EncodeError, ConstEncodedLen, Encode};
+use vtenc::{format_osc, write_osc, ConstEncode, EncodeError, ConstEncodedLen, Encode};
 
 /// A command that marks the beginning of a shell prompt.
 ///
@@ -29,7 +29,7 @@ use vtenc::{osc, write_osc, ConstEncode, EncodeError, ConstEncodedLen, Encode};
 pub struct PromptStart;
 
 impl ConstEncode for PromptStart {
-    const STR: &'static str = osc!("133;A");
+    const STR: &'static str = format_osc!("133;A");
 }
 
 /// A command that marks the end of a shell prompt and the beginning of user
@@ -47,7 +47,7 @@ impl ConstEncode for PromptStart {
 pub struct PromptEnd;
 
 impl ConstEncode for PromptEnd {
-    const STR: &'static str = osc!("133;B");
+    const STR: &'static str = format_osc!("133;B");
 }
 
 /// A command that marks the start of command execution and output.
@@ -65,7 +65,7 @@ impl ConstEncode for PromptEnd {
 pub struct CommandStart;
 
 impl ConstEncode for CommandStart {
-    const STR: &'static str = osc!("133;C");
+    const STR: &'static str = format_osc!("133;C");
 }
 
 /// A command that marks the end of command output.

@@ -1,6 +1,6 @@
 //! Window control commands.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, write_csi, write_osc};
+use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, write_csi, write_osc};
 
 /// Title stack target.
 ///
@@ -165,7 +165,7 @@ impl Encode for SetIconName<'_> {
 pub struct GetTitle;
 
 impl ConstEncode for GetTitle {
-    const STR: &'static str = csi!("21t");
+    const STR: &'static str = format_csi!("21t");
 }
 
 /// Get icon name.
@@ -178,7 +178,7 @@ impl ConstEncode for GetTitle {
 pub struct GetIconName;
 
 impl ConstEncode for GetIconName {
-    const STR: &'static str = csi!("20t");
+    const STR: &'static str = format_csi!("20t");
 }
 
 /// Push terminal title onto stack.
@@ -246,7 +246,7 @@ impl Encode for PopTitle {
 pub struct RestoreWindow;
 
 impl ConstEncode for RestoreWindow {
-    const STR: &'static str = csi!("1t");
+    const STR: &'static str = format_csi!("1t");
 }
 
 /// Minimize terminal window.
@@ -258,7 +258,7 @@ impl ConstEncode for RestoreWindow {
 pub struct MinimizeWindow;
 
 impl ConstEncode for MinimizeWindow {
-    const STR: &'static str = csi!("2t");
+    const STR: &'static str = format_csi!("2t");
 }
 
 /// Raise terminal window.
@@ -270,7 +270,7 @@ impl ConstEncode for MinimizeWindow {
 pub struct RaiseWindow;
 
 impl ConstEncode for RaiseWindow {
-    const STR: &'static str = csi!("5t");
+    const STR: &'static str = format_csi!("5t");
 }
 
 /// Lower terminal window.
@@ -282,7 +282,7 @@ impl ConstEncode for RaiseWindow {
 pub struct LowerWindow;
 
 impl ConstEncode for LowerWindow {
-    const STR: &'static str = csi!("6t");
+    const STR: &'static str = format_csi!("6t");
 }
 
 /// Refresh terminal window.
@@ -294,7 +294,7 @@ impl ConstEncode for LowerWindow {
 pub struct RefreshWindow;
 
 impl ConstEncode for RefreshWindow {
-    const STR: &'static str = csi!("7t");
+    const STR: &'static str = format_csi!("7t");
 }
 
 /// Set terminal window position.
@@ -435,7 +435,7 @@ impl Encode for MaximizeWindowAlt {
 pub struct ReportWindowState;
 
 impl ConstEncode for ReportWindowState {
-    const STR: &'static str = csi!("11t");
+    const STR: &'static str = format_csi!("11t");
 }
 
 /// Report terminal window position.
@@ -504,7 +504,7 @@ impl Encode for ReportWindowSizePixels {
 pub struct ReportScreenSizePixels;
 
 impl ConstEncode for ReportScreenSizePixels {
-    const STR: &'static str = csi!("15t");
+    const STR: &'static str = format_csi!("15t");
 }
 
 /// Report cell size in pixels.
@@ -517,7 +517,7 @@ impl ConstEncode for ReportScreenSizePixels {
 pub struct ReportCellSizePixels;
 
 impl ConstEncode for ReportCellSizePixels {
-    const STR: &'static str = csi!("16t");
+    const STR: &'static str = format_csi!("16t");
 }
 
 /// Report terminal size in character cells.
@@ -530,7 +530,7 @@ impl ConstEncode for ReportCellSizePixels {
 pub struct ReportSize;
 
 impl ConstEncode for ReportSize {
-    const STR: &'static str = csi!("18t");
+    const STR: &'static str = format_csi!("18t");
 }
 
 /// Report screen size in character cells.
@@ -543,7 +543,7 @@ impl ConstEncode for ReportSize {
 pub struct ReportScreenSize;
 
 impl ConstEncode for ReportScreenSize {
-    const STR: &'static str = csi!("19t");
+    const STR: &'static str = format_csi!("19t");
 }
 
 /// Window state report response.
