@@ -91,16 +91,80 @@ fn parse_params(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<Vec<u8>>
 ///
 /// If the struct has named fields, extract them as variable parameters.
 /// Returns None if the struct has no fields (unit struct).
+/// Filters out unit type fields (those with type `()`).
 fn extract_var_params_from_struct(input: &ItemStruct) -> Option<Vec<(String, syn::Type)>> {
     match &input.fields {
         syn::Fields::Named(fields) => {
             let params: Vec<_> = fields
                 .named
                 .iter()
-                .map(|field| {
+                .filter_map(|field| {
                     let name = field.ident.as_ref().unwrap().to_string();
                     let ty = field.ty.clone();
-                    (name, ty)
+
+                    // Skip unit type fields
+                    let ty_str = quote!(#ty).to_string();
+                    if ty_str.trim() == "()" {
+                        return None;
+                    }
+
+                    Some((name, ty))
+                })
+                .collect();
+            if params.is_empty() {
+                None
+            } else {
+                Some(params)
+            }
+        }
+        syn::Fields::Unnamed(_) | syn::Fields::Unit => None,
+    }
+}
+
+/// Represents a DCS data parameter (either a field or a constant literal).
+#[derive(Clone)]
+enum DcsDataParam {
+    /// A field from the struct
+    Field(String, syn::Type),
+    /// A constant literal value
+    Literal(String),
+}
+
+/// Extract DCS data parameters from struct fields, including doc comment literals.
+fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
+    match &input.fields {
+        syn::Fields::Named(fields) => {
+            let params: Vec<_> = fields
+                .named
+                .iter()
+                .filter_map(|field| {
+                    let name = field.ident.as_ref().unwrap().to_string();
+
+                    // Check for doc comments with __dcs_literal__: "value" pattern
+                    for attr in &field.attrs {
+                        if attr.path().is_ident("doc") {
+                            if let Meta::NameValue(ref nv) = attr.meta {
+                                if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = &nv.value {
+                                    let doc = s.value();
+                                    // Look for __dcs_literal__: "value" pattern
+                                    if let Some(rest) = doc.trim().strip_prefix("__dcs_literal__:") {
+                                        let value = rest.trim().trim_matches('"');
+                                        return Some(DcsDataParam::Literal(value.to_string()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Regular field - check if it's a unit type (these are for const markers)
+                    let ty = &field.ty;
+                    let ty_str = quote!(#ty).to_string();
+                    if ty_str.trim() == "()" {
+                        // Unit type without __dcs_literal__ is skipped
+                        return None;
+                    }
+
+                    Some(DcsDataParam::Field(name, field.ty.clone()))
                 })
                 .collect();
             if params.is_empty() {
@@ -389,6 +453,11 @@ fn generate_registry_entry(
                             .copied()
                             .unwrap_or(0) as #ty;
                     },
+                    "String" => quote! {
+                        let #field_name: #ty = params.get(#i)
+                            .map(|p| ::std::string::String::from_utf8_lossy(p).into_owned())
+                            .unwrap_or_default();
+                    },
                     _ => quote! {
                         let #field_name: #ty = params.get(#i)
                             .and_then(|p| p.first())
@@ -476,6 +545,13 @@ fn generate_escape_sequence_impl(
 
     // Extract variable parameters from struct fields
     let var_params = extract_var_params_from_struct(&input);
+
+    // For DCS sequences, also extract data parameters (including const literals)
+    let dcs_data_params = if intro == "DCS" {
+        extract_dcs_data_params(&input)
+    } else {
+        None
+    };
 
     // Check if params and var_params are both specified
     if !attrs.params.is_empty() && var_params.is_some() {
@@ -566,6 +642,7 @@ fn generate_escape_sequence_impl(
             var_params: &var_params,
             intermediate: &attrs.intermediate,
             final_byte,
+            dcs_data_params: dcs_data_params.as_deref(),
         })
     }
 }
@@ -642,6 +719,7 @@ struct VariableSequenceParams<'a> {
     var_params: &'a [(String, syn::Type)],
     intermediate: &'a [u8],
     final_byte: u8,
+    dcs_data_params: Option<&'a [DcsDataParam]>,
 }
 
 /// Generate a variable (non-const) sequence implementation.
@@ -655,10 +733,12 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         var_params,
         intermediate,
         final_byte,
+        dcs_data_params,
     } = params;
     // Struct is already defined by the user, we just need to generate the impls
 
     // Generate new constructor
+    // For constructor params, only include non-unit fields
     let field_names: Vec<_> = var_params
         .iter()
         .map(|(name, _)| syn::Ident::new(name, struct_name.span()))
@@ -666,12 +746,31 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
     let field_types: Vec<_> = var_params.iter().map(|(_, ty)| ty).collect();
 
+    // For initialization, include ALL fields from the input struct
+    let all_field_inits: Vec<_> = if let syn::Fields::Named(ref fields) = input.fields {
+        fields.named.iter().map(|field| {
+            let field_name = field.ident.as_ref().unwrap();
+            let ty = &field.ty;
+            let ty_str = quote!(#ty).to_string();
+
+            if ty_str.trim() == "()" {
+                // Unit type - initialize with ()
+                quote! { #field_name: () }
+            } else {
+                // Regular field - use parameter
+                quote! { #field_name }
+            }
+        }).collect()
+    } else {
+        vec![]
+    };
+
     let new_constructor = quote! {
         impl #struct_name {
             #[inline]
             pub fn new(#(#field_names: #field_types),*) -> Self {
                 Self {
-                    #(#field_names),*
+                    #(#all_field_inits),*
                 }
             }
         }
@@ -697,6 +796,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                 "usize" | "isize" => 20,
                 "bool" => 1,
                 "char" => 4,
+                "String" => 100, // variable length string
                 _ => 20, // conservative default
             }
         })
@@ -732,22 +832,27 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         quote! {}
     };
 
-    let write_params: Vec<_> = var_params
-        .iter()
-        .enumerate()
-        .map(|(i, (name, _))| {
-            let field_name = syn::Ident::new(name, struct_name.span());
-            let separator = if i > 0 {
-                quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
-            } else {
-                quote! {}
-            };
-            quote! {
-                #separator
-                __total += ::vtenc::encode::WriteSeq::write_seq(&self.#field_name, buf)?;
-            }
-        })
-        .collect();
+    // Only write regular params if NOT using DCS data params
+    let write_params: Vec<_> = if dcs_data_params.is_some() && matches!(intro, "DCS") {
+        vec![]
+    } else {
+        var_params
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| {
+                let field_name = syn::Ident::new(name, struct_name.span());
+                let separator = if i > 0 {
+                    quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
+                } else {
+                    quote! {}
+                };
+                quote! {
+                    #separator
+                    __total += ::vtenc::encode::WriteSeq::write_seq(&self.#field_name, buf)?;
+                }
+            })
+            .collect()
+    };
 
     let write_intermediate: Vec<_> = intermediate
         .iter()
@@ -765,6 +870,52 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         quote! {
             __total += ::vtenc::encode::WriteSeq::write_seq(&(#ch), buf)?;
         }
+    };
+
+    // Generate DCS data params writing (for DCS sequences with dcs_data_params)
+    let write_data_params: Vec<_> = if let Some(data_params) = dcs_data_params {
+        if matches!(intro, "DCS") {
+            data_params
+                .iter()
+                .enumerate()
+                .map(|(i, param)| {
+                    let separator = if i > 0 {
+                        quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
+                    } else {
+                        quote! {}
+                    };
+
+                    match param {
+                        DcsDataParam::Field(field_name, _ty) => {
+                            let field_ident = syn::Ident::new(field_name, struct_name.span());
+                            quote! {
+                                #separator
+                                __total += ::vtenc::encode::WriteSeq::write_seq(&self.#field_ident, buf)?;
+                            }
+                        }
+                        DcsDataParam::Literal(lit) => {
+                            quote! {
+                                #separator
+                                __total += ::vtenc::encode::write_str_into(buf, #lit)?;
+                            }
+                        }
+                    }
+                })
+                .collect()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+
+    // Add string terminator for DCS/PM/APC variable sequences
+    let write_string_terminator = if matches!(intro, "DCS" | "PM" | "APC") {
+        vec![quote! {
+            __total += ::vtenc::encode::write_str_into(buf, "\x1B\\")?;
+        }]
+    } else {
+        vec![]
     };
 
     // Generate const params (empty for variable sequences)
@@ -804,10 +955,12 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtenc::encode::EncodeError> {
                 let mut __total = 0usize;
                 #write_intro
-                #write_private
-                #(#write_params)*
                 #(#write_intermediate)*
                 #write_final
+                #write_private
+                #(#write_params)*
+                #(#write_data_params)*
+                #(#write_string_terminator)*
                 Ok(__total)
             }
         }
@@ -1104,14 +1257,14 @@ fn generate_esc_sequence_impl(
         // Generate const sequence
         // Build the const string: ESC + intermediate + final_byte
         let mut const_str = String::from("\x1B");
-        
+
         // Add intermediate bytes
         for &byte in &attrs.intermediate {
             if byte != 0 {
                 const_str.push(byte as char);
             }
         }
-        
+
         // Add final byte
         const_str.push(final_byte as char);
 
@@ -1135,14 +1288,14 @@ fn generate_esc_sequence_impl(
 
         let var_params = var_params.unwrap();
         let intermediate = &attrs.intermediate;
-        
+
         // Build intermediate string for write_esc macro
         let intermediate_str = intermediate
             .iter()
             .filter(|&&b| b != 0)
             .map(|&b| b as char)
             .collect::<String>();
-        
+
         // Generate field references for write_esc macro
         let field_idents: Vec<_> = var_params
             .iter()

@@ -122,6 +122,12 @@ impl<T: IntoSeq> WriteSeq for T {
     }
 }
 
+impl IntoSeq for () {
+    fn into_seq(&self) -> impl WriteSeq {
+        ""
+    }
+}
+
 impl WriteSeq for &str {
     #[inline]
     fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {

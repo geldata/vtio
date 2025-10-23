@@ -977,6 +977,18 @@ bitflags! {
     }
 }
 
+impl IntoSeq for CursorAttributes {
+    fn into_seq(&self) -> impl WriteSeq {
+        char::from(0x40 + self.bits())
+    }
+}
+
+impl From<u8> for CursorAttributes {
+    fn from(value: u8) -> Self {
+        CursorAttributes::from_bits_truncate(value.saturating_sub(0x40))
+    }
+}
+
 bitflags! {
     /// Cursor state flags for cursor information report.
     ///
@@ -995,6 +1007,18 @@ bitflags! {
     }
 }
 
+impl IntoSeq for CursorStateFlags {
+    fn into_seq(&self) -> impl WriteSeq {
+        char::from(0x40 + self.bits())
+    }
+}
+
+impl From<u8> for CursorStateFlags {
+    fn from(value: u8) -> Self {
+        CursorStateFlags::from_bits_truncate(value.saturating_sub(0x40))
+    }
+}
+
 /// Cursor Information Report (`DECCIR`).
 ///
 /// Response from the terminal to [`RequestCursorInformationReport`].
@@ -1007,22 +1031,29 @@ bitflags! {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-1/> for
 /// terminal support specifics.
+#[dcs(intermediate = "$", finalbyte = 'u')]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CursorInformationReport {
+    /// __dcs_literal__: "1"
+    _prefix: (),
     /// Cursor row position.
     pub row: u16,
     /// Cursor column position.
     pub col: u16,
+    /// __dcs_literal__: "1"
+    _page: (),
     /// Current text attributes.
     pub attributes: CursorAttributes,
-    /// Character protection enabled.
-    pub protected: bool,
+    /// Character protection as 'A' (protected) or '@' (not protected).
+    pub protection_char: char,
     /// Cursor state flags.
     pub flags: CursorStateFlags,
     /// Character set invoked into GL (0-3 for G0-G3).
     pub gl: u8,
     /// Character set invoked into GR (1-3 for G1-G3).
     pub gr: u8,
+    /// __dcs_literal__: "O"
+    _encoding: (),
     /// Character set designations for G0, G1, G2, G3.
     pub gsets: String,
 }
@@ -1032,7 +1063,7 @@ impl CursorInformationReport {
     /// parameters.
     #[must_use]
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn from_parts(
         row: u16,
         col: u16,
         attributes: CursorAttributes,
@@ -1043,47 +1074,24 @@ impl CursorInformationReport {
         gsets: String,
     ) -> Self {
         Self {
+            _prefix: (),
             row,
             col,
+            _page: (),
             attributes,
-            protected,
+            protection_char: if protected { 'A' } else { '@' },
             flags,
             gl,
             gr,
+            _encoding: (),
             gsets,
         }
     }
 
-    fn encode_byte(value: u8) -> char {
-        char::from(0x40 + value)
-    }
-}
-
-impl Encode for CursorInformationReport {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        let attrs_byte = Self::encode_byte(self.attributes.bits());
-        let protection_byte = if self.protected { 'A' } else { '@' };
-        let flags_byte = Self::encode_byte(self.flags.bits());
-
-        write_dcs!(
-            buf;
-            "1$u",
-            self.row,
-            ";",
-            self.col,
-            ";1;",
-            attrs_byte,
-            ";",
-            protection_byte,
-            ";",
-            flags_byte,
-            ";",
-            self.gl,
-            ";",
-            self.gr,
-            ";O;",
-            self.gsets.as_str()
-        )
+    /// Check if character protection is enabled.
+    #[must_use]
+    pub const fn protected(&self) -> bool {
+        matches!(self.protection_char, 'A')
     }
 }
 
