@@ -130,7 +130,20 @@ enum DcsDataParam {
     Literal(String),
 }
 
-/// Extract DCS data parameters from struct fields, including doc comment literals.
+/// Remove helper attributes from struct fields.
+///
+/// Filter out attributes like `#[literal]` that are used by the macro but
+/// should not appear in the generated output.
+fn remove_helper_attributes(mut input: ItemStruct) -> ItemStruct {
+    if let syn::Fields::Named(ref mut fields) = input.fields {
+        for field in fields.named.iter_mut() {
+            field.attrs.retain(|attr| !attr.path().is_ident("literal"));
+        }
+    }
+    input
+}
+
+/// Extract DCS data parameters from struct fields, including literal annotations.
 fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
     match &input.fields {
         syn::Fields::Named(fields) => {
@@ -140,17 +153,12 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
                 .filter_map(|field| {
                     let name = field.ident.as_ref().unwrap().to_string();
 
-                    // Check for doc comments with __dcs_literal__: "value" pattern
+                    // Check for #[literal("value")] attribute
                     for attr in &field.attrs {
-                        if attr.path().is_ident("doc") {
-                            if let Meta::NameValue(ref nv) = attr.meta {
-                                if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = &nv.value {
-                                    let doc = s.value();
-                                    // Look for __dcs_literal__: "value" pattern
-                                    if let Some(rest) = doc.trim().strip_prefix("__dcs_literal__:") {
-                                        let value = rest.trim().trim_matches('"');
-                                        return Some(DcsDataParam::Literal(value.to_string()));
-                                    }
+                        if attr.path().is_ident("literal") {
+                            if let Ok(list) = attr.meta.require_list() {
+                                if let Ok(value) = list.parse_args::<syn::LitStr>() {
+                                    return Some(DcsDataParam::Literal(value.value()));
                                 }
                             }
                         }
@@ -160,7 +168,7 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
                     let ty = &field.ty;
                     let ty_str = quote!(#ty).to_string();
                     if ty_str.trim() == "()" {
-                        // Unit type without __dcs_literal__ is skipped
+                        // Unit type without #[literal] is skipped
                         return None;
                     }
 
@@ -547,14 +555,19 @@ fn generate_escape_sequence_impl(
     let var_params = extract_var_params_from_struct(&input);
 
     // For DCS sequences, also extract data parameters (including const literals)
+    // This must be done BEFORE removing helper attributes
     let dcs_data_params = if intro == "DCS" {
         extract_dcs_data_params(&input)
     } else {
         None
     };
 
+    // Now remove helper attributes from the struct before emitting it
+    let input = remove_helper_attributes(input.clone());
+
     // Check if params and var_params are both specified
-    if !attrs.params.is_empty() && var_params.is_some() {
+    // For DCS sequences, params are allowed with fields (params go in header, fields in data)
+    if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" {
         diagnostics.push(
             struct_name
                 .span()
@@ -639,6 +652,7 @@ fn generate_escape_sequence_impl(
             intro,
             intro_variant: &intro_variant,
             private: attrs.private,
+            const_params: &attrs.params,
             var_params: &var_params,
             intermediate: &attrs.intermediate,
             final_byte,
@@ -716,6 +730,7 @@ struct VariableSequenceParams<'a> {
     intro: &'a str,
     intro_variant: &'a Ident,
     private: Option<u8>,
+    const_params: &'a [Vec<u8>],
     var_params: &'a [(String, syn::Type)],
     intermediate: &'a [u8],
     final_byte: u8,
@@ -730,6 +745,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         intro,
         intro_variant,
         private,
+        const_params,
         var_params,
         intermediate,
         final_byte,
@@ -767,6 +783,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
     let new_constructor = quote! {
         impl #struct_name {
+            #[allow(clippy::too_many_arguments)]
             #[inline]
             pub fn new(#(#field_names: #field_types),*) -> Self {
                 Self {
@@ -806,17 +823,17 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
     // Generate encode implementation
     let intro_str = match intro {
-        "CSI" => "\\x1B[",
-        "OSC" => "\\x1B]",
-        "SS2" => "\\x1BN",
-        "SS3" => "\\x1BO",
-        "DCS" => "\\x1BP",
-        "PM" => "\\x1B^",
-        "APC" => "\\x1B_",
-        "ST" => "\\x1B\\\\",
-        "DECKPAM" => "\\x1B=",
-        "DECKPNM" => "\\x1B>",
-        _ => "\\x1B",
+        "CSI" => "\x1B[",
+        "OSC" => "\x1B]",
+        "SS2" => "\x1BN",
+        "SS3" => "\x1BO",
+        "DCS" => "\x1BP",
+        "PM" => "\x1B^",
+        "APC" => "\x1B_",
+        "ST" => "\x1B\\",
+        "DECKPAM" => "\x1B=",
+        "DECKPNM" => "\x1B>",
+        _ => "\x1B",
     };
 
     let write_intro = quote! {
@@ -831,6 +848,24 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     } else {
         quote! {}
     };
+
+    // Write const params (for DCS sequences with both params and fields)
+    let write_const_params: Vec<_> = const_params
+        .iter()
+        .enumerate()
+        .map(|(i, param)| {
+            let param_str = String::from_utf8_lossy(param).into_owned();
+            let separator = if i > 0 {
+                quote! { __total += ::vtenc::encode::write_str_into(buf, ";")?; }
+            } else {
+                quote! {}
+            };
+            quote! {
+                #separator
+                __total += ::vtenc::encode::write_str_into(buf, #param_str)?;
+            }
+        })
+        .collect();
 
     // Only write regular params if NOT using DCS data params
     let write_params: Vec<_> = if dcs_data_params.is_some() && matches!(intro, "DCS") {
@@ -955,9 +990,10 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtenc::encode::EncodeError> {
                 let mut __total = 0usize;
                 #write_intro
+                #write_private
+                #(#write_const_params)*
                 #(#write_intermediate)*
                 #write_final
-                #write_private
                 #(#write_params)*
                 #(#write_data_params)*
                 #(#write_string_terminator)*

@@ -1,10 +1,8 @@
 //! Cursor movement and control commands.
 
-use vtderive::{c0, csi, dcs, esc, terminal_mode};
 use bitflags::bitflags;
-use vtenc::{
-    Encode, EncodeError, IntoSeq, WriteSeq, write_dcs,
-};
+use vtderive::{c0, csi, dcs, esc, terminal_mode};
+use vtenc::{Encode, EncodeError, IntoSeq, WriteSeq, write_dcs};
 
 /// Cursor Origin Mode (`DECOM`).
 ///
@@ -1019,7 +1017,80 @@ impl From<u8> for CursorStateFlags {
     }
 }
 
-/// Cursor Information Report (`DECCIR`).
+bitflags! {
+    /// Character set sizes for cursor information report (Scss).
+    ///
+    /// Indicates whether each G0-G3 character set has 94 or 96 characters.
+    /// The base value has bit 7 set (0x40), and bits 1-4 indicate which
+    /// sets have 96 characters (0 = 94 characters, 1 = 96 characters).
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct CharacterSetSizes: u8 {
+        /// G0 character set has 96 characters (otherwise 94).
+        const G0_96 = 0x01;
+        /// G1 character set has 96 characters (otherwise 94).
+        const G1_96 = 0x02;
+        /// G2 character set has 96 characters (otherwise 94).
+        const G2_96 = 0x04;
+        /// G3 character set has 96 characters (otherwise 94).
+        const G3_96 = 0x08;
+    }
+}
+
+impl CharacterSetSizes {
+    /// Base value with bit 7 set (required by VT510 protocol).
+    const BASE: u8 = 0x40;
+
+    /// Convert to the protocol character value.
+    ///
+    /// Add the base value (0x40) to encode as a character.
+    #[must_use]
+    pub const fn to_char(self) -> char {
+        (Self::BASE | self.bits()) as char
+    }
+
+    /// Create from a protocol character value.
+    ///
+    /// Extract the size bits by removing the base value.
+    #[must_use]
+    pub const fn from_char(c: char) -> Self {
+        Self::from_bits_truncate((c as u8) & !Self::BASE)
+    }
+
+    /// Create with all character sets having 94 characters.
+    ///
+    /// This is the most common configuration.
+    #[must_use]
+    pub const fn all_94() -> Self {
+        Self::empty()
+    }
+
+    /// Create with all character sets having 96 characters.
+    #[must_use]
+    pub const fn all_96() -> Self {
+        Self::from_bits_truncate(Self::G0_96.bits() | Self::G1_96.bits() | Self::G2_96.bits() | Self::G3_96.bits())
+    }
+}
+
+impl From<char> for CharacterSetSizes {
+    fn from(c: char) -> Self {
+        Self::from_char(c)
+    }
+}
+
+impl From<u8> for CharacterSetSizes {
+    fn from(value: u8) -> Self {
+        Self::from_char(value as char)
+    }
+}
+
+impl IntoSeq for CharacterSetSizes {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.to_char()
+    }
+}
+
+/// Request Cursor Information Report (`DECCIR`).
 ///
 /// Response from the terminal to [`RequestCursorInformationReport`].
 ///
@@ -1027,34 +1098,45 @@ impl From<u8> for CursorStateFlags {
 /// position, attributes, protection, flags, and character set
 /// configuration.
 ///
-/// The report is encoded as a DCS sequence.
+/// The report is encoded as a DCS sequence with the format:
+/// `DCS 1 $ u Pr; Pc; Pp; Srend; Satt; Sflag; Pgl; Pgr; Scss; Sdesig ST`
 ///
+/// See <https://vt100.net/docs/vt510-rm/DECCIR> for the VT510 specification.
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-1/> for
 /// terminal support specifics.
-#[dcs(intermediate = "$", finalbyte = 'u')]
+#[dcs(params = ["1"], intermediate = "$", finalbyte = 'u')]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CursorInformationReport {
-    /// __dcs_literal__: "1"
-    _prefix: (),
-    /// Cursor row position.
+    /// Cursor row position (Pr).
     pub row: u16,
-    /// Cursor column position.
+    /// Cursor column position (Pc).
     pub col: u16,
-    /// __dcs_literal__: "1"
-    _page: (),
-    /// Current text attributes.
+    /// Current page number (Pp).
+    pub page: u8,
+    /// Current text attributes (Srend).
+    ///
+    /// Visual attributes such as bold, underline, blink, and reverse video.
     pub attributes: CursorAttributes,
-    /// Character protection as 'A' (protected) or '@' (not protected).
+    /// Character protection attribute (Satt).
+    ///
+    /// Indicates selective erase protection status.
     pub protection_char: char,
-    /// Cursor state flags.
+    /// Cursor state flags (Sflag).
+    ///
+    /// Includes origin mode, single shift settings, and autowrap pending.
     pub flags: CursorStateFlags,
-    /// Character set invoked into GL (0-3 for G0-G3).
+    /// Character set invoked into GL (Pgl): 0-3 for G0-G3.
     pub gl: u8,
-    /// Character set invoked into GR (1-3 for G1-G3).
+    /// Character set invoked into GR (Pgr): 0-3 for G0-G3.
     pub gr: u8,
-    /// __dcs_literal__: "O"
-    _encoding: (),
-    /// Character set designations for G0, G1, G2, G3.
+    /// Character set sizes (Scss).
+    ///
+    /// Indicates whether each G0-G3 set has 94 or 96 characters.
+    pub charset_sizes: CharacterSetSizes,
+    /// Character set designations (Sdesig).
+    ///
+    /// String of intermediate and final characters indicating the character
+    /// sets designated as G0 through G3.
     pub gsets: String,
 }
 
@@ -1066,24 +1148,25 @@ impl CursorInformationReport {
     pub fn from_parts(
         row: u16,
         col: u16,
+        page: u8,
         attributes: CursorAttributes,
         protected: bool,
         flags: CursorStateFlags,
         gl: u8,
         gr: u8,
+        charset_sizes: CharacterSetSizes,
         gsets: String,
     ) -> Self {
         Self {
-            _prefix: (),
             row,
             col,
-            _page: (),
+            page,
             attributes,
             protection_char: if protected { 'A' } else { '@' },
             flags,
             gl,
             gr,
-            _encoding: (),
+            charset_sizes,
             gsets,
         }
     }
