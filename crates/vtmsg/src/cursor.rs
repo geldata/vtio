@@ -1,9 +1,9 @@
 //! Cursor movement and control commands.
 
-use vtderive::terminal_mode;
+use vtderive::{c0, csi, esc, terminal_mode};
 use bitflags::bitflags;
 use vtenc::{
-    ConstEncode, ConstEncodedLen, Encode, EncodeError, csi, dcs, esc, write_csi, write_dcs,
+    ConstEncode, ConstEncodedLen, Encode, EncodeError, dcs, write_csi, write_dcs,
 };
 
 /// Cursor Origin Mode (`DECOM`).
@@ -85,11 +85,9 @@ pub struct CursorVisibility {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a7/> for
 /// terminal support specifics.
+#[esc(finalbyte = '7')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct SaveCursor;
-
-impl ConstEncode for SaveCursor {
-    const STR: &'static str = esc!("7");
-}
 
 /// Restore cursor (`DECRC`).
 ///
@@ -114,11 +112,9 @@ impl ConstEncode for SaveCursor {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a8/> for
 /// terminal support specifics.
+#[esc(finalbyte = '8')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RestoreCursor;
-
-impl ConstEncode for RestoreCursor {
-    const STR: &'static str = esc!("8");
-}
 
 /// Backspace (`BS`).
 ///
@@ -131,12 +127,9 @@ impl ConstEncode for RestoreCursor {
 ///
 /// See <https://terminalguide.namepad.de/seq/c_bs/> for
 /// terminal support specifics.
+#[c0(code = 0x08)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Backspace;
-
-impl ConstEncode for Backspace {
-    const STR: &'static str = "\x08";
-}
 
 /// Horizontal Tab (`TAB`).
 ///
@@ -149,12 +142,9 @@ impl ConstEncode for Backspace {
 ///
 /// See <https://terminalguide.namepad.de/seq/c_tab/> for
 /// terminal support specifics.
+#[c0(code = 0x09)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct HorizontalTab;
-
-impl ConstEncode for HorizontalTab {
-    const STR: &'static str = "\t";
-}
 
 /// Line Feed (`LF`).
 ///
@@ -168,12 +158,9 @@ impl ConstEncode for HorizontalTab {
 ///
 /// See <https://terminalguide.namepad.de/seq/c_lf/> for
 /// terminal support specifics.
+#[c0(code = 0x0A)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct LineFeed;
-
-impl ConstEncode for LineFeed {
-    const STR: &'static str = "\n";
-}
 
 /// Vertical Tab (`VT`).
 ///
@@ -181,12 +168,9 @@ impl ConstEncode for LineFeed {
 ///
 /// See <https://terminalguide.namepad.de/seq/c_vt/> for
 /// terminal support specifics.
+#[c0(code = 0x0B)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct VerticalTab;
-
-impl ConstEncode for VerticalTab {
-    const STR: &'static str = "\x0B";
-}
 
 /// Form Feed (`FF`).
 ///
@@ -194,12 +178,9 @@ impl ConstEncode for VerticalTab {
 ///
 /// See <https://terminalguide.namepad.de/seq/c_ff/> for
 /// terminal support specifics.
+#[c0(code = 0x0C)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FormFeed;
-
-impl ConstEncode for FormFeed {
-    const STR: &'static str = "\x0C";
-}
 
 /// Carriage Return (`CR`).
 ///
@@ -217,12 +198,9 @@ impl ConstEncode for FormFeed {
 ///
 /// See <https://terminalguide.namepad.de/seq/c_cr/> for
 /// terminal support specifics.
+#[c0(code = 0x0D)]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CarriageReturn;
-
-impl ConstEncode for CarriageReturn {
-    const STR: &'static str = "\r";
-}
 
 /// Set Cursor Position (`CUP`).
 ///
@@ -248,21 +226,11 @@ impl ConstEncode for CarriageReturn {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ch/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'H')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorPosition {
     pub row: u16,
     pub col: u16,
-}
-
-impl ConstEncodedLen for CursorPosition {
-    // CSI (2) + max u16 digits (5) + ";" (1) + max u16 digits (5) + "H" (1) = 14
-    const ENCODED_LEN: usize = 14;
-}
-
-impl Encode for CursorPosition {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.row, ";", self.col, "H")
-    }
 }
 
 /// Back Index (`DECBI`).
@@ -286,12 +254,9 @@ impl Encode for CursorPosition {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a6/> for
 /// terminal support specifics.
+#[esc(finalbyte = '6')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct BackIndex;
-
-impl ConstEncode for BackIndex {
-    const STR: &'static str = esc!("6");
-}
 
 /// Forward Index (`DECFI`).
 ///
@@ -314,12 +279,9 @@ impl ConstEncode for BackIndex {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a9/> for
 /// terminal support specifics.
+#[esc(finalbyte = '9')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ForwardIndex;
-
-impl ConstEncode for ForwardIndex {
-    const STR: &'static str = esc!("9");
-}
 
 /// Index (`IND`).
 ///
@@ -340,22 +302,16 @@ impl ConstEncode for ForwardIndex {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_cd/> for
 /// terminal support specifics.
+#[esc(finalbyte = 'D')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Index;
-
-impl ConstEncode for Index {
-    const STR: &'static str = esc!("D");
-}
 
 /// Next Line (`NEL`).
 ///
 /// Send [`CarriageReturn`] and [`Index`].
+#[esc(finalbyte = 'E')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct NextLine;
-
-impl ConstEncode for NextLine {
-    const STR: &'static str = esc!("E");
-}
 
 /// Horizontal Tab Set (`HTS`).
 ///
@@ -363,12 +319,9 @@ impl ConstEncode for NextLine {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_ch/> for
 /// terminal support specifics.
+#[esc(finalbyte = 'H')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct HorizontalTabSet;
-
-impl ConstEncode for HorizontalTabSet {
-    const STR: &'static str = esc!("H");
-}
 
 /// Reverse Index (`RI`).
 ///
@@ -389,12 +342,9 @@ impl ConstEncode for HorizontalTabSet {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_cm/> for
 /// terminal support specifics.
+#[esc(finalbyte = 'M')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ReverseIndex;
-
-impl ConstEncode for ReverseIndex {
-    const STR: &'static str = esc!("M");
-}
 
 /// Cursor Up (`CUU`).
 ///
@@ -415,20 +365,9 @@ impl ConstEncode for ReverseIndex {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ca/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'A')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorUp(pub u16);
-
-impl ConstEncodedLen for CursorUp {
-    // CSI (2) + max u16 digits (5) + "A" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorUp {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "A")
-    }
-}
 
 /// Cursor Down (`CUD`).
 ///
@@ -450,19 +389,9 @@ impl Encode for CursorUp {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cb/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'B')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorDown(pub u16);
-
-impl ConstEncodedLen for CursorDown {
-    // CSI (2) + max u16 digits (5) + "B" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorDown {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "B")
-    }
-}
 
 /// Cursor Left (`CUB`).
 ///
@@ -498,19 +427,9 @@ impl Encode for CursorDown {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cd/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'D')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorLeft(pub u16);
-
-impl ConstEncodedLen for CursorLeft {
-    // CSI (2) + max u16 digits (5) + "D" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorLeft {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "D")
-    }
-}
 
 /// Cursor Right (`CUF`).
 ///
@@ -533,19 +452,9 @@ impl Encode for CursorLeft {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cc/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'C')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorRight(pub u16);
-
-impl ConstEncodedLen for CursorRight {
-    // CSI (2) + max u16 digits (5) + "C" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorRight {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "C")
-    }
-}
 
 /// Cursor Next Line (`CNL`).
 ///
@@ -558,19 +467,9 @@ impl Encode for CursorRight {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ce/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'E')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorNextLine(pub u16);
-
-impl ConstEncodedLen for CursorNextLine {
-    // CSI (2) + max u16 digits (5) + "E" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorNextLine {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "E")
-    }
-}
 
 /// Cursor Previous Line (`CPL`).
 ///
@@ -583,19 +482,9 @@ impl Encode for CursorNextLine {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cf/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'F')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorPreviousLine(pub u16);
-
-impl ConstEncodedLen for CursorPreviousLine {
-    // CSI (2) + max u16 digits (5) + "F" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorPreviousLine {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "F")
-    }
-}
 
 /// Cursor Horizontal Absolute (`CHA`).
 ///
@@ -610,19 +499,9 @@ impl Encode for CursorPreviousLine {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cg/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'G')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalAbsolute(pub u16);
-
-impl ConstEncodedLen for CursorHorizontalAbsolute {
-    // CSI (2) + max u16 digits (5) + "G" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorHorizontalAbsolute {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "G")
-    }
-}
 
 /// Cursor Horizontal Forward Tabulation (`CHT`).
 ///
@@ -642,19 +521,9 @@ impl Encode for CursorHorizontalAbsolute {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ci/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'I')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalForwardTab(pub u16);
-
-impl ConstEncodedLen for CursorHorizontalForwardTab {
-    // CSI (2) + max u16 digits (5) + "I" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorHorizontalForwardTab {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "I")
-    }
-}
 
 /// Cursor Horizontal Backward Tabulation (`CBT`).
 ///
@@ -672,19 +541,9 @@ impl Encode for CursorHorizontalForwardTab {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cz/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'Z')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalBackwardTab(pub u16);
-
-impl ConstEncodedLen for CursorHorizontalBackwardTab {
-    // CSI (2) + max u16 digits (5) + "Z" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorHorizontalBackwardTab {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "Z")
-    }
-}
 
 /// Cursor Horizontal Position Relative (`HPR`).
 ///
@@ -707,19 +566,9 @@ impl Encode for CursorHorizontalBackwardTab {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ca/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'a')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalRelative(pub u16);
-
-impl ConstEncodedLen for CursorHorizontalRelative {
-    // CSI (2) + max u16 digits (5) + "a" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorHorizontalRelative {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "a")
-    }
-}
 
 /// Cursor Vertical Position Absolute (`VPA`).
 ///
@@ -738,19 +587,9 @@ impl Encode for CursorHorizontalRelative {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cd/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'd')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorVerticalAbsolute(pub u16);
-
-impl ConstEncodedLen for CursorVerticalAbsolute {
-    // CSI (2) + max u16 digits (5) + "d" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorVerticalAbsolute {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "d")
-    }
-}
 
 /// Vertical Position Relative (`VPR`).
 ///
@@ -772,19 +611,9 @@ impl Encode for CursorVerticalAbsolute {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ce/> for
 /// terminal support specifics.
+#[csi(finalbyte = 'e')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorVerticalRelative(pub u16);
-
-impl ConstEncodedLen for CursorVerticalRelative {
-    // CSI (2) + max u16 digits (5) + "e" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for CursorVerticalRelative {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "e")
-    }
-}
 
 /// Cursor style variants for `DECSCUSR`.
 ///
@@ -857,6 +686,7 @@ impl Encode for SetCursorStyle {
 ///
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-space-q/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestCursorStyle;
 
 impl ConstEncode for RequestCursorStyle {
@@ -1039,11 +869,9 @@ impl Encode for LinuxCursorStyle {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn-6/> for
 /// terminal support specifics.
+#[csi(params = ["6"], finalbyte = 'n')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestCursorPosition;
-
-impl ConstEncode for RequestCursorPosition {
-    const STR: &'static str = csi!("6n");
-}
 
 /// Cursor Position Report (`CPR`).
 ///
@@ -1053,22 +881,11 @@ impl ConstEncode for RequestCursorPosition {
 ///
 /// The position may be relative to the scroll area if
 /// [`RelativeCursorOriginMode`] is set, or relative to the screen otherwise.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[csi(finalbyte = 'R')]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CursorPositionReport {
     pub row: u16,
     pub col: u16,
-}
-
-impl ConstEncodedLen for CursorPositionReport {
-    // CSI (2) + max u16 digits (5) + ";" (1) + max u16 digits (5) + "R" (1) = 14
-    const ENCODED_LEN: usize = 14;
-}
-
-impl Encode for CursorPositionReport {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.row, ";", self.col, "R")
-    }
 }
 
 /// Request Cursor Information Report (`DECCIR`).
@@ -1085,11 +902,9 @@ impl Encode for CursorPositionReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-1/> for
 /// terminal support specifics.
+#[csi(params = ["1"], intermediate = "$", finalbyte = 'w')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestCursorInformationReport;
-
-impl ConstEncode for RequestCursorInformationReport {
-    const STR: &'static str = csi!("1$w");
-}
 
 bitflags! {
     /// Cursor attribute flags for cursor information report.
@@ -1231,11 +1046,9 @@ impl Encode for CursorInformationReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-2/> for
 /// terminal support specifics.
+#[csi(params = ["2"], intermediate = "$", finalbyte = 'w')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestTabStopReport;
-
-impl ConstEncode for RequestTabStopReport {
-    const STR: &'static str = csi!("2$w");
-}
 
 /// Tab Stop Report (`DECTABSR`).
 ///
