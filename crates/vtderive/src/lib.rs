@@ -383,11 +383,18 @@ fn generate_registry_entry(
                             .map(|&v| v != 0)
                             .unwrap_or(false);
                     },
-                    _ => quote! {
+                    "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "isize" => quote! {
                         let #field_name: #ty = params.get(#i)
                             .and_then(|p| p.first())
                             .copied()
                             .unwrap_or(0) as #ty;
+                    },
+                    _ => quote! {
+                        let #field_name: #ty = params.get(#i)
+                            .and_then(|p| p.first())
+                            .copied()
+                            .map(|v| <#ty>::from(v))
+                            .unwrap_or_else(|| <#ty>::from(0));
                     },
                 }
             })

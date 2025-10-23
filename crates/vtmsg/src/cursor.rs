@@ -3,7 +3,7 @@
 use vtderive::{c0, csi, dcs, esc, terminal_mode};
 use bitflags::bitflags;
 use vtenc::{
-    ConstEncodedLen, Encode, EncodeError, write_csi, write_dcs,
+    Encode, EncodeError, IntoSeq, WriteSeq, write_dcs,
 };
 
 /// Cursor Origin Mode (`DECOM`).
@@ -623,22 +623,43 @@ pub struct CursorVerticalRelative(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cq/> for
 /// terminal support specifics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[repr(u8)]
 pub enum CursorStyle {
     /// Default cursor style (usually blinking block).
-    Default,
+    Default = 0,
     /// Blinking block cursor.
-    BlinkingBlock,
+    BlinkingBlock = 1,
     /// Steady (non-blinking) block cursor.
-    SteadyBlock,
+    SteadyBlock = 2,
     /// Blinking underline cursor.
-    BlinkingUnderline,
+    BlinkingUnderline = 3,
     /// Steady underline cursor.
-    SteadyUnderline,
+    SteadyUnderline = 4,
     /// Blinking bar (vertical line) cursor.
-    BlinkingBar,
+    BlinkingBar = 5,
     /// Steady bar cursor.
-    SteadyBar,
+    SteadyBar = 6,
+}
+
+impl IntoSeq for CursorStyle {
+    fn into_seq(&self) -> impl WriteSeq {
+        *self as u8
+    }
+}
+
+impl From<u8> for CursorStyle {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => CursorStyle::BlinkingBlock,
+            2 => CursorStyle::SteadyBlock,
+            3 => CursorStyle::BlinkingUnderline,
+            4 => CursorStyle::SteadyUnderline,
+            5 => CursorStyle::BlinkingBar,
+            6 => CursorStyle::SteadyBar,
+            _ => CursorStyle::Default,
+        }
+    }
 }
 
 /// Select Cursor Style (`DECSCUSR`).
@@ -656,27 +677,10 @@ pub enum CursorStyle {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sq_t_space/> for
 /// terminal support specifics.
-pub struct SetCursorStyle(pub CursorStyle);
-
-impl ConstEncodedLen for SetCursorStyle {
-    // CSI (2) + max single digit (1) + " q" (2) = 5
-    const ENCODED_LEN: usize = 5;
-}
-
-impl Encode for SetCursorStyle {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        let code = match self.0 {
-            CursorStyle::Default => 0,
-            CursorStyle::BlinkingBlock => 1,
-            CursorStyle::SteadyBlock => 2,
-            CursorStyle::BlinkingUnderline => 3,
-            CursorStyle::SteadyUnderline => 4,
-            CursorStyle::BlinkingBar => 5,
-            CursorStyle::SteadyBar => 6,
-        };
-        write_csi!(buf; code, " q")
-    }
+#[csi(intermediate = " ", finalbyte = 'q')]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct SetCursorStyle {
+    pub style: CursorStyle,
 }
 
 /// Request Cursor Style (`DECRQSS`).
@@ -724,7 +728,7 @@ bitflags! {
 /// Linux Cursor Style shape values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
-pub enum LinuxCursorShape {
+pub enum LinuxCursorSize {
     /// Default (depending on driver: off, underline or block).
     Default = 0,
     /// No cursor.
@@ -741,6 +745,65 @@ pub enum LinuxCursorShape {
     Block = 6,
 }
 
+/// Wrapper type for combined Linux cursor shape and flags value.
+///
+/// This type combines a cursor shape with optional flags into a single
+/// value for encoding in the Linux cursor style sequence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinuxCursorShape(u8);
+
+impl LinuxCursorShape {
+    /// Create a shape value from size and flags.
+    #[must_use]
+    pub const fn new(size: LinuxCursorSize, flags: LinuxCursorStyleFlags) -> Self {
+        Self((size as u8) | flags.bits())
+    }
+
+    /// Create a shape value from just a size.
+    #[must_use]
+    pub const fn from_size(size: LinuxCursorSize) -> Self {
+        Self(size as u8)
+    }
+
+    /// Get the raw value.
+    #[must_use]
+    pub const fn value(self) -> u8 {
+        self.0
+    }
+
+    /// Extract the cursor size.
+    #[must_use]
+    pub const fn size(self) -> LinuxCursorSize {
+        match self.0 & 0x0F {
+            1 => LinuxCursorSize::None,
+            2 => LinuxCursorSize::Underline,
+            3 => LinuxCursorSize::LowerThird,
+            4 => LinuxCursorSize::LowerHalf,
+            5 => LinuxCursorSize::TwoThirds,
+            6 => LinuxCursorSize::Block,
+            _ => LinuxCursorSize::Default,
+        }
+    }
+
+    /// Extract the cursor style flags.
+    #[must_use]
+    pub const fn flags(self) -> LinuxCursorStyleFlags {
+        LinuxCursorStyleFlags::from_bits_truncate(self.0 & 0xF0)
+    }
+}
+
+impl IntoSeq for LinuxCursorShape {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.0
+    }
+}
+
+impl From<u8> for LinuxCursorShape {
+    fn from(value: u8) -> Self {
+        Self(value)
+    }
+}
+
 /// Linux Cursor Style.
 ///
 /// Select Linux cursor style with fine-grained control over appearance.
@@ -749,8 +812,8 @@ pub enum LinuxCursorShape {
 /// changes, and XOR/OR masks for foreground and background color
 /// manipulation.
 ///
-/// The `shape` parameter combines the size (0-6) with optional flags
-/// (16, 32, 64).
+/// The `shape` parameter combines the size (0-6) with optional
+/// flags (16, 32, 64).
 ///
 /// The `xor` and `or` parameters define changes to foreground and
 /// background of the cell where the cursor is shown when the
@@ -779,12 +842,11 @@ pub enum LinuxCursorShape {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sc__p/> for terminal
 /// support specifics.
+#[csi(intermediate = " ", finalbyte = 'q')]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LinuxCursorStyle {
-    /// Cursor shape.
+    /// Combined cursor shape and flags value.
     pub shape: LinuxCursorShape,
-    /// Cursor style flags.
-    pub flags: LinuxCursorStyleFlags,
     /// XOR mask for color channel manipulation.
     pub xor: u8,
     /// OR mask for color channel manipulation.
@@ -792,27 +854,25 @@ pub struct LinuxCursorStyle {
 }
 
 impl LinuxCursorStyle {
-    /// Create a new Linux cursor style with the specified shape.
+    /// Create a new Linux cursor style with the specified size.
     ///
     /// Flags, xor, and or values are initialized to 0.
     #[must_use]
-    pub const fn new(shape: LinuxCursorShape) -> Self {
+    pub const fn from_size(size: LinuxCursorSize) -> Self {
         Self {
-            shape,
-            flags: LinuxCursorStyleFlags::empty(),
+            shape: LinuxCursorShape::from_size(size),
             xor: 0,
             or: 0,
         }
     }
 
-    /// Create a new Linux cursor style with shape and flags.
+    /// Create a new Linux cursor style with size and flags.
     ///
     /// xor and or values are initialized to 0.
     #[must_use]
-    pub const fn with_flags(shape: LinuxCursorShape, flags: LinuxCursorStyleFlags) -> Self {
+    pub const fn with_flags(size: LinuxCursorSize, flags: LinuxCursorStyleFlags) -> Self {
         Self {
-            shape,
-            flags,
+            shape: LinuxCursorShape::new(size, flags),
             xor: 0,
             or: 0,
         }
@@ -821,34 +881,28 @@ impl LinuxCursorStyle {
     /// Create a new Linux cursor style with all parameters.
     #[must_use]
     pub const fn with_colors(
-        shape: LinuxCursorShape,
+        size: LinuxCursorSize,
         flags: LinuxCursorStyleFlags,
         xor: u8,
         or: u8,
     ) -> Self {
         Self {
-            shape,
-            flags,
+            shape: LinuxCursorShape::new(size, flags),
             xor,
             or,
         }
     }
 
-    fn shape_value(self) -> u8 {
-        (self.shape as u8) | self.flags.bits()
+    /// Get the cursor size.
+    #[must_use]
+    pub const fn size(self) -> LinuxCursorSize {
+        self.shape.size()
     }
-}
 
-impl ConstEncodedLen for LinuxCursorStyle {
-    // CSI (2) + max shape (3) + ";" (1) + max xor (3) + ";" (1) + max or
-    // (3) + " q" (2) = 15
-    const ENCODED_LEN: usize = 15;
-}
-
-impl Encode for LinuxCursorStyle {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.shape_value(), ";", self.xor, ";", self.or, " q")
+    /// Get the cursor style flags.
+    #[must_use]
+    pub const fn flags(self) -> LinuxCursorStyleFlags {
+        self.shape.flags()
     }
 }
 
