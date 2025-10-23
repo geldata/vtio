@@ -12,6 +12,16 @@ use syn::{
     ItemStruct, Lit, Meta, MetaNameValue, Token,
 };
 
+/// Emit diagnostics as TokenStream and return early.
+///
+/// Helper to reduce repetition when emitting diagnostic errors.
+fn emit_diagnostics(diagnostics: &mut Vec<Diagnostic>) -> proc_macro2::TokenStream {
+    diagnostics
+        .drain(..)
+        .map(|d| d.emit_as_item_tokens())
+        .collect()
+}
+
 /// Parsed escape sequence attribute values.
 ///
 /// This structure holds the intermediate parsed representation of all escape
@@ -31,10 +41,15 @@ struct EscapeSequenceAttributes {
     data: Option<String>,
 }
 
-/// Parse the private marker attribute.
+/// Parse a character literal attribute and convert to u8.
 ///
-/// Extract a single byte from a character literal like `private = '?'`.
-fn parse_private(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8> {
+/// Generic helper to extract a byte from a character literal.
+fn parse_char_as_byte(
+    value: &Expr,
+    attr_name: &str,
+    example: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<u8> {
     if let Expr::Lit(ExprLit {
         lit: Lit::Char(ch),
         ..
@@ -45,11 +60,18 @@ fn parse_private(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8> 
         diagnostics.push(
             value
                 .span()
-                .error("private must be a char literal")
-                .help("example: private = '?'"),
+                .error(format!("{} must be a char literal", attr_name))
+                .help(format!("example: {} = '{}'", attr_name, example)),
         );
         None
     }
+}
+
+/// Parse the private marker attribute.
+///
+/// Extract a single byte from a character literal like `private = '?'`.
+fn parse_private(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8> {
+    parse_char_as_byte(value, "private", "?", diagnostics)
 }
 
 /// Parse the params array attribute for const params.
@@ -219,21 +241,7 @@ fn parse_intermediate(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8
 ///
 /// Extract a single byte from a character literal like `finalbyte = 'h'`.
 fn parse_finalbyte(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8> {
-    if let Expr::Lit(ExprLit {
-        lit: Lit::Char(ch),
-        ..
-    }) = value
-    {
-        Some(ch.value() as u8)
-    } else {
-        diagnostics.push(
-            value
-                .span()
-                .error("finalbyte must be a char literal")
-                .help("example: finalbyte = 'h'"),
-        );
-        None
-    }
+    parse_char_as_byte(value, "finalbyte", "h", diagnostics)
 }
 
 /// Parse the data attribute.
@@ -438,43 +446,51 @@ fn generate_registry_entry(
         struct_name.span(),
     );
 
+    // Helper function to generate parameter parsing code for a field
+    fn generate_param_parsing(
+        i: usize,
+        name: &str,
+        ty: &syn::Type,
+        struct_span: proc_macro2::Span,
+    ) -> proc_macro2::TokenStream {
+        let field_name = syn::Ident::new(name, struct_span);
+        let ty_str = quote!(#ty).to_string();
+
+        match ty_str.trim() {
+            "bool" => quote! {
+                let #field_name: #ty = params.get(#i)
+                    .and_then(|p| p.first())
+                    .map(|&v| v != 0)
+                    .unwrap_or(false);
+            },
+            "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "isize" => quote! {
+                let #field_name: #ty = params.get(#i)
+                    .and_then(|p| p.first())
+                    .copied()
+                    .unwrap_or(0) as #ty;
+            },
+            "String" => quote! {
+                let #field_name: #ty = params.get(#i)
+                    .map(|p| ::std::string::String::from_utf8_lossy(p).into_owned())
+                    .unwrap_or_default();
+            },
+            _ => quote! {
+                let #field_name: #ty = params.get(#i)
+                    .and_then(|p| p.first())
+                    .copied()
+                    .map(|v| <#ty>::from(v))
+                    .unwrap_or_else(|| <#ty>::from(0));
+            },
+        }
+    }
+
     // Generate handler function
     let handler_body = if let Some(params) = var_params {
         // Variable sequence - parse params and call new
         let param_parsing: Vec<_> = params
             .iter()
             .enumerate()
-            .map(|(i, (name, ty))| {
-                let field_name = syn::Ident::new(name, struct_name.span());
-                let ty_str = quote!(#ty).to_string();
-
-                match ty_str.trim() {
-                    "bool" => quote! {
-                        let #field_name: #ty = params.get(#i)
-                            .and_then(|p| p.first())
-                            .map(|&v| v != 0)
-                            .unwrap_or(false);
-                    },
-                    "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "isize" => quote! {
-                        let #field_name: #ty = params.get(#i)
-                            .and_then(|p| p.first())
-                            .copied()
-                            .unwrap_or(0) as #ty;
-                    },
-                    "String" => quote! {
-                        let #field_name: #ty = params.get(#i)
-                            .map(|p| ::std::string::String::from_utf8_lossy(p).into_owned())
-                            .unwrap_or_default();
-                    },
-                    _ => quote! {
-                        let #field_name: #ty = params.get(#i)
-                            .and_then(|p| p.first())
-                            .copied()
-                            .map(|v| <#ty>::from(v))
-                            .unwrap_or_else(|| <#ty>::from(0));
-                    },
-                }
-            })
+            .map(|(i, (name, ty))| generate_param_parsing(i, name, ty, struct_name.span()))
             .collect();
 
         let field_names: Vec<_> = params
@@ -536,19 +552,11 @@ fn generate_escape_sequence_impl(
                 .error("finalbyte attribute is required")
                 .help("add finalbyte = 'X' where X is the final byte character"),
         );
-        let tokens: proc_macro2::TokenStream = diagnostics
-            .drain(..)
-            .map(|d| d.emit_as_item_tokens())
-            .collect();
-        return tokens;
+        return emit_diagnostics(diagnostics);
     };
 
     if !diagnostics.is_empty() {
-        let tokens: proc_macro2::TokenStream = diagnostics
-            .drain(..)
-            .map(|d| d.emit_as_item_tokens())
-            .collect();
-        return tokens;
+        return emit_diagnostics(diagnostics);
     }
 
     // Extract variable parameters from struct fields
@@ -574,11 +582,7 @@ fn generate_escape_sequence_impl(
                 .error("cannot specify params attribute for structs with fields")
                 .help("use params for unit structs (const sequences) or add fields for variable sequences"),
         );
-        let tokens: proc_macro2::TokenStream = diagnostics
-            .drain(..)
-            .map(|d| d.emit_as_item_tokens())
-            .collect();
-        return tokens;
+        return emit_diagnostics(diagnostics);
     }
 
     // Check if data attribute is used with variable sequences
@@ -589,11 +593,7 @@ fn generate_escape_sequence_impl(
                 .error("cannot specify data attribute for structs with fields")
                 .help("data attribute is only valid for unit structs (const sequences)"),
         );
-        let tokens: proc_macro2::TokenStream = diagnostics
-            .drain(..)
-            .map(|d| d.emit_as_item_tokens())
-            .collect();
-        return tokens;
+        return emit_diagnostics(diagnostics);
     }
 
     let intro_variant = syn::Ident::new(intro, struct_name.span());
@@ -670,22 +670,8 @@ fn generate_const_str(
     final_byte: u8,
     data: Option<&str>,
 ) -> String {
-    let mut result = String::from("\x1B");
-
-    // Add introducer
-    match intro {
-        "CSI" => result.push('['),
-        "OSC" => result.push(']'),
-        "SS2" => result.push('N'),
-        "SS3" => result.push('O'),
-        "DCS" => result.push('P'),
-        "PM" => result.push('^'),
-        "APC" => result.push('_'),
-        "ST" => result.push('\\'),
-        "DECKPAM" => result.push('='),
-        "DECKPNM" => result.push('>'),
-        _ => {}
-    }
+    // Reuse the introducer string from get_intro_str
+    let mut result = get_intro_str(intro).to_string();
 
     // Add private marker
     if let Some(byte) = private {
@@ -724,6 +710,25 @@ fn generate_const_str(
 }
 
 /// Parameters for generating a variable sequence.
+/// Get introducer string for an escape sequence type.
+///
+/// Map escape sequence type names to their introducer byte sequences.
+fn get_intro_str(intro: &str) -> &'static str {
+    match intro {
+        "CSI" => "\x1B[",
+        "OSC" => "\x1B]",
+        "SS2" => "\x1BN",
+        "SS3" => "\x1BO",
+        "DCS" => "\x1BP",
+        "PM" => "\x1B^",
+        "APC" => "\x1B_",
+        "ST" => "\x1B\\",
+        "DECKPAM" => "\x1B=",
+        "DECKPNM" => "\x1B>",
+        _ => "\x1B",
+    }
+}
+
 struct VariableSequenceParams<'a> {
     input: &'a ItemStruct,
     struct_name: &'a Ident,
@@ -799,42 +804,34 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     let intermediate_len = intermediate.iter().filter(|&&b| b != 0).count();
     let final_len = 1;
 
+    // Helper function to calculate max encoded length for a type
+    fn type_max_encoded_len(ty: &syn::Type) -> usize {
+        let ty_str = quote!(#ty).to_string();
+        match ty_str.trim() {
+            "u8" | "i8" => 3,
+            "u16" | "i16" => 5,
+            "u32" | "i32" => 10,
+            "u64" | "i64" => 20,
+            "usize" | "isize" => 20,
+            "bool" => 1,
+            "char" => 4,
+            "String" => 100, // variable length string
+            _ => 20, // conservative default
+        }
+    }
+
     // For integers, use max digits (u8=3, u16=5, u32=10, u64=20, etc.)
     let total_param_len: usize = var_params
         .iter()
-        .map(|(_, ty)| {
-            // Parse type to determine max length
-            let ty_str = quote!(#ty).to_string();
-            match ty_str.trim() {
-                "u8" | "i8" => 3,
-                "u16" | "i16" => 5,
-                "u32" | "i32" => 10,
-                "u64" | "i64" => 20,
-                "usize" | "isize" => 20,
-                "bool" => 1,
-                "char" => 4,
-                "String" => 100, // variable length string
-                _ => 20, // conservative default
-            }
-        })
+        .map(|(_, ty)| type_max_encoded_len(ty))
         .sum::<usize>() + if var_params.len() > 1 { var_params.len() - 1 } else { 0 };
 
     let encoded_len = intro_len + private_len + total_param_len + intermediate_len + final_len;
 
+
+
     // Generate encode implementation
-    let intro_str = match intro {
-        "CSI" => "\x1B[",
-        "OSC" => "\x1B]",
-        "SS2" => "\x1BN",
-        "SS3" => "\x1BO",
-        "DCS" => "\x1BP",
-        "PM" => "\x1B^",
-        "APC" => "\x1B_",
-        "ST" => "\x1B\\",
-        "DECKPAM" => "\x1B=",
-        "DECKPNM" => "\x1B>",
-        _ => "\x1B",
-    };
+    let intro_str = get_intro_str(intro);
 
     let write_intro = quote! {
         __total += ::vtenc::encode::write_str_into(buf, #intro_str)?;
@@ -1005,235 +1002,178 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     }
 }
 
-/// Attribute macro for CSI (Control Sequence Introducer) sequences.
+/// Helper macro to generate attribute macro functions for escape sequences.
 ///
-/// # Example
-///
-/// ```ignore
-/// // Const sequence
-/// #[csi(private='?', params=["6"], finalbyte='h')]
-/// struct DecSetMode;
-///
-/// // Variable sequence - struct with fields
-/// #[csi(finalbyte='H')]
-/// struct CursorPosition {
-///     pub row: u16,
-///     pub col: u16,
-/// }
-/// ```
-///
-/// # Attributes
-///
-/// - `private` (optional): Character literal for private marker byte
-/// - `params` (optional): Array of string literals for const parameters (only for unit structs)
-/// - `intermediate` (optional): String literal for intermediate bytes
-/// - `finalbyte` (required): Character literal for final byte
-///
-/// For variable sequences, define the struct with fields. The fields will be used as
-/// parameters in the encoded sequence. A `new` constructor will be generated automatically.
-#[proc_macro_attribute]
-pub fn csi(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+/// Reduces duplication across similar escape sequence types.
+macro_rules! define_escape_sequence_macro {
+    (
+        $(#[$meta:meta])*
+        $name:ident, $intro:expr
+    ) => {
+        $(#[$meta])*
+        #[proc_macro_attribute]
+        pub fn $name(attr: TokenStream, item: TokenStream) -> TokenStream {
+            let input = parse_macro_input!(item as ItemStruct);
+            let meta_list =
+                parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
 
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
+            let mut diagnostics = Vec::new();
+            let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
 
-    TokenStream::from(generate_escape_sequence_impl(input, "CSI", attrs, &mut diagnostics))
+            TokenStream::from(generate_escape_sequence_impl(input, $intro, attrs, &mut diagnostics))
+        }
+    };
 }
 
-/// Attribute macro for OSC (Operating System Command) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[osc(params=["0"], finalbyte=';')]
-/// struct SetWindowTitle;
-/// ```
-#[proc_macro_attribute]
-pub fn osc(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+define_escape_sequence_macro!(
+    /// Attribute macro for CSI (Control Sequence Introducer) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Const sequence
+    /// #[csi(private='?', params=["6"], finalbyte='h')]
+    /// struct DecSetMode;
+    ///
+    /// // Variable sequence - struct with fields
+    /// #[csi(finalbyte='H')]
+    /// struct CursorPosition {
+    ///     pub row: u16,
+    ///     pub col: u16,
+    /// }
+    /// ```
+    ///
+    /// # Attributes
+    ///
+    /// - `private` (optional): Character literal for private marker byte
+    /// - `params` (optional): Array of string literals for const parameters (only for unit structs)
+    /// - `intermediate` (optional): String literal for intermediate bytes
+    /// - `finalbyte` (required): Character literal for final byte
+    ///
+    /// For variable sequences, define the struct with fields. The fields will be used as
+    /// parameters in the encoded sequence. A `new` constructor will be generated automatically.
+    csi, "CSI"
+);
 
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
+define_escape_sequence_macro!(
+    /// Attribute macro for OSC (Operating System Command) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[osc(params=["0"], finalbyte=';')]
+    /// struct SetWindowTitle;
+    /// ```
+    osc, "OSC"
+);
 
-    TokenStream::from(generate_escape_sequence_impl(input, "OSC", attrs, &mut diagnostics))
-}
+define_escape_sequence_macro!(
+    /// Attribute macro for SS2 (Single Shift 2) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[ss2(finalbyte='G')]
+    /// struct SingleShift2;
+    /// ```
+    ss2, "SS2"
+);
 
-/// Attribute macro for SS2 (Single Shift 2) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[ss2(finalbyte='G')]
-/// struct SingleShift2;
-/// ```
-#[proc_macro_attribute]
-pub fn ss2(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+define_escape_sequence_macro!(
+    /// Attribute macro for SS3 (Single Shift 3) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[ss3(finalbyte='H')]
+    /// struct SingleShift3;
+    /// ```
+    ss3, "SS3"
+);
 
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
+define_escape_sequence_macro!(
+    /// Attribute macro for DCS (Device Control String) sequences.
+    ///
+    /// Per ECMA-48 §5.6.3, DCS sequences may contain printable data after
+    /// the final byte but before the string terminator (ST).
+    ///
+    /// # Examples
+    ///
+    /// Basic DCS sequence:
+    /// ```ignore
+    /// #[dcs(finalbyte = 'q')]
+    /// struct RequestStatus;
+    /// ```
+    ///
+    /// DCS sequence with intermediate byte and data (DECRQSS format):
+    /// ```ignore
+    /// #[dcs(intermediate = "$", finalbyte = 'q', data = " q")]
+    /// struct RequestCursorStyle;
+    /// ```
+    ///
+    /// This generates: `ESC P $ q <space> q ESC \`
+    dcs, "DCS"
+);
 
-    TokenStream::from(generate_escape_sequence_impl(input, "SS2", attrs, &mut diagnostics))
-}
+define_escape_sequence_macro!(
+    /// Attribute macro for PM (Privacy Message) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[pm(finalbyte='p')]
+    /// struct PrivacyMessage;
+    /// ```
+    pm, "PM"
+);
 
-/// Attribute macro for SS3 (Single Shift 3) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[ss3(finalbyte='H')]
-/// struct SingleShift3;
-/// ```
-#[proc_macro_attribute]
-pub fn ss3(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+define_escape_sequence_macro!(
+    /// Attribute macro for APC (Application Program Command) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[apc(finalbyte='a')]
+    /// struct ApplicationCommand;
+    /// ```
+    apc, "APC"
+);
 
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
+define_escape_sequence_macro!(
+    /// Attribute macro for ST (String Terminator) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[st(finalbyte='\\')]
+    /// struct StringTerminator;
+    /// ```
+    st, "ST"
+);
 
-    TokenStream::from(generate_escape_sequence_impl(input, "SS3", attrs, &mut diagnostics))
-}
+define_escape_sequence_macro!(
+    /// Attribute macro for DECKPAM (DEC Keypad Application Mode) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[deckpam(finalbyte='=')]
+    /// struct KeypadApplicationMode;
+    /// ```
+    deckpam, "DECKPAM"
+);
 
-/// Attribute macro for DCS (Device Control String) sequences.
-///
-/// Per ECMA-48 §5.6.3, DCS sequences may contain printable data after
-/// the final byte but before the string terminator (ST).
-///
-/// # Examples
-///
-/// Basic DCS sequence:
-/// ```ignore
-/// #[dcs(finalbyte = 'q')]
-/// struct RequestStatus;
-/// ```
-///
-/// DCS sequence with intermediate byte and data (DECRQSS format):
-/// ```ignore
-/// #[dcs(intermediate = "$", finalbyte = 'q', data = " q")]
-/// struct RequestCursorStyle;
-/// ```
-///
-/// This generates: `ESC P $ q <space> q ESC \`
-#[proc_macro_attribute]
-pub fn dcs(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-    TokenStream::from(generate_escape_sequence_impl(input, "DCS", attrs, &mut diagnostics))
-}
-
-/// Attribute macro for PM (Privacy Message) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[pm(finalbyte='p')]
-/// struct PrivacyMessage;
-/// ```
-#[proc_macro_attribute]
-pub fn pm(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-    TokenStream::from(generate_escape_sequence_impl(input, "PM", attrs, &mut diagnostics))
-}
-
-/// Attribute macro for APC (Application Program Command) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[apc(finalbyte='a')]
-/// struct ApplicationCommand;
-/// ```
-#[proc_macro_attribute]
-pub fn apc(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-    TokenStream::from(generate_escape_sequence_impl(input, "APC", attrs, &mut diagnostics))
-}
-
-/// Attribute macro for ST (String Terminator) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[st(finalbyte='\\')]
-/// struct StringTerminator;
-/// ```
-#[proc_macro_attribute]
-pub fn st(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-    TokenStream::from(generate_escape_sequence_impl(input, "ST", attrs, &mut diagnostics))
-}
-
-/// Attribute macro for DECKPAM (DEC Keypad Application Mode) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[deckpam(finalbyte='=')]
-/// struct KeypadApplicationMode;
-/// ```
-#[proc_macro_attribute]
-pub fn deckpam(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-    TokenStream::from(generate_escape_sequence_impl(input, "DECKPAM", attrs, &mut diagnostics))
-}
-
-/// Attribute macro for DECKPNM (DEC Keypad Numeric Mode) sequences.
-///
-/// # Example
-///
-/// ```ignore
-/// #[deckpnm(finalbyte='>')]
-/// struct KeypadNumericMode;
-/// ```
-#[proc_macro_attribute]
-pub fn deckpnm(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list =
-        parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-    TokenStream::from(generate_escape_sequence_impl(input, "DECKPNM", attrs, &mut diagnostics))
-}
+define_escape_sequence_macro!(
+    /// Attribute macro for DECKPNM (DEC Keypad Numeric Mode) sequences.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[deckpnm(finalbyte='>')]
+    /// struct KeypadNumericMode;
+    /// ```
+    deckpnm, "DECKPNM"
+);
 
 /// Generate implementation for plain ESC sequences.
 ///
@@ -1257,11 +1197,7 @@ fn generate_esc_sequence_impl(
                 .error("cannot specify params attribute for structs with fields")
                 .help("use params for unit structs (const sequences) or add fields for variable sequences"),
         );
-        let tokens: proc_macro2::TokenStream = diagnostics
-            .drain(..)
-            .map(|d| d.emit_as_item_tokens())
-            .collect();
-        return tokens;
+        return emit_diagnostics(diagnostics);
     }
 
     let is_const = var_params.is_none();
@@ -1275,19 +1211,11 @@ fn generate_esc_sequence_impl(
                     .error("finalbyte attribute is required for const sequences")
                     .help("add finalbyte = 'X' where X is the final byte character"),
             );
-            let tokens: proc_macro2::TokenStream = diagnostics
-                .drain(..)
-                .map(|d| d.emit_as_item_tokens())
-                .collect();
-            return tokens;
+            return emit_diagnostics(diagnostics);
         };
 
         if !diagnostics.is_empty() {
-            let tokens: proc_macro2::TokenStream = diagnostics
-                .drain(..)
-                .map(|d| d.emit_as_item_tokens())
-                .collect();
-            return tokens;
+            return emit_diagnostics(diagnostics);
         }
 
         // Generate const sequence
@@ -1315,11 +1243,7 @@ fn generate_esc_sequence_impl(
         // Generate variable sequence
         // For variable sequences, finalbyte is optional - fields provide the variable content
         if !diagnostics.is_empty() {
-            let tokens: proc_macro2::TokenStream = diagnostics
-                .drain(..)
-                .map(|d| d.emit_as_item_tokens())
-                .collect();
-            return tokens;
+            return emit_diagnostics(diagnostics);
         }
 
         let var_params = var_params.unwrap();
@@ -1452,19 +1376,11 @@ pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
                 .error("code attribute is required")
                 .help("add code = 0x.. where 0x.. is the control code byte (0x00-0x1F)"),
         );
-        let tokens: proc_macro2::TokenStream = diagnostics
-            .drain(..)
-            .map(|d| d.emit_as_item_tokens())
-            .collect();
-        return TokenStream::from(tokens);
+        return TokenStream::from(emit_diagnostics(&mut diagnostics));
     };
 
     if !diagnostics.is_empty() {
-        let tokens: proc_macro2::TokenStream = diagnostics
-            .drain(..)
-            .map(|d| d.emit_as_item_tokens())
-            .collect();
-        return TokenStream::from(tokens);
+        return TokenStream::from(emit_diagnostics(&mut diagnostics));
     }
 
     // Generate the const string
@@ -1585,11 +1501,7 @@ pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     if !diagnostics.is_empty() {
-        let mut diags = TokenStream::new();
-        for diagnostic in diagnostics {
-            diags.extend(TokenStream::from(diagnostic.emit_as_item_tokens()));
-        }
-        return diags;
+        return TokenStream::from(emit_diagnostics(&mut diagnostics));
     }
 
     // Extract struct metadata
