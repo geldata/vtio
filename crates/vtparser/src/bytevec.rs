@@ -26,14 +26,14 @@ impl<const N: usize> From<NonEmptyBytes<N>> for SmallVec<[u8; N]> {
 }
 
 impl<const N: usize> NonEmptyBytes<N> {
-    pub fn from_head_tail<I>(head: u8, tail: I) -> Self
-    where
-        I: IntoIterator<Item = u8>,
+    pub const fn from_u8(byte: u8) -> Self
     {
-        let mut v = SmallVec::<[u8; N]>::new();
-        v.push(head);
-        v.extend(tail);
-        Self(v)
+        let mut arr = [0u8; N];
+        arr[0] = byte;
+        // SAFETY: 1 <= N
+        unsafe {
+            Self(SmallVec::<[u8; N]>::from_const_with_len_unchecked(arr, 1))
+        }
     }
 
     pub fn try_from_slice(s: &[u8]) -> Result<Self, EmptyError> {
@@ -43,18 +43,10 @@ impl<const N: usize> NonEmptyBytes<N> {
         Ok(Self(SmallVec::<[u8; N]>::from_slice(s)))
     }
 
-    pub const unsafe fn from_smallvec_unchecked(value: SmallVec<[u8; N]>) -> Self {
-        Self(value)
-    }
-
-    #[inline]
-    pub fn push(&mut self, b: u8) {
-        self.0.push(b);
-    }
-
-    #[inline]
-    pub fn pop(&mut self) -> Option<u8> {
-        if self.0.len() > 1 { self.0.pop() } else { None }
+    pub const unsafe fn from_const_with_len_unchecked(value: [u8; N], len: usize) -> Self {
+        unsafe {
+            Self(SmallVec::<[u8; N]>::from_const_with_len_unchecked(value, len))
+        }
     }
 
     #[inline]
@@ -65,11 +57,6 @@ impl<const N: usize> NonEmptyBytes<N> {
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
         &self.0
-    }
-
-    #[inline]
-    pub fn into_inner(self) -> SmallVec<[u8; N]> {
-        self.0
     }
 
     #[inline]

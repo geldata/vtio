@@ -618,11 +618,9 @@ impl<'a> EscapeSequenceConsts<'a> {
                         // SAFETY: we compute the number above and it is always
                         //         smaller than 32.
                         unsafe {
-                            ::vtparser::EscapeSequenceParam::from_smallvec_unchecked(
-                                ::smallvec::SmallVec::from_const_with_len_unchecked(
-                                    [#(#bytes),*],
-                                    #param_len,
-                                ),
+                            ::vtparser::EscapeSequenceParam::from_const_with_len_unchecked(
+                                [#(#bytes),*],
+                                #param_len,
                             )
                         }
                     }
@@ -632,9 +630,7 @@ impl<'a> EscapeSequenceConsts<'a> {
             let num_params = self.params.len();
             let padding_params = (0..(8 - num_params)).map(|_| {
                 quote! {
-                    ::vtparser::EscapeSequenceParam::from_smallvec_unchecked(
-                        ::smallvec::SmallVec::new_const(),
-                    )
+                    ::vtparser::EscapeSequenceParam::from_u8(0u8)
                 }
             });
 
