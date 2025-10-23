@@ -621,10 +621,11 @@ pub struct CursorVerticalRelative(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cq/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Default)]
 #[repr(u8)]
 pub enum CursorStyle {
     /// Default cursor style (usually blinking block).
+    #[default]
     Default = 0,
     /// Blinking block cursor.
     BlinkingBlock = 1,
@@ -724,10 +725,11 @@ bitflags! {
 }
 
 /// Linux Cursor Style shape values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[repr(u8)]
 pub enum LinuxCursorSize {
     /// Default (depending on driver: off, underline or block).
+    #[default]
     Default = 0,
     /// No cursor.
     None = 1,
@@ -747,7 +749,7 @@ pub enum LinuxCursorSize {
 ///
 /// This type combines a cursor shape with optional flags into a single
 /// value for encoding in the Linux cursor style sequence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LinuxCursorShape(u8);
 
 impl LinuxCursorShape {
@@ -962,7 +964,7 @@ bitflags! {
     ///
     /// These flags encode the currently active text attributes.
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub struct CursorAttributes: u8 {
         /// Bold text attribute.
         const BOLD = 1;
@@ -992,7 +994,7 @@ bitflags! {
     ///
     /// These flags encode various cursor and terminal state information.
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub struct CursorStateFlags: u8 {
         /// Cursor origin mode is set.
         const ORIGIN_MODE = 1;
@@ -1024,7 +1026,7 @@ bitflags! {
     /// The base value has bit 7 set (0x40), and bits 1-4 indicate which
     /// sets have 96 characters (0 = 94 characters, 1 = 96 characters).
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub struct CharacterSetSizes: u8 {
         /// G0 character set has 96 characters (otherwise 94).
         const G0_96 = 0x01;
@@ -1220,7 +1222,7 @@ pub struct TabStopReport {
 /// Tab stops wrapper for encoding.
 ///
 /// Encodes a vector of tab stop positions as a slash-separated string.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TabStops(pub Vec<u16>);
 
 impl TabStops {
@@ -1250,13 +1252,6 @@ impl IntoSeq for TabStops {
 impl From<Vec<u16>> for TabStops {
     fn from(stops: Vec<u16>) -> Self {
         Self(stops)
-    }
-}
-
-impl From<u8> for TabStops {
-    fn from(_value: u8) -> Self {
-        // Default to empty tab stops when parsing from registry
-        Self(Vec::new())
     }
 }
 
@@ -1385,52 +1380,88 @@ mod tests {
     }
 }
 
-// Implement FromEscapeParam for types that implement From<u8>
-impl vtparser::FromEscapeParam for CursorStyle {
-    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
-        Self::from_escape_param_default(params, index)
+// Implement From<EscapeSequenceParam> for types that implement From<u8>
+impl From<vtparser::EscapeSequenceParam> for CursorStyle {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
     }
 }
 
-impl vtparser::FromEscapeParam for LinuxCursorShape {
-    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
-        Self::from_escape_param_default(params, index)
+impl From<&vtparser::EscapeSequenceParam> for CursorStyle {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
     }
 }
 
-impl vtparser::FromEscapeParam for CursorAttributes {
-    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
-        Self::from_escape_param_default(params, index)
+impl From<vtparser::EscapeSequenceParam> for LinuxCursorShape {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
     }
 }
 
-impl vtparser::FromEscapeParam for CursorStateFlags {
-    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
-        Self::from_escape_param_default(params, index)
+impl From<&vtparser::EscapeSequenceParam> for LinuxCursorShape {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
     }
 }
 
-// Implement FromEscapeParam for bitflags types
-impl vtparser::FromEscapeParam for CharacterSetSizes {
-    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
-        params
-            .get(index)
-            .and_then(|p| p.first())
+impl From<vtparser::EscapeSequenceParam> for CursorAttributes {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for CursorAttributes {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
+    }
+}
+
+impl From<vtparser::EscapeSequenceParam> for CursorStateFlags {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for CursorStateFlags {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        param.first().copied().map_or(Self::from(0), Self::from)
+    }
+}
+
+// Implement From<EscapeSequenceParam> for bitflags types
+impl From<vtparser::EscapeSequenceParam> for CharacterSetSizes {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        param
+            .first()
             .map(|&b| Self::from_bits_truncate(b))
             .unwrap_or_else(Self::empty)
     }
 }
 
-impl vtparser::FromEscapeParam for TabStops {
-    fn from_escape_param(params: &vtparser::EscapeSequenceParams, index: usize) -> Self {
+impl From<&vtparser::EscapeSequenceParam> for CharacterSetSizes {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        param
+            .first()
+            .map(|&b| Self::from_bits_truncate(b))
+            .unwrap_or_else(Self::empty)
+    }
+}
+
+impl From<vtparser::EscapeSequenceParam> for TabStops {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
         // TabStops is a Vec<u16> wrapper, parse as String with slash separators
-        params
-            .get(index)
-            .map(|p| {
-                let s = String::from_utf8_lossy(p);
-                let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
-                Self(positions)
-            })
-            .unwrap_or_else(|| Self(Vec::new()))
+        let s = String::from_utf8_lossy(&param);
+        let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
+        Self(positions)
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for TabStops {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        // TabStops is a Vec<u16> wrapper, parse as String with slash separators
+        let s = String::from_utf8_lossy(param);
+        let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
+        Self(positions)
     }
 }

@@ -39,13 +39,6 @@ fn error_unsupported_attr(span: proc_macro2::Span, valid_attrs: &str) -> Diagnos
         .help(format!("valid attributes are: {}", valid_attrs))
 }
 
-/// Create a "cannot combine attributes" diagnostic error.
-///
-/// Helper to reduce repetition for conflicting attribute errors.
-fn error_conflicting_attrs(span: proc_macro2::Span, message: &str, help: &str) -> Diagnostic {
-    span.error(message).help(help)
-}
-
 /// Get type string representation from a syn::Type.
 ///
 /// Helper to avoid repeating the quote + to_string + trim pattern.
@@ -617,26 +610,47 @@ impl<'a> EscapeSequenceConsts<'a> {
                 .params
                 .iter()
                 .map(|param| {
+                    let param_len = param.len();
                     let mut padded = param.clone();
                     padded.resize(32, 0);
                     let bytes = padded.iter();
                     quote! {
-                        ::smallvec::SmallVec::from_const([#(#bytes),*])
+                        // SAFETY: we compute the number above and it is always
+                        //         smaller than 32.
+                        unsafe {
+                            ::vtparser::EscapeSequenceParam::from_smallvec(
+                                ::smallvec::SmallVec::from_const_with_len_unchecked(
+                                    [#(#bytes),*],
+                                    #param_len,
+                                ),
+                            )
+                        }
                     }
                 })
                 .collect();
 
             let num_params = self.params.len();
             let padding_params = (0..(8 - num_params)).map(|_| {
-                quote! { ::smallvec::SmallVec::new_const() }
+                quote! {
+                    ::vtparser::EscapeSequenceParam::from_smallvec(
+                        ::smallvec::SmallVec::new_const(),
+                    )
+                }
             });
 
             quote! {
                 const PARAMS: ::vtparser::EscapeSequenceParams = const {
-                    ::smallvec::SmallVec::from_const([
-                        #(#param_inits,)*
-                        #(#padding_params),*
-                    ])
+                    // SAFETY: we compute the number above and it is always
+                    //         smaller than 8.
+                    unsafe {
+                        ::smallvec::SmallVec::from_const_with_len_unchecked(
+                            [
+                                #(#param_inits,)*
+                                #(#padding_params,)*
+                            ],
+                            #num_params,
+                        )
+                    }
                 };
             }
         }
@@ -710,7 +724,7 @@ fn generate_registry_entry(
 
     // Helper function to generate parameter parsing code for a field.
     //
-    // Uses the FromEscapeParam trait for extensible parameter parsing.
+    // Convert parameter to the target type using From<EscapeSequenceParam>.
     fn generate_param_parsing(
         i: usize,
         name: &str,
@@ -720,7 +734,10 @@ fn generate_registry_entry(
         let field_name = syn::Ident::new(name, struct_span);
 
         quote! {
-            let #field_name: #ty = <#ty as ::vtparser::FromEscapeParam>::from_escape_param(params, #i);
+            let #field_name: #ty = params
+                .get(#i)
+                .map(|p| <#ty as ::core::convert::From<&::vtparser::EscapeSequenceParam>>::from(p))
+                .unwrap_or_default();
         }
     }
 
@@ -750,7 +767,7 @@ fn generate_registry_entry(
     };
 
     let handler_fn = quote! {
-        fn #handler_name(params: &::vtparser::EscapeSequenceParams) {
+        fn #handler_name(params: &[::vtparser::EscapeSequenceParam]) {
             #handler_body
         }
     };
@@ -815,9 +832,9 @@ fn generate_escape_sequence_impl(
     // Check if params and var_params are both specified
     // For DCS sequences, params are allowed with fields (params go in header, fields in data)
     if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" {
-        diagnostics.push(error_conflicting_attrs(
-            struct_name.span(),
-            "cannot specify params attribute for structs with fields",
+        diagnostics.push(struct_name.span().error(
+            "cannot specify params attribute for structs with fields"
+        ).help(
             "use params for unit structs (const sequences) or add fields for variable sequences",
         ));
         return emit_diagnostics(diagnostics);
@@ -825,11 +842,12 @@ fn generate_escape_sequence_impl(
 
     // Check if data attribute is used with variable sequences
     if attrs.data.is_some() && var_params.is_some() {
-        diagnostics.push(error_conflicting_attrs(
-            struct_name.span(),
-            "cannot specify data attribute for structs with fields",
-            "data attribute is only valid for unit structs (const sequences)",
-        ));
+        diagnostics.push(
+            struct_name
+                .span()
+                .error("cannot specify data attribute for structs with fields")
+                .help("data attribute is only valid for unit structs (const sequences)"),
+        );
         return emit_diagnostics(diagnostics);
     }
 
@@ -1328,9 +1346,9 @@ fn generate_esc_sequence_impl(
 
     // Check if params and var_params are both specified
     if !attrs.params.is_empty() && var_params.is_some() {
-        diagnostics.push(error_conflicting_attrs(
-            struct_name.span(),
-            "cannot specify params attribute for structs with fields",
+        diagnostics.push(struct_name.span().error(
+            "cannot specify params attribute for structs with fields"
+        ).help(
             "use params for unit structs (const sequences) or add fields for variable sequences",
         ));
         return emit_diagnostics(diagnostics);
