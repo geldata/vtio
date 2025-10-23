@@ -26,6 +26,9 @@ struct EscapeSequenceAttributes {
     intermediate: Vec<u8>,
     /// Final byte that terminates the sequence.
     final_byte: Option<u8>,
+    /// Optional data string (for DCS sequences) that appears after the
+    /// final byte but before the string terminator.
+    data: Option<String>,
 }
 
 /// Parse the private marker attribute.
@@ -161,6 +164,26 @@ fn parse_finalbyte(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8
     }
 }
 
+/// Parse the data attribute.
+///
+/// Extract a string from a string literal like `data = " q"`.
+fn parse_data(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<String> {
+    if let Expr::Lit(ExprLit {
+        lit: Lit::Str(s), ..
+    }) = value
+    {
+        Some(s.value())
+    } else {
+        diagnostics.push(
+            value
+                .span()
+                .error("data must be a string literal")
+                .help("example: data = \" q\""),
+        );
+        None
+    }
+}
+
 
 
 /// Parse all escape sequence attributes from the macro input.
@@ -177,6 +200,7 @@ fn parse_escape_sequence_attributes(
         params: Vec::new(),
         intermediate: Vec::new(),
         final_byte: None,
+        data: None,
     };
 
     for meta in meta_list {
@@ -196,6 +220,7 @@ fn parse_escape_sequence_attributes(
                     "params" => attrs.params = parse_params(&value, diagnostics),
                     "intermediate" => attrs.intermediate = parse_intermediate(&value, diagnostics),
                     "finalbyte" => attrs.final_byte = parse_finalbyte(&value, diagnostics),
+                    "data" => attrs.data = parse_data(&value, diagnostics),
 
                     unknown => {
                         diagnostics.push(
@@ -203,7 +228,7 @@ fn parse_escape_sequence_attributes(
                                 .span()
                                 .error(format!("unknown attribute: {}", unknown))
                                 .help(
-                                    "valid attributes are: private, params, intermediate, finalbyte",
+                                    "valid attributes are: private, params, intermediate, finalbyte, data",
                                 ),
                         );
                     }
@@ -460,6 +485,21 @@ fn generate_escape_sequence_impl(
         return tokens;
     }
 
+    // Check if data attribute is used with variable sequences
+    if attrs.data.is_some() && var_params.is_some() {
+        diagnostics.push(
+            struct_name
+                .span()
+                .error("cannot specify data attribute for structs with fields")
+                .help("data attribute is only valid for unit structs (const sequences)"),
+        );
+        let tokens: proc_macro2::TokenStream = diagnostics
+            .drain(..)
+            .map(|d| d.emit_as_item_tokens())
+            .collect();
+        return tokens;
+    }
+
     let intro_variant = syn::Ident::new(intro, struct_name.span());
     let is_const = var_params.is_none();
 
@@ -480,7 +520,14 @@ fn generate_escape_sequence_impl(
         );
 
         // Generate the const string for ConstEncode
-        let const_str = generate_const_str(intro, attrs.private, &attrs.params, &attrs.intermediate, final_byte);
+        let const_str = generate_const_str(
+            intro,
+            attrs.private,
+            &attrs.params,
+            &attrs.intermediate,
+            final_byte,
+            attrs.data.as_deref(),
+        );
 
         quote! {
             #input
@@ -523,6 +570,7 @@ fn generate_const_str(
     params: &[Vec<u8>],
     intermediate: &[u8],
     final_byte: u8,
+    data: Option<&str>,
 ) -> String {
     let mut result = String::from("\x1B");
 
@@ -563,6 +611,16 @@ fn generate_const_str(
 
     // Add final byte
     result.push(final_byte as char);
+
+    // Add data (for DCS sequences)
+    if let Some(data_str) = data {
+        result.push_str(data_str);
+    }
+
+    // Add string terminator for DCS/PM/APC sequences
+    if matches!(intro, "DCS" | "PM" | "APC") {
+        result.push_str("\x1B\\");
+    }
 
     result
 }
@@ -851,12 +909,24 @@ pub fn ss3(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Attribute macro for DCS (Device Control String) sequences.
 ///
-/// # Example
+/// Per ECMA-48 §5.6.3, DCS sequences may contain printable data after
+/// the final byte but before the string terminator (ST).
 ///
+/// # Examples
+///
+/// Basic DCS sequence:
 /// ```ignore
 /// #[dcs(finalbyte = 'q')]
 /// struct RequestStatus;
 /// ```
+///
+/// DCS sequence with intermediate byte and data (DECRQSS format):
+/// ```ignore
+/// #[dcs(intermediate = "$", finalbyte = 'q', data = " q")]
+/// struct RequestCursorStyle;
+/// ```
+///
+/// This generates: `ESC P $ q <space> q ESC \`
 #[proc_macro_attribute]
 pub fn dcs(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);

@@ -1,9 +1,9 @@
 //! Cursor movement and control commands.
 
-use vtderive::{c0, csi, esc, terminal_mode};
+use vtderive::{c0, csi, dcs, esc, terminal_mode};
 use bitflags::bitflags;
 use vtenc::{
-    ConstEncode, ConstEncodedLen, Encode, EncodeError, format_dcs, write_csi, write_dcs,
+    ConstEncodedLen, Encode, EncodeError, write_csi, write_dcs,
 };
 
 /// Cursor Origin Mode (`DECOM`).
@@ -523,7 +523,9 @@ pub struct CursorHorizontalAbsolute(pub u16);
 /// terminal support specifics.
 #[csi(finalbyte = 'I')]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct CursorHorizontalForwardTab(pub u16);
+pub struct CursorHorizontalForwardTab {
+    pub amount: u16,
+}
 
 /// Cursor Horizontal Backward Tabulation (`CBT`).
 ///
@@ -686,12 +688,9 @@ impl Encode for SetCursorStyle {
 ///
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-space-q/> for
 /// terminal support specifics.
+#[dcs(intermediate = "$", finalbyte = 'q', data = " q")]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestCursorStyle;
-
-impl ConstEncode for RequestCursorStyle {
-    const STR: &'static str = format_dcs!("$q q");
-}
 
 bitflags! {
     /// Flags for Linux cursor style.
