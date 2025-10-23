@@ -1,40 +1,7 @@
 use linkme::distributed_slice;
-use smallvec::SmallVec;
 
-#[derive(Clone, Debug, Default)]
-pub struct EscapeSequenceParam(SmallVec<[u8; 32]>);
+use crate::params::{EscapeSequenceParams, EscapeSequenceParam};
 
-impl EscapeSequenceParam {
-    #[inline]
-    #[must_use]
-    pub const fn from_smallvec(value: SmallVec<[u8; 32]>) -> Self {
-        Self(value)
-    }
-
-    pub fn first(&self) -> Option<&u8> {
-        self.0.first()
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl std::ops::Deref for EscapeSequenceParam {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<SmallVec<[u8; 32]>> for EscapeSequenceParam {
-    fn from(value: SmallVec<[u8; 32]>) -> Self {
-        Self(value)
-    }
-}
-
-pub type EscapeSequenceParams = SmallVec<[EscapeSequenceParam; 8]>;
 pub(crate) type Intermediate = [u8; 2];
 
 #[derive(Copy, Clone, Debug, derive_more::TryFrom)]
@@ -163,64 +130,3 @@ pub struct EscapeSequenceMatchEntry {
 
 #[distributed_slice]
 pub static ESCAPE_SEQUENCE_REGISTRY: [EscapeSequenceMatchEntry] = [..];
-
-impl From<EscapeSequenceParam> for bool {
-    fn from(param: EscapeSequenceParam) -> Self {
-        param.first().is_some_and(|&v| v != 0)
-    }
-}
-
-impl From<&EscapeSequenceParam> for bool {
-    fn from(param: &EscapeSequenceParam) -> Self {
-        param.first().is_some_and(|&v| v != 0)
-    }
-}
-
-impl From<EscapeSequenceParam> for String {
-    fn from(param: EscapeSequenceParam) -> Self {
-        String::from_utf8_lossy(&param).into_owned()
-    }
-}
-
-impl From<&EscapeSequenceParam> for String {
-    fn from(param: &EscapeSequenceParam) -> Self {
-        String::from_utf8_lossy(param).into_owned()
-    }
-}
-
-impl From<EscapeSequenceParam> for char {
-    fn from(param: EscapeSequenceParam) -> Self {
-        param.first().copied().map_or('\0', |b| b as char)
-    }
-}
-
-impl From<&EscapeSequenceParam> for char {
-    fn from(param: &EscapeSequenceParam) -> Self {
-        param.first().copied().map_or('\0', |b| b as char)
-    }
-}
-
-// Macro to implement From<EscapeSequenceParam> for numeric types
-macro_rules! impl_from_param_numeric {
-    ($($t:ty),+ $(,)?) => {
-        $(
-            impl From<EscapeSequenceParam> for $t {
-                #[allow(clippy::cast_lossless, clippy::cast_possible_wrap)]
-                fn from(param: EscapeSequenceParam) -> Self {
-                    param.first().copied().unwrap_or(0) as $t
-                }
-            }
-
-            impl From<&EscapeSequenceParam> for $t {
-                #[allow(clippy::cast_lossless, clippy::cast_possible_wrap)]
-                fn from(param: &EscapeSequenceParam) -> Self {
-                    param.first().copied().unwrap_or(0) as $t
-                }
-            }
-        )+
-    };
-}
-
-impl_from_param_numeric! {
-    u8, i8, u16, i16, u32, i32, u64, i64, usize, isize
-}

@@ -661,6 +661,18 @@ impl From<u8> for CursorStyle {
     }
 }
 
+impl From<vtparser::EscapeSequenceParam> for CursorStyle {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for CursorStyle {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
 /// Select Cursor Style (`DECSCUSR`).
 ///
 /// Set the cursor style (shape and blinking).
@@ -801,6 +813,18 @@ impl IntoSeq for LinuxCursorShape {
 impl From<u8> for LinuxCursorShape {
     fn from(value: u8) -> Self {
         Self(value)
+    }
+}
+
+impl From<vtparser::EscapeSequenceParam> for LinuxCursorShape {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for LinuxCursorShape {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
     }
 }
 
@@ -989,6 +1013,18 @@ impl From<u8> for CursorAttributes {
     }
 }
 
+impl From<vtparser::EscapeSequenceParam> for CursorAttributes {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for CursorAttributes {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
 bitflags! {
     /// Cursor state flags for cursor information report.
     ///
@@ -1016,6 +1052,18 @@ impl IntoSeq for CursorStateFlags {
 impl From<u8> for CursorStateFlags {
     fn from(value: u8) -> Self {
         CursorStateFlags::from_bits_truncate(value.saturating_sub(0x40))
+    }
+}
+
+impl From<vtparser::EscapeSequenceParam> for CursorStateFlags {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for CursorStateFlags {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        Self::from(param.first())
     }
 }
 
@@ -1091,6 +1139,18 @@ impl From<u8> for CharacterSetSizes {
 impl IntoSeq for CharacterSetSizes {
     fn into_seq(&self) -> impl WriteSeq {
         self.to_char()
+    }
+}
+
+impl From<vtparser::EscapeSequenceParam> for CharacterSetSizes {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        Self::from_bits_truncate(param.first())
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for CharacterSetSizes {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        Self::from_bits_truncate(param.first())
     }
 }
 
@@ -1255,6 +1315,24 @@ impl From<Vec<u16>> for TabStops {
     }
 }
 
+impl From<vtparser::EscapeSequenceParam> for TabStops {
+    fn from(param: vtparser::EscapeSequenceParam) -> Self {
+        // TabStops is a Vec<u16> wrapper, parse as String with slash separators
+        let s = String::from_utf8_lossy(&param);
+        let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
+        Self(positions)
+    }
+}
+
+impl From<&vtparser::EscapeSequenceParam> for TabStops {
+    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
+        // TabStops is a Vec<u16> wrapper, parse as String with slash separators
+        let s = String::from_utf8_lossy(param);
+        let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
+        Self(positions)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1321,8 +1399,7 @@ mod tests {
         let expected_data = "10;20;1;@;@;@;0;2;@;BB%5%5";
         assert!(
             output.contains(expected_data),
-            "Should contain expected data format, got: {:?}",
-            output
+            "Should contain expected data format, got: {output:?}",
         );
 
         // Verify length is reasonable
@@ -1371,97 +1448,10 @@ mod tests {
         let expected_data = "9/17/25/33/41/49/57/65/73";
         assert!(
             output.contains(expected_data),
-            "Should contain expected data format, got: {:?}",
-            output
+            "Should contain expected data format, got: {output:?}",
         );
 
         // Verify length is reasonable
         assert!(len > 20, "Encoded length should be substantial");
-    }
-}
-
-// Implement From<EscapeSequenceParam> for types that implement From<u8>
-impl From<vtparser::EscapeSequenceParam> for CursorStyle {
-    fn from(param: vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-impl From<&vtparser::EscapeSequenceParam> for CursorStyle {
-    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-impl From<vtparser::EscapeSequenceParam> for LinuxCursorShape {
-    fn from(param: vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-impl From<&vtparser::EscapeSequenceParam> for LinuxCursorShape {
-    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-impl From<vtparser::EscapeSequenceParam> for CursorAttributes {
-    fn from(param: vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-impl From<&vtparser::EscapeSequenceParam> for CursorAttributes {
-    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-impl From<vtparser::EscapeSequenceParam> for CursorStateFlags {
-    fn from(param: vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-impl From<&vtparser::EscapeSequenceParam> for CursorStateFlags {
-    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
-        param.first().copied().map_or(Self::from(0), Self::from)
-    }
-}
-
-// Implement From<EscapeSequenceParam> for bitflags types
-impl From<vtparser::EscapeSequenceParam> for CharacterSetSizes {
-    fn from(param: vtparser::EscapeSequenceParam) -> Self {
-        param
-            .first()
-            .map(|&b| Self::from_bits_truncate(b))
-            .unwrap_or_else(Self::empty)
-    }
-}
-
-impl From<&vtparser::EscapeSequenceParam> for CharacterSetSizes {
-    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
-        param
-            .first()
-            .map(|&b| Self::from_bits_truncate(b))
-            .unwrap_or_else(Self::empty)
-    }
-}
-
-impl From<vtparser::EscapeSequenceParam> for TabStops {
-    fn from(param: vtparser::EscapeSequenceParam) -> Self {
-        // TabStops is a Vec<u16> wrapper, parse as String with slash separators
-        let s = String::from_utf8_lossy(&param);
-        let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
-        Self(positions)
-    }
-}
-
-impl From<&vtparser::EscapeSequenceParam> for TabStops {
-    fn from(param: &vtparser::EscapeSequenceParam) -> Self {
-        // TabStops is a Vec<u16> wrapper, parse as String with slash separators
-        let s = String::from_utf8_lossy(param);
-        let positions: Vec<u16> = s.split('/').filter_map(|s| s.parse().ok()).collect();
-        Self(positions)
     }
 }
