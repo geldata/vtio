@@ -827,7 +827,8 @@ fn generate_escape_sequence_impl(
 
     // Check if params and var_params are both specified
     // For DCS sequences, params are allowed with fields (params go in header, fields in data)
-    if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" {
+    // For CSI sequences, params are also allowed with fields (const params followed by variable params)
+    if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" && intro != "CSI" {
         diagnostics.push(struct_name.span().error(
             "cannot specify params attribute for structs with fields"
         ).help(
@@ -1047,6 +1048,17 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     }
 
     // For integers, use max digits (u8=3, u16=5, u32=10, u64=20, etc.)
+    // Calculate const params length
+    let const_param_len: usize = const_params
+        .iter()
+        .map(|p| p.len())
+        .sum::<usize>()
+        + if !const_params.is_empty() {
+            const_params.len() - 1
+        } else {
+            0
+        };
+
     let total_param_len: usize = var_params
         .iter()
         .map(|(_, ty)| type_max_encoded_len(ty))
@@ -1057,7 +1069,14 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             0
         };
 
-    let encoded_len = intro_len + private_len + total_param_len + intermediate_len + final_len;
+    // Add separator between const and var params if both exist
+    let separator_len = if !const_params.is_empty() && !var_params.is_empty() {
+        1
+    } else {
+        0
+    };
+
+    let encoded_len = intro_len + private_len + const_param_len + separator_len + total_param_len + intermediate_len + final_len;
 
     // Generate encode implementation
     let intro_str = get_intro_str(intro);
@@ -1068,24 +1087,25 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     write_ops.write_str(intro_str);
     write_ops.write_private(private);
 
-    // Write const params (for DCS sequences with both params and fields)
+    // Write const params (for sequences with both params and fields)
     for (i, param) in const_params.iter().enumerate() {
         write_ops.write_separator(i);
         let param_str = String::from_utf8_lossy(param).into_owned();
         write_ops.write_str(&param_str);
     }
 
-    write_ops.write_intermediate_bytes(intermediate);
-    write_ops.write_char(final_byte as char);
-
     // Write regular params if NOT using DCS data params
     if dcs_data_params.is_none() || !matches!(intro, "DCS") {
+        let start_index = const_params.len();
         for (i, (name, _)) in var_params.iter().enumerate() {
-            write_ops.write_separator(i);
+            write_ops.write_separator(start_index + i);
             let field_name = syn::Ident::new(name, struct_name.span());
             write_ops.write_field(&field_name);
         }
     }
+
+    write_ops.write_intermediate_bytes(intermediate);
+    write_ops.write_char(final_byte as char);
 
     // Write DCS data params (for DCS sequences with dcs_data_params)
     if let Some(data_params) = dcs_data_params
@@ -1192,17 +1212,26 @@ define_escape_sequence_macro!(
     ///     pub row: u16,
     ///     pub col: u16,
     /// }
+    ///
+    /// // Mixed const and variable params
+    /// #[csi(private='?', params=["27"], finalbyte='n')]
+    /// struct KeyboardStatusReport {
+    ///     pub dialect: u8,
+    /// }
     /// ```
     ///
     /// # Attributes
     ///
     /// - `private` (optional): Character literal for private marker byte
-    /// - `params` (optional): Array of string literals for const parameters (only for unit structs)
+    /// - `params` (optional): Array of string literals for const parameters
     /// - `intermediate` (optional): String literal for intermediate bytes
     /// - `finalbyte` (required): Character literal for final byte
     ///
     /// For variable sequences, define the struct with fields. The fields will be used as
     /// parameters in the encoded sequence. A `new` constructor will be generated automatically.
+    ///
+    /// For mixed sequences with both `params` and fields, const params are emitted first,
+    /// followed by variable params from fields (e.g., `CSI ? 27 ; <dialect> n`).
     csi, "CSI"
 );
 
