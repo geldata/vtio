@@ -60,20 +60,22 @@
 use vtio_control_derive::terminal_mode;
 use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_dcs, write_csi};
 
-/// Smooth Scroll Mode (`DECSCLM`).
-///
-/// Control whether scrolling operations use smooth scrolling or
-/// jump scrolling.
-///
-/// When set, smooth scroll is enabled. The terminal adds lines to
-/// the screen gradually at a fixed rate.
-///
-/// When reset, jump scroll is enabled. The terminal adds lines to
-/// the screen as fast as possible.
-///
-/// See <https://terminalguide.namepad.de/mode/p4/> for terminal
-/// support specifics.
-terminal_mode!(SmoothScrollMode, private = '?', params = ["4"]);
+terminal_mode!(
+    /// Smooth Scroll Mode (`DECSCLM`).
+    ///
+    /// Control whether scrolling operations use smooth scrolling or
+    /// jump scrolling.
+    ///
+    /// When set, smooth scroll is enabled. The terminal adds lines to
+    /// the screen gradually at a fixed rate.
+    ///
+    /// When reset, jump scroll is enabled. The terminal adds lines to
+    /// the screen as fast as possible.
+    ///
+    /// See <https://terminalguide.namepad.de/mode/p4/> for terminal
+    /// support specifics.
+    SmoothScrollMode, private = '?', params = ["4"]
+);
 
 /// Set Top and Bottom Margins (`DECSTBM`).
 ///
