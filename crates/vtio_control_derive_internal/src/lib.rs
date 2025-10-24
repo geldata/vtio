@@ -493,14 +493,12 @@ enum PositionalParam {
 
 /// Remove helper attributes from struct fields.
 ///
-/// Filter out attributes like `#[literal]` and `#[vtctl(...)]` that are used
-/// by the macro but should not appear in the generated output.
+/// Filter out attributes like `#[vtctl(...)]` that are used by the macro but
+/// should not appear in the generated output.
 fn remove_helper_attributes(mut input: ItemStruct) -> ItemStruct {
     if let syn::Fields::Named(ref mut fields) = input.fields {
         for field in fields.named.iter_mut() {
-            field.attrs.retain(|attr| {
-                !attr.path().is_ident("literal") && !attr.path().is_ident("vtctl")
-            });
+            field.attrs.retain(|attr| !attr.path().is_ident("vtctl"));
         }
     }
     input
@@ -587,20 +585,34 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
                 .filter_map(|field| {
                     let name = field_ident(field).to_string();
 
-                    // Check for #[literal("value")] attribute
+                    // Check for #[vtctl(literal = "value")] attribute
                     for attr in &field.attrs {
-                        if attr.path().is_ident("literal")
-                            && let Ok(list) = attr.meta.require_list()
-                            && let Ok(value) = list.parse_args::<syn::LitStr>()
-                        {
-                            return Some(DcsDataParam::Literal(value.value()));
+                        if attr.path().is_ident("vtctl") {
+                            if let Ok(list) = attr.meta.require_list() {
+                                if let Ok(nested) = list.parse_args_with(
+                                    syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated
+                                ) {
+                                    for meta in nested {
+                                        if let syn::Meta::NameValue(syn::MetaNameValue {
+                                            path,
+                                            value: syn::Expr::Lit(syn::ExprLit {
+                                                lit: syn::Lit::Str(ref lit_str), ..
+                                            }), ..
+                                        }) = meta {
+                                            if path.is_ident("literal") {
+                                                return Some(DcsDataParam::Literal(lit_str.value()));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
                     // Regular field - check if it's a unit type (these are for const markers)
                     let ty = &field.ty;
                     if is_unit_type(ty) {
-                        // Unit type without #[literal] is skipped
+                        // Unit type without #[vtctl(literal = ...)] is skipped
                         return None;
                     }
 
@@ -1514,10 +1526,14 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 /// - `deckpam`: DEC Keypad Application Mode sequences
 /// - `deckpnm`: DEC Keypad Numeric Mode sequences
 /// - `c0`: C0 control character sequences
-#[proc_macro_derive(
-    VTControl,
-    attributes(literal, vtctl)
-)]
+///
+/// # Field-Level Attributes
+///
+/// - `#[vtctl(positional)]`: Mark a field as a positional parameter for OSC/DCS
+///   sequences. Optional parameters must come after required ones.
+/// - `#[vtctl(literal = "value")]`: Mark a field as a literal string constant in
+///   DCS data parameters.
+#[proc_macro_derive(VTControl, attributes(vtctl))]
 pub fn derive_control(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
     let mut diagnostics = Vec::new();

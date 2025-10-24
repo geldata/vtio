@@ -18,31 +18,11 @@
 //! generic mechanism for encoding arbitrary key=value pairs.
 
 use vtenc::{Encode, EncodeError, IntoSeq, WriteSeq, write_osc};
+use vtio_control_derive::VTControl;
 
 const ITERM2_OSC_PREFIX: &str = "1337;";
 
-/// Generate a simple iTerm2 command type with no parameters.
-///
-/// Creates a zero-sized type that implements `ITerm2Command` by writing
-/// a fixed command string.
-macro_rules! simple_command {
-    ($(#[$meta:meta])* $name:ident) => {
-        $(#[$meta])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        pub struct $name;
 
-        impl $name {
-            /// The command key string.
-            pub const KEY: &'static str = std::stringify!($cmd);
-        }
-
-        impl vtenc::Encode for $name {
-            fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-                vtenc::write_osc!(buf; $crate::event::iterm::ITERM2_OSC_PREFIX, Self::KEY)
-            }
-        }
-    };
-}
 
 /// Generate an iTerm2 command type with a single typed parameter.
 ///
@@ -109,76 +89,76 @@ macro_rules! iterm2_string_param_command {
 
 // Simple commands (no parameters)
 
-simple_command!(
-    /// Set a mark at the current cursor position.
-    ///
-    /// Equivalent to the "Set Mark" command (cmd-shift-M).
-    /// The mark can be jumped to later with cmd-shift-J.
-    SetMark
-);
+/// Set a mark at the current cursor position.
+///
+/// Equivalent to the "Set Mark" command (cmd-shift-M).
+/// The mark can be jumped to later with cmd-shift-J.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "SetMark")]
+pub struct SetMark;
 
-simple_command!(
-    /// Bring iTerm2 window to the foreground.
-    ///
-    /// Force the terminal to steal focus from other applications.
-    StealFocus
-);
+/// Bring iTerm2 window to the foreground.
+///
+/// Force the terminal to steal focus from other applications.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "StealFocus")]
+pub struct StealFocus;
 
-simple_command!(
-    /// Clear the scrollback history.
-    ///
-    /// Erase all content in the scrollback buffer, keeping only the
-    /// visible screen content.
-    ClearScrollback
-);
+/// Clear the scrollback history.
+///
+/// Erase all content in the scrollback buffer, keeping only the
+/// visible screen content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "ClearScrollback")]
+pub struct ClearScrollback;
 
-simple_command!(
-    /// End a copy-to-clipboard operation.
-    ///
-    /// Marks the end of text being copied to the pasteboard. Must be
-    /// preceded by a `CopyToClipboard` command.
-    EndCopy
-);
+/// End a copy-to-clipboard operation.
+///
+/// Marks the end of text being copied to the pasteboard. Must be
+/// preceded by a `CopyToClipboard` command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "EndCopy")]
+pub struct EndCopy;
 
-simple_command!(
-    /// Report the cell size in points.
-    ///
-    /// The terminal responds with:
-    /// `OSC 1337 ; ReportCellSize=[height];[width];[scale] ST`
-    ///
-    /// where scale is the pixel-to-point ratio (1.0 for non-retina,
-    /// 2.0 for retina).
-    ReportCellSize
-);
+/// Report the cell size in points.
+///
+/// The terminal responds with:
+/// `OSC 1337 ; ReportCellSize=[height];[width];[scale] ST`
+///
+/// where scale is the pixel-to-point ratio (1.0 for non-retina,
+/// 2.0 for retina).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "ReportCellSize")]
+pub struct ReportCellSize;
 
-simple_command!(
-    /// Push the current touch bar key labels onto a stack.
-    ///
-    /// Save the current set of function key labels for later restoration
-    /// with `PopKeyLabels`.
-    PushKeyLabels
-);
+/// Push the current touch bar key labels onto a stack.
+///
+/// Save the current set of function key labels for later restoration
+/// with `PopKeyLabels`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "PushKeyLabels")]
+pub struct PushKeyLabels;
 
-simple_command!(
-    /// Pop touch bar key labels from the stack.
-    ///
-    /// Restore the most recently pushed set of function key labels.
-    PopKeyLabels
-);
+/// Pop touch bar key labels from the stack.
+///
+/// Restore the most recently pushed set of function key labels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "PopKeyLabels")]
+pub struct PopKeyLabels;
 
-simple_command!(
-    /// Disinter a buried session.
-    ///
-    /// Restore a previously buried session to the active state.
-    Disinter
-);
+/// Disinter a buried session.
+///
+/// Restore a previously buried session to the active state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "Disinter")]
+pub struct Disinter;
 
-simple_command!(
-    /// Clear captured output.
-    ///
-    /// Erase the current captured output buffer for this session.
-    ClearCapturedOutput
-);
+/// Clear captured output.
+///
+/// Erase the current captured output buffer for this session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "ClearCapturedOutput")]
+pub struct ClearCapturedOutput;
 
 // Single parameter commands
 
