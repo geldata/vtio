@@ -19,11 +19,9 @@
 
 use std::borrow::Cow;
 
-use vtenc::{Encode, EncodeError, IntoSeq, WriteSeq, write_osc};
+use vtenc::{EncodeError, IntoSeq, WriteSeq};
 use vtio_control_base::EscapeSequenceParam;
 use vtio_control_derive::VTControl;
-
-const ITERM2_OSC_PREFIX: &str = "1337;";
 
 /// Set a mark at the current cursor position.
 ///
@@ -416,73 +414,121 @@ pub struct OpenUrl<'a> {
     pub base64_url: &'a str,
 }
 
-/// Generic command for arbitrary key=value pairs.
-///
-/// Use this for unrecognized or custom iTerm2 commands that follow
-/// the key=value pattern. Multiple pairs can be separated by semicolons.
+/// A key or key=value pair for generic iTerm2 commands.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct GenericCommand {
-    pairs: Vec<KeyValue>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum KeyValue {
+pub enum KeyValue {
+    /// A key without a value.
     Key(String),
+    /// A key=value pair.
     KeyValue(String, String),
 }
 
-impl GenericCommand {
-    /// Create a new generic command with no pairs.
+/// A list of key=value pairs for iTerm2 commands.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyValueList(Vec<KeyValue>);
+
+impl KeyValueList {
+    /// Create a new empty list.
     #[must_use]
     pub fn new() -> Self {
-        Self { pairs: Vec::new() }
+        Self(Vec::new())
     }
 
     /// Add a key without a value.
-    #[must_use]
-    pub fn with_key(mut self, key: impl Into<String>) -> Self {
-        self.pairs.push(KeyValue::Key(key.into()));
-        self
+    pub fn push_key(&mut self, key: impl Into<String>) {
+        self.0.push(KeyValue::Key(key.into()));
     }
 
     /// Add a key=value pair.
-    #[must_use]
-    pub fn with_pair(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.pairs
-            .push(KeyValue::KeyValue(key.into(), value.into()));
-        self
-    }
-
-    /// Add a key without a value (mutable).
-    pub fn add_key(&mut self, key: impl Into<String>) {
-        self.pairs.push(KeyValue::Key(key.into()));
-    }
-
-    /// Add a key=value pair (mutable).
-    pub fn add_pair(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.pairs
-            .push(KeyValue::KeyValue(key.into(), value.into()));
+    pub fn push_pair(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.0.push(KeyValue::KeyValue(key.into(), value.into()));
     }
 }
 
-impl Default for GenericCommand {
+impl Default for KeyValueList {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Encode for GenericCommand {
-    fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        let values = self
-            .pairs
+impl From<&EscapeSequenceParam> for KeyValueList {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        let s = String::from_utf8_lossy(param);
+        let mut list = Self::new();
+
+        // Parse semicolon-separated key or key=value pairs
+        for part in s.split(';') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            // Split on first '=' to separate key and value
+            if let Some(pos) = part.find('=') {
+                let key = part[..pos].to_string();
+                let value = part[pos + 1..].to_string();
+                list.push_pair(key, value);
+            } else {
+                list.push_key(part.to_string());
+            }
+        }
+
+        list
+    }
+}
+
+impl From<EscapeSequenceParam> for KeyValueList {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(&param)
+    }
+}
+
+impl IntoSeq for KeyValueList {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.0
             .iter()
             .map(|pair| match pair {
                 KeyValue::Key(key) => key.to_owned(),
                 KeyValue::KeyValue(key, value) => format!("{key}={value}"),
             })
             .collect::<Vec<String>>()
-            .join(";");
-        write_osc!(buf; ITERM2_OSC_PREFIX, values)
+            .join(";")
+    }
+}
+
+/// Generic command for arbitrary key=value pairs.
+///
+/// Use this for unrecognized or custom iTerm2 commands that follow
+/// the key=value pattern. Multiple pairs can be separated by semicolons.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337")]
+pub struct GenericCommand {
+    pub pairs: KeyValueList,
+}
+
+impl GenericCommand {
+    /// Add a key without a value.
+    #[must_use]
+    pub fn with_key(mut self, key: impl Into<String>) -> Self {
+        self.pairs.push_key(key);
+        self
+    }
+
+    /// Add a key=value pair.
+    #[must_use]
+    pub fn with_pair(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.pairs.push_pair(key, value);
+        self
+    }
+
+    /// Add a key without a value (mutable).
+    pub fn add_key(&mut self, key: impl Into<String>) {
+        self.pairs.push_key(key);
+    }
+
+    /// Add a key=value pair (mutable).
+    pub fn add_pair(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.pairs.push_pair(key, value);
     }
 }
 
@@ -558,10 +604,7 @@ impl AnnotationCoords {
 }
 
 impl WriteSeq for AnnotationCoords {
-    fn write_seq<W: std::io::Write + ?Sized>(
-        &self,
-        buf: &mut W,
-    ) -> Result<usize, EncodeError> {
+    fn write_seq<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
         let mut total = 0;
         total += WriteSeq::write_seq(&self.x, buf)?;
         total += WriteSeq::write_seq(&"|", buf)?;
