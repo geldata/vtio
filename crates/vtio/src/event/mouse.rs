@@ -2,7 +2,7 @@
 //!
 //! See <https://terminalguide.namepad.de/mouse/> for details.
 
-use vtenc::{IntoSeq, WriteSeq, const_composite};
+use vtenc::{ToAnsi, AnsiEncode, const_composite};
 use vtio_control_base::{FinalByte, EscapeSequenceParam};
 use vtio_control_derive::{terminal_mode, VTControl};
 
@@ -255,8 +255,8 @@ impl Coordinates {
     }
 }
 
-impl IntoSeq for Coordinates {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for Coordinates {
+    fn to_ansi(&self) -> impl AnsiEncode {
         // Coordinates are encoded as two separate parameters with a
         // semicolon between them. Convert to 1-based for terminal
         // sequences.
@@ -272,16 +272,16 @@ struct CoordinatesSeq {
     row: u16,
 }
 
-impl WriteSeq for CoordinatesSeq {
-    fn write_seq<W: std::io::Write + ?Sized>(
+impl AnsiEncode for CoordinatesSeq {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
         &self,
         buf: &mut W,
     ) -> Result<usize, vtenc::EncodeError> {
-        use vtenc::encode::{write_str_into, WriteSeq};
+        use vtenc::encode::{write_str_into, AnsiEncode};
         let mut total = 0;
-        total += WriteSeq::write_seq(&self.column, buf)?;
+        total += AnsiEncode::encode_ansi_into(&self.column, buf)?;
         total += write_str_into(buf, ";")?;
-        total += WriteSeq::write_seq(&self.row, buf)?;
+        total += AnsiEncode::encode_ansi_into(&self.row, buf)?;
         Ok(total)
     }
 }
@@ -438,8 +438,8 @@ impl MouseEventKind {
     }
 }
 
-impl IntoSeq for MouseEventKind {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for MouseEventKind {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.base_button_code()
     }
 }
@@ -511,8 +511,8 @@ impl MouseButton {
     }
 }
 
-impl IntoSeq for MouseButton {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for MouseButton {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.code()
     }
 }

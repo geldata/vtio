@@ -101,43 +101,42 @@ pub fn write_str_into<W: io::Write + ?Sized>(sink: &mut W, s: &str) -> Result<us
 /// This trait is implemented for string slices and integer types, allowing
 /// the `write_*` macros to accept a sequence of literals and integers
 /// without heap allocation or the overhead of `write_fmt`.
-pub trait WriteSeq {
+pub trait AnsiEncode {
     /// Write this value to the buffer.
     ///
     /// # Errors
     ///
     /// Return an error if the buffer is too small to hold the value.
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError>;
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError>;
 }
 
-pub trait IntoSeq {
-    #[allow(clippy::wrong_self_convention)]
-    fn into_seq(&self) -> impl WriteSeq;
+pub trait ToAnsi {
+    fn to_ansi(&self) -> impl AnsiEncode;
 }
 
-impl<T: IntoSeq> WriteSeq for T {
+impl<T: ToAnsi> AnsiEncode for T {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
-        self.into_seq().write_seq(sink)
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+        self.to_ansi().encode_ansi_into(sink)
     }
 }
 
-impl IntoSeq for () {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for () {
+    fn to_ansi(&self) -> impl AnsiEncode {
         ""
     }
 }
 
-impl WriteSeq for &str {
+impl AnsiEncode for &str {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         write_str_into(sink, self)
     }
 }
 
-impl WriteSeq for String {
+impl AnsiEncode for String {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         write_str_into(sink, self)
     }
 }
@@ -145,25 +144,25 @@ impl WriteSeq for String {
 macro_rules! write_int_seq {
     ($(#[$meta:meta])* $type:ty) => {
         $(#[$meta])*
-        impl $crate::encode::WriteSeq for $type {
+        impl $crate::encode::AnsiEncode for $type {
             #[inline]
-            fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+            fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
                 write_int(sink, *self)
             }
         }
 
         $(#[$meta])*
-        impl $crate::encode::WriteSeq for &$type {
+        impl $crate::encode::AnsiEncode for &$type {
             #[inline]
-            fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+            fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
                 write_int(sink, **self)
             }
         }
 
         $(#[$meta])*
-        impl $crate::encode::WriteSeq for &mut $type {
+        impl $crate::encode::AnsiEncode for &mut $type {
             #[inline]
-            fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+            fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
                 write_int(sink, **self)
             }
         }
@@ -181,50 +180,50 @@ write_int_seq!(i32);
 write_int_seq!(i64);
 write_int_seq!(isize);
 
-impl WriteSeq for char {
+impl AnsiEncode for char {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         let mut buf = [0u8; 4];
         let s = self.encode_utf8(&mut buf);
         write_str_into(sink, s)
     }
 }
 
-impl WriteSeq for &char {
+impl AnsiEncode for &char {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         let mut buf = [0u8; 4];
         let s = self.encode_utf8(&mut buf);
         write_str_into(sink, s)
     }
 }
 
-impl WriteSeq for &mut char {
+impl AnsiEncode for &mut char {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         let mut buf = [0u8; 4];
         let s = self.encode_utf8(&mut buf);
         write_str_into(sink, s)
     }
 }
 
-impl WriteSeq for bool {
+impl AnsiEncode for bool {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         write_str_into(sink, if *self { "1" } else { "0" })
     }
 }
 
-impl WriteSeq for &bool {
+impl AnsiEncode for &bool {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         write_str_into(sink, if **self { "1" } else { "0" })
     }
 }
 
-impl WriteSeq for &mut bool {
+impl AnsiEncode for &mut bool {
     #[inline]
-    fn write_seq<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError> {
         write_str_into(sink, if **self { "1" } else { "0" })
     }
 }

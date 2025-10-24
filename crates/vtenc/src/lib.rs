@@ -6,7 +6,7 @@ pub mod encode;
 pub use encode::write_bytes_into;
 pub use encode::write_int;
 pub use encode::write_str_into;
-pub use encode::{ConstEncode, ConstEncodedLen, Encode, EncodeError, IntoSeq, WriteSeq};
+pub use encode::{ConstEncode, ConstEncodedLen, Encode, EncodeError, ToAnsi, AnsiEncode};
 
 /// Concatenate string literals while prepending a ANSI control sequence
 /// introducer (`"\x1b["`).
@@ -38,7 +38,7 @@ macro_rules! write_csi {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1B[")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         Ok(__total)
     }};
@@ -73,7 +73,7 @@ macro_rules! write_osc {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1B]")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
         Ok(__total)
@@ -102,7 +102,7 @@ macro_rules! write_ss2 {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1BN")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         Ok(__total)
     }};
@@ -130,7 +130,7 @@ macro_rules! write_ss3 {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1BO")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         Ok(__total)
     }};
@@ -158,7 +158,7 @@ macro_rules! write_dcs {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1BP")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
         Ok(__total)
@@ -187,7 +187,7 @@ macro_rules! write_pm {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1B^")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
         Ok(__total)
@@ -217,7 +217,7 @@ macro_rules! write_apc {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1B_")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
         Ok(__total)
@@ -246,7 +246,7 @@ macro_rules! write_esc {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1B")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         Ok(__total)
     }};
@@ -274,7 +274,7 @@ macro_rules! write_escst {
         let mut __total = 0usize;
         __total += $crate::encode::write_str_into($buf, "\x1B")?;
         $(
-            __total += $crate::encode::WriteSeq::write_seq(&($item), $buf)?;
+            __total += $crate::encode::AnsiEncode::encode_ansi_into(&($item), $buf)?;
         )*
         __total += $crate::encode::write_str_into($buf, "\x1B\\")?;
         Ok(__total)

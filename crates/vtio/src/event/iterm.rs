@@ -19,7 +19,7 @@
 
 use std::borrow::Cow;
 
-use vtenc::{EncodeError, IntoSeq, WriteSeq};
+use vtenc::{EncodeError, ToAnsi, AnsiEncode};
 use vtio_control_base::EscapeSequenceParam;
 use vtio_control_derive::VTControl;
 
@@ -113,8 +113,8 @@ impl Default for CursorShapeValue {
     }
 }
 
-impl IntoSeq for CursorShapeValue {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for CursorShapeValue {
+    fn to_ansi(&self) -> impl AnsiEncode {
         *self as u8
     }
 }
@@ -182,8 +182,8 @@ pub enum Clipboard {
     Font,
 }
 
-impl IntoSeq for Clipboard {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for Clipboard {
+    fn to_ansi(&self) -> impl AnsiEncode {
         match self {
             Self::General => "",
             Self::Rule => "rule",
@@ -257,8 +257,8 @@ impl Default for AttentionMode {
     }
 }
 
-impl IntoSeq for AttentionMode {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for AttentionMode {
+    fn to_ansi(&self) -> impl AnsiEncode {
         match self {
             Self::Yes => "yes",
             Self::Once => "once",
@@ -309,8 +309,8 @@ impl Default for UnicodeVersionValue {
     }
 }
 
-impl IntoSeq for UnicodeVersionValue {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for UnicodeVersionValue {
+    fn to_ansi(&self) -> impl AnsiEncode {
         *self as u8
     }
 }
@@ -356,8 +356,8 @@ impl From<bool> for Iterm2Bool {
     }
 }
 
-impl IntoSeq for Iterm2Bool {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for Iterm2Bool {
+    fn to_ansi(&self) -> impl AnsiEncode {
         if self.0 { "yes" } else { "no" }
     }
 }
@@ -483,8 +483,8 @@ impl From<EscapeSequenceParam> for KeyValueList {
     }
 }
 
-impl IntoSeq for KeyValueList {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for KeyValueList {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.0
             .iter()
             .map(|pair| match pair {
@@ -562,8 +562,8 @@ impl<'a> AnnotationMessage<'a> {
     }
 }
 
-impl IntoSeq for AnnotationMessage<'_> {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for AnnotationMessage<'_> {
+    fn to_ansi(&self) -> impl AnsiEncode {
         AnnotationMessageSeq {
             length: self.length,
             message: self.message,
@@ -576,14 +576,14 @@ struct AnnotationMessageSeq<'a> {
     message: &'a str,
 }
 
-impl WriteSeq for AnnotationMessageSeq<'_> {
-    fn write_seq<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+impl AnsiEncode for AnnotationMessageSeq<'_> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
         let mut total = 0;
         if let Some(len) = self.length {
-            total += WriteSeq::write_seq(&len, buf)?;
-            total += WriteSeq::write_seq(&"|", buf)?;
+            total += AnsiEncode::encode_ansi_into(&len, buf)?;
+            total += AnsiEncode::encode_ansi_into(&"|", buf)?;
         }
-        total += WriteSeq::write_seq(&self.message, buf)?;
+        total += AnsiEncode::encode_ansi_into(&self.message, buf)?;
         Ok(total)
     }
 }
@@ -603,12 +603,12 @@ impl AnnotationCoords {
     }
 }
 
-impl WriteSeq for AnnotationCoords {
-    fn write_seq<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+impl AnsiEncode for AnnotationCoords {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
         let mut total = 0;
-        total += WriteSeq::write_seq(&self.x, buf)?;
-        total += WriteSeq::write_seq(&"|", buf)?;
-        total += WriteSeq::write_seq(&self.y, buf)?;
+        total += AnsiEncode::encode_ansi_into(&self.x, buf)?;
+        total += AnsiEncode::encode_ansi_into(&"|", buf)?;
+        total += AnsiEncode::encode_ansi_into(&self.y, buf)?;
         Ok(total)
     }
 }

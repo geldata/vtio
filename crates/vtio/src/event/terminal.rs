@@ -1,6 +1,6 @@
 //! Buffer control/information messages.
 
-use vtenc::{IntoSeq, WriteSeq};
+use vtenc::{ToAnsi, AnsiEncode};
 
 use vtio_control_base::EscapeSequenceParam;
 use vtio_control_derive::{VTControl, terminal_mode};
@@ -434,8 +434,8 @@ impl Default for ConformanceLevel {
     }
 }
 
-impl IntoSeq for ConformanceLevel {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for ConformanceLevel {
+    fn to_ansi(&self) -> impl AnsiEncode {
         *self as u8
     }
 }
@@ -562,8 +562,8 @@ impl From<TerminalCapability> for u8 {
     }
 }
 
-impl IntoSeq for TerminalCapability {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for TerminalCapability {
+    fn to_ansi(&self) -> impl AnsiEncode {
         u8::from(self)
     }
 }
@@ -632,8 +632,8 @@ impl Capabilities {
     }
 }
 
-impl IntoSeq for Capabilities {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for Capabilities {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.0
             .iter()
             .map(|cap| u8::from(cap).to_string())
@@ -747,8 +747,8 @@ impl UnitId {
     }
 }
 
-impl IntoSeq for UnitId {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for UnitId {
+    fn to_ansi(&self) -> impl AnsiEncode {
         const HEX: &[u8; 16] = b"0123456789ABCDEF";
         let mut hex = [0u8; 8];
 

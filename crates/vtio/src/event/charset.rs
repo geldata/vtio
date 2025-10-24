@@ -1,7 +1,7 @@
 //! Terminal character set control and information messages.
 
 use crate::VTControl;
-use vtenc::WriteSeq;
+use vtenc::AnsiEncode;
 
 /// Enable UTF-8 mode.
 ///
@@ -246,8 +246,8 @@ impl CharsetCode {
     }
 }
 
-impl vtenc::IntoSeq for CharsetCode {
-    fn into_seq(&self) -> impl WriteSeq {
+impl vtenc::ToAnsi for CharsetCode {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.code()
     }
 }

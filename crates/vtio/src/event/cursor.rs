@@ -3,7 +3,7 @@
 use bitflags::bitflags;
 use vtio_control_derive::{terminal_mode, VTControl};
 use vtio_control_base::EscapeSequenceParam;
-use vtenc::{IntoSeq, WriteSeq};
+use vtenc::{ToAnsi, AnsiEncode};
 
 terminal_mode!(
     /// Cursor Origin Mode (`DECOM`).
@@ -639,8 +639,8 @@ pub enum CursorStyle {
     SteadyBar = 6,
 }
 
-impl IntoSeq for CursorStyle {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for CursorStyle {
+    fn to_ansi(&self) -> impl AnsiEncode {
         *self as u8
     }
 }
@@ -802,8 +802,8 @@ impl LinuxCursorShape {
     }
 }
 
-impl IntoSeq for LinuxCursorShape {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for LinuxCursorShape {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.0
     }
 }
@@ -999,8 +999,8 @@ bitflags! {
     }
 }
 
-impl IntoSeq for CursorAttributes {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for CursorAttributes {
+    fn to_ansi(&self) -> impl AnsiEncode {
         char::from(0x40 + self.bits())
     }
 }
@@ -1041,8 +1041,8 @@ bitflags! {
     }
 }
 
-impl IntoSeq for CursorStateFlags {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for CursorStateFlags {
+    fn to_ansi(&self) -> impl AnsiEncode {
         char::from(0x40 + self.bits())
     }
 }
@@ -1134,8 +1134,8 @@ impl From<u8> for CharacterSetSizes {
     }
 }
 
-impl IntoSeq for CharacterSetSizes {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for CharacterSetSizes {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.to_char()
     }
 }
@@ -1297,8 +1297,8 @@ impl TabStops {
     }
 }
 
-impl IntoSeq for TabStops {
-    fn into_seq(&self) -> impl WriteSeq {
+impl ToAnsi for TabStops {
+    fn to_ansi(&self) -> impl AnsiEncode {
         self.0
             .iter()
             .map(u16::to_string)

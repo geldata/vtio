@@ -267,7 +267,7 @@ fn generate_write_str(s: &str) -> proc_macro2::TokenStream {
 /// Helper to generate quote! blocks for writing characters to buffers.
 fn generate_write_char(ch: char) -> proc_macro2::TokenStream {
     quote! {
-        __total += ::vtenc::encode::WriteSeq::write_seq(&(#ch), buf)?;
+        __total += ::vtenc::encode::AnsiEncode::encode_ansi_into(&(#ch), buf)?;
     }
 }
 
@@ -276,7 +276,7 @@ fn generate_write_char(ch: char) -> proc_macro2::TokenStream {
 /// Helper to generate quote! blocks for writing struct fields to buffers.
 fn generate_write_field(field_name: &syn::Ident) -> proc_macro2::TokenStream {
     quote! {
-        __total += ::vtenc::encode::WriteSeq::write_seq(&self.#field_name, buf)?;
+        __total += ::vtenc::encode::AnsiEncode::encode_ansi_into(&self.#field_name, buf)?;
     }
 }
 
@@ -1554,7 +1554,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                 let write_op = quote! {
                     if let Some(ref value) = self.#field_name {
                         __total += ::vtenc::encode::write_str_into(buf, #sep)?;
-                        __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
+                        __total += ::vtenc::encode::AnsiEncode::encode_ansi_into(value, buf)?;
                     }
                 };
                 write_ops.add_raw(write_op);
@@ -1579,7 +1579,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             // Check if we have multiple final bytes - if so, call trait method
             if final_bytes.len() > 1 {
                 write_ops.add_raw(quote! {
-                    __total += ::vtenc::encode::WriteSeq::write_seq(
+                    __total += ::vtenc::encode::AnsiEncode::encode_ansi_into(
                         &(::vtio_control_derive::__internal::vtio_control_base::FinalByte::final_byte(self) as char),
                         buf
                     )?;
@@ -1625,7 +1625,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                     let write_op = quote! {
                         if let Some(ref value) = self.#field_ident {
                             __total += ::vtenc::encode::write_str_into(buf, #sep_lit)?;
-                            __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
+                            __total += ::vtenc::encode::AnsiEncode::encode_ansi_into(value, buf)?;
                         }
                     };
                     write_ops.add_raw(write_op);
@@ -1670,7 +1670,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                     let write_op = quote! {
                         if let Some(ref value) = self.#field_ident {
                             __total += ::vtenc::encode::write_str_into(buf, #sep_lit)?;
-                            __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
+                            __total += ::vtenc::encode::AnsiEncode::encode_ansi_into(value, buf)?;
                         }
                     };
                     write_ops.add_raw(write_op);

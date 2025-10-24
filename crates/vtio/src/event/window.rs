@@ -2,7 +2,7 @@
 
 use vtio_control_derive::VTControl;
 use vtio_control_base::EscapeSequenceParam;
-use vtenc::IntoSeq;
+use vtenc::ToAnsi;
 
 /// Title stack target.
 ///
@@ -32,8 +32,8 @@ impl TitleStackTarget {
     }
 }
 
-impl IntoSeq for TitleStackTarget {
-    fn into_seq(&self) -> impl vtenc::WriteSeq {
+impl ToAnsi for TitleStackTarget {
+    fn to_ansi(&self) -> impl vtenc::AnsiEncode {
         self.as_u8()
     }
 }
@@ -92,8 +92,8 @@ impl MaximizeMode {
     }
 }
 
-impl IntoSeq for MaximizeMode {
-    fn into_seq(&self) -> impl vtenc::WriteSeq {
+impl ToAnsi for MaximizeMode {
+    fn to_ansi(&self) -> impl vtenc::AnsiEncode {
         self.as_u8()
     }
 }
@@ -147,8 +147,8 @@ impl PositionCoordinateSystem {
     }
 }
 
-impl IntoSeq for PositionCoordinateSystem {
-    fn into_seq(&self) -> impl vtenc::WriteSeq {
+impl ToAnsi for PositionCoordinateSystem {
+    fn to_ansi(&self) -> impl vtenc::AnsiEncode {
         self.as_u8()
     }
 }
@@ -200,8 +200,8 @@ impl SizeSelector {
     }
 }
 
-impl IntoSeq for SizeSelector {
-    fn into_seq(&self) -> impl vtenc::WriteSeq {
+impl ToAnsi for SizeSelector {
+    fn to_ansi(&self) -> impl vtenc::AnsiEncode {
         self.as_u8()
     }
 }
@@ -538,8 +538,8 @@ pub enum WindowState {
     Iconified,
 }
 
-impl IntoSeq for WindowState {
-    fn into_seq(&self) -> impl vtenc::WriteSeq {
+impl ToAnsi for WindowState {
+    fn to_ansi(&self) -> impl vtenc::AnsiEncode {
         match self {
             WindowState::NotIconified => 1u8,
             WindowState::Iconified => 2u8,
