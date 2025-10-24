@@ -15,7 +15,7 @@ pub use vtenc::{
 /// Trait for VT control sequences that have multiple possible final bytes.
 ///
 /// When a sequence is declared with multiple final bytes in its
-/// `#[vtctl(..., finalbyte = ['M', 'm'])]` attribute, it must implement
+/// `#[vtctl(..., finalbyte = 'M' | 'm')]` attribute, it must implement
 /// this trait to determine which final byte to use during encoding.
 ///
 /// For parsing, all specified final bytes are registered and recognized.

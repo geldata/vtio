@@ -695,7 +695,7 @@ fn parse_intermediate(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8
 /// Parse the final byte(s) attribute.
 ///
 /// Extract one or more bytes from a character literal like `finalbyte = 'h'`
-/// or an array of character literals like `finalbyte = ['M', 'm']`.
+/// or a binary OR expression like `finalbyte = 'M' | 'm'`.
 fn parse_finalbytes(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8> {
     // Unwrap Expr::Group to handle macro-expanded tokens
     let value = match value {
@@ -703,31 +703,54 @@ fn parse_finalbytes(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8> 
         other => other,
     };
 
-    // Check if it's an array
-    if let Expr::Array(arr) = value {
-        let mut bytes = Vec::new();
-        for elem in arr.elems.iter() {
-            let elem = match elem {
-                Expr::Group(group) => &*group.expr,
-                other => other,
-            };
+    // Helper function to recursively collect char literals from binary OR expressions
+    fn collect_chars(expr: &Expr, chars: &mut Vec<u8>, diagnostics: &mut Vec<Diagnostic>) {
+        let expr = match expr {
+            Expr::Group(group) => &*group.expr,
+            other => other,
+        };
 
-            if let Expr::Lit(ExprLit {
+        match expr {
+            Expr::Binary(bin) => {
+                // Check if it's a BitOr operation
+                if matches!(bin.op, syn::BinOp::BitOr(_)) {
+                    // Recursively collect from left and right
+                    collect_chars(&bin.left, chars, diagnostics);
+                    collect_chars(&bin.right, chars, diagnostics);
+                } else {
+                    diagnostics.push(
+                        expr.span()
+                            .error("finalbyte expression must use | operator")
+                            .help("example: finalbyte = 'M' | 'm'"),
+                    );
+                }
+            }
+            Expr::Lit(ExprLit {
                 lit: Lit::Char(ch), ..
-            }) = elem
-            {
-                bytes.push(ch.value() as u8);
-            } else {
+            }) => {
+                chars.push(ch.value() as u8);
+            }
+            _ => {
                 diagnostics.push(
-                    elem.span()
-                        .error("finalbyte array must contain character literals")
-                        .help("example: finalbyte = ['M', 'm']"),
+                    expr.span()
+                        .error("finalbyte must be a character literal or | expression")
+                        .help("example: finalbyte = 'h' or finalbyte = 'M' | 'm'"),
                 );
             }
         }
-        bytes
-    } else if let Some(byte) = parse_char_as_byte(value, "finalbyte", "h", diagnostics) {
-        // Single character
+    }
+
+    // Check if it's a binary OR expression
+    if let Expr::Binary(bin) = value {
+        if matches!(bin.op, syn::BinOp::BitOr(_)) {
+            let mut bytes = Vec::new();
+            collect_chars(value, &mut bytes, diagnostics);
+            return bytes;
+        }
+    }
+
+    // Single character literal
+    if let Some(byte) = parse_char_as_byte(value, "finalbyte", "h", diagnostics) {
         vec![byte]
     } else {
         Vec::new()
@@ -1016,7 +1039,7 @@ fn generate_registry_entry(
 
     // Split generics for use in handler
     let (_, ty_generics, _) = generics.split_for_impl();
-    
+
     // Generate handler function
     let handler_body = if let Some(params) = var_params {
         // Variable sequence - parse params and call new
@@ -1103,7 +1126,7 @@ fn generate_escape_sequence_impl(
 
     // Extract variable parameters from struct fields
     let var_params = extract_var_params_from_struct(&input);
-    
+
     // Extract paramidx attributes for each field
     let field_paramidx: Vec<Option<usize>> = if let syn::Fields::Named(ref fields) = input.fields {
         fields.named.iter().map(|f| get_paramidx_attr(f)).collect()
@@ -1381,7 +1404,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         final_bytes,
         field_paramidx,
     } = params;
-    
+
     // Split generics for impl blocks
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     // Struct is already defined by the user, we just need to generate the impls
@@ -1515,15 +1538,15 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     if dcs_data_params.is_none() || !matches!(intro, "DCS" | "OSC") {
         let start_index = const_params.len();
         let mut encoded_param_count = start_index;
-        
+
         for (i, (name, ty)) in var_params.iter().enumerate() {
             let field_name = syn::Ident::new(name, struct_name.span());
-            
+
             // Skip fields that have paramidx attribute (they're folded into other params)
             if field_paramidx.get(i).and_then(|&x| x).is_some() {
                 continue;
             }
-            
+
             // Check if this is an optional parameter
             if is_option_type(ty) {
                 // Generate conditional write for optional parameters
@@ -1557,7 +1580,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             if final_bytes.len() > 1 {
                 write_ops.add_raw(quote! {
                     __total += ::vtenc::encode::WriteSeq::write_seq(
-                        &(::vtio_control_derive::__internal::vtio_control_base::DynamicFinalByte::final_byte(self) as char),
+                        &(::vtio_control_derive::__internal::vtio_control_base::FinalByte::final_byte(self) as char),
                         buf
                     )?;
                 });

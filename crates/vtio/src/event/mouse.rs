@@ -330,13 +330,12 @@ impl From<&EscapeSequenceParam> for Coordinates {
 /// `Ctrl` + left mouse button click as a right mouse button click.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[vtctl(csi, intermediate = "<", finalbyte = ['M', 'm'])]
+#[vtctl(csi, intermediate = "<", finalbyte = 'M' | 'm')]
 pub struct MouseEvent {
     /// The kind of mouse event that was caused.
-    /// Parsed from parameter 0 (button code).
     pub kind: MouseEventKind,
     /// The key modifiers active when the event occurred.
-    /// Parsed from parameter 0 (button code).
+    /// Encoded in parameter 0 (button code).
     #[vtctl(paramidx = 0)]
     pub modifiers: KeyModifiers,
     /// The coordinates where the event occurred.
