@@ -53,6 +53,33 @@ fn is_unit_type(ty: &syn::Type) -> bool {
     type_to_string(ty) == "()"
 }
 
+/// Check if a type is Option<T>.
+///
+/// Helper to detect optional fields for conditional encoding.
+fn is_option_type(ty: &syn::Type) -> bool {
+    let ty_str = type_to_string(ty);
+    ty_str.starts_with("Option<") || ty_str.starts_with("std::option::Option<")
+}
+
+/// Extract the inner type from Option<T>.
+///
+/// Returns the inner type T if the type is Option<T>, otherwise returns the type itself.
+#[allow(dead_code)]
+fn extract_option_inner_type(ty: &syn::Type) -> Option<syn::Type> {
+    if let syn::Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            if segment.ident == "Option" {
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        return Some(inner_ty.clone());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Filter intermediate bytes to exclude zero padding.
 ///
 /// Helper to reduce repetition when processing intermediate byte sequences.
@@ -97,6 +124,12 @@ impl WriteOperationBuilder {
     /// Add a field write operation.
     fn write_field(&mut self, field_name: &syn::Ident) -> &mut Self {
         self.operations.push(generate_write_field(field_name));
+        self
+    }
+
+    /// Add a raw token stream operation.
+    fn add_raw(&mut self, op: proc_macro2::TokenStream) -> &mut Self {
+        self.operations.push(op);
         self
     }
 
@@ -441,8 +474,10 @@ fn extract_var_params_from_struct(input: &ItemStruct) -> Option<Vec<(String, syn
 /// Represents a DCS data parameter (either a field or a constant literal).
 #[derive(Clone)]
 enum DcsDataParam {
-    /// A field from the struct
+    /// A required field from the struct
     Field(Box<(String, syn::Type)>),
+    /// An optional field from the struct (Option<T>)
+    OptionalField(Box<(String, syn::Type)>),
     /// A constant literal value
     Literal(String),
 }
@@ -487,7 +522,12 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
                         return None;
                     }
 
-                    Some(DcsDataParam::Field(Box::new((name, field.ty.clone()))))
+                    // Check if this is an Option<T> field
+                    if is_option_type(ty) {
+                        Some(DcsDataParam::OptionalField(Box::new((name, field.ty.clone()))))
+                    } else {
+                        Some(DcsDataParam::Field(Box::new((name, field.ty.clone()))))
+                    }
                 })
                 .collect();
             if params.is_empty() {
@@ -1222,16 +1262,31 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             } else {
                 i > 0 // Normal behavior: separator after first element
             };
-            if needs_separator {
-                write_ops.write_str(";");
-            }
             match param {
                 DcsDataParam::Field(boxed) => {
+                    if needs_separator {
+                        write_ops.write_str(";");
+                    }
                     let (field_name, _ty) = &**boxed;
                     let field_ident = syn::Ident::new(field_name, struct_name.span());
                     write_ops.write_field(&field_ident);
                 }
+                DcsDataParam::OptionalField(boxed) => {
+                    // Generate conditional write for optional fields
+                    let (field_name, _ty) = &**boxed;
+                    let field_ident = syn::Ident::new(field_name, struct_name.span());
+                    let write_op = quote! {
+                        if let Some(ref value) = self.#field_ident {
+                            __total += ::vtenc::encode::write_str_into(buf, ";")?;
+                            __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
+                        }
+                    };
+                    write_ops.add_raw(write_op);
+                }
                 DcsDataParam::Literal(lit) => {
+                    if needs_separator {
+                        write_ops.write_str(";");
+                    }
                     write_ops.write_str(lit);
                 }
             }

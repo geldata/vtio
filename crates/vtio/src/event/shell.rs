@@ -58,45 +58,34 @@ pub struct PromptEnd;
 #[osc(number = "133", data = "C")]
 pub struct CommandStart;
 
-/// A command that marks the end of command output without an exit code.
+/// A command that marks the end of command output.
 ///
-/// This sequence (OSC 133;D) indicates where the command output ends.
-/// Terminal emulators can use this to track command execution boundaries.
-///
-/// # Notes
-///
-/// - This should be emitted after a command finishes execution.
-/// - Should follow a `CommandStart` sequence.
-/// - Use `CommandEndWithCode` to include the exit code.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
-#[osc(number = "133", data = "D")]
-pub struct CommandEnd;
-
-/// A command that marks the end of command output with an exit code.
-///
-/// This sequence (OSC 133;D;exit_code) indicates where the command output
-/// ends and includes the command's exit code. Terminal emulators can use
-/// this to track command execution status and enable features like showing
-/// success/failure indicators.
+/// This sequence (OSC 133;D or OSC 133;D;exit_code) indicates where the
+/// command output ends. It can optionally include the command's exit code.
+/// Terminal emulators can use this to track command execution status and
+/// enable features like showing success/failure indicators.
 ///
 /// # Notes
 ///
 /// - This should be emitted after a command finishes execution.
 /// - Should follow a `CommandStart` sequence.
-/// - The exit code is included in the sequence.
+/// - The exit code parameter is optional.
 ///
 /// # Example
 ///
 /// ```ignore
+/// // Report command completion without exit code
+/// let end = CommandEnd::new(None);
+///
 /// // Report successful command completion
-/// let end = CommandEndWithCode::new(0);
+/// let end = CommandEnd::new(Some(0));
 ///
 /// // Report command failure
-/// let end = CommandEndWithCode::new(1);
+/// let end = CommandEnd::new(Some(1));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
 #[osc(number = "133", data = "D")]
-pub struct CommandEndWithCode {
-    pub exit_code: i32,
+pub struct CommandEnd {
+    pub exit_code: Option<i32>,
 }
 
