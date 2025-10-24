@@ -344,8 +344,8 @@ struct EscapeSequenceAttributes {
     params: Vec<Vec<u8>>,
     /// Intermediate byte sequence (max 2 bytes).
     intermediate: Vec<u8>,
-    /// Final byte that terminates the sequence.
-    final_byte: Option<u8>,
+    /// Final byte(s) that terminate the sequence. Can be single or multiple.
+    final_bytes: Vec<u8>,
     /// Optional data string (for DCS sequences) that appears after the
     /// final byte but before the string terminator.
     data: Option<String>,
@@ -659,11 +659,46 @@ fn parse_intermediate(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8
     }
 }
 
-/// Parse the final byte attribute.
+/// Parse the final byte(s) attribute.
 ///
-/// Extract a single byte from a character literal like `finalbyte = 'h'`.
-fn parse_finalbyte(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8> {
-    parse_char_as_byte(value, "finalbyte", "h", diagnostics)
+/// Extract one or more bytes from a character literal like `finalbyte = 'h'`
+/// or an array of character literals like `finalbyte = ['M', 'm']`.
+fn parse_finalbytes(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8> {
+    // Unwrap Expr::Group to handle macro-expanded tokens
+    let value = match value {
+        Expr::Group(group) => &*group.expr,
+        other => other,
+    };
+
+    // Check if it's an array
+    if let Expr::Array(arr) = value {
+        let mut bytes = Vec::new();
+        for elem in arr.elems.iter() {
+            let elem = match elem {
+                Expr::Group(group) => &*group.expr,
+                other => other,
+            };
+
+            if let Expr::Lit(ExprLit {
+                lit: Lit::Char(ch), ..
+            }) = elem
+            {
+                bytes.push(ch.value() as u8);
+            } else {
+                diagnostics.push(
+                    elem.span()
+                        .error("finalbyte array must contain character literals")
+                        .help("example: finalbyte = ['M', 'm']"),
+                );
+            }
+        }
+        bytes
+    } else if let Some(byte) = parse_char_as_byte(value, "finalbyte", "h", diagnostics) {
+        // Single character
+        vec![byte]
+    } else {
+        Vec::new()
+    }
 }
 
 /// Parse the data attribute.
@@ -700,7 +735,7 @@ fn parse_escape_sequence_attributes(
         private: None,
         params: Vec::new(),
         intermediate: Vec::new(),
-        final_byte: None,
+        final_bytes: Vec::new(),
         data: None,
         number: None,
         data_sep: None,
@@ -713,7 +748,7 @@ fn parse_escape_sequence_attributes(
                 "private" => attrs.private = parse_private(value, diagnostics),
                 "params" => attrs.params = parse_params(value, diagnostics),
                 "intermediate" => attrs.intermediate = parse_intermediate(value, diagnostics),
-                "finalbyte" => attrs.final_byte = parse_finalbyte(value, diagnostics),
+                "finalbyte" => attrs.final_bytes = parse_finalbytes(value, diagnostics),
                 "data" => attrs.data = parse_data(value, diagnostics),
                 "number" => attrs.number = parse_number(value, diagnostics),
                 "data_sep" => attrs.data_sep = parse_separator(value, "data_sep", diagnostics),
@@ -1011,18 +1046,19 @@ fn generate_escape_sequence_impl(
 
     // Validate required attributes
     // For OSC, PM, and APC sequences, finalbyte is optional (they use data instead)
+    let has_multiple_final_bytes = attrs.final_bytes.len() > 1;
     let final_byte = if matches!(intro, "OSC" | "PM" | "APC") {
-        attrs.final_byte.unwrap_or(0) // Use 0 as placeholder, won't be used
+        attrs.final_bytes.first().copied().unwrap_or(0) // Use 0 as placeholder, won't be used
     } else {
-        let Some(final_byte) = attrs.final_byte else {
+        if attrs.final_bytes.is_empty() {
             diagnostics.push(error_required_attr(
                 struct_name.span(),
                 "finalbyte",
                 "'X' where X is the final byte character",
             ));
             return emit_diagnostics(diagnostics);
-        };
-        final_byte
+        }
+        attrs.final_bytes[0]
     };
 
     if !diagnostics.is_empty() {
@@ -1110,6 +1146,33 @@ fn generate_escape_sequence_impl(
         let has_lifetimes = !input.generics.lifetimes().collect::<Vec<_>>().is_empty();
         let registry_entry = if has_lifetimes {
             quote! {}
+        } else if has_multiple_final_bytes {
+            // Generate multiple registry entries, one for each final byte
+            let entries: Vec<_> = attrs.final_bytes.iter().enumerate().map(|(idx, &fb)| {
+                let registry_name_str = format!("__{}_REGISTRY_ENTRY_{}", struct_name.to_string().to_uppercase(), idx);
+                let registry_name = syn::Ident::new(&registry_name_str, struct_name.span());
+                let handler_name = syn::Ident::new(
+                    &format!("{}_handler", struct_name.to_string().to_lowercase()),
+                    struct_name.span(),
+                );
+                let intro_variant = syn::Ident::new(intro, struct_name.span());
+                let struct_name_str = struct_name.to_string();
+
+                quote! {
+                    #[doc(hidden)]
+                    #[cfg(feature = "parser")]
+                    #[::vtio_control_derive::__internal::linkme::distributed_slice(::vtio_control_derive::__internal::vtio_control_registry::ESCAPE_SEQUENCE_REGISTRY)]
+                    static #registry_name: ::vtio_control_derive::__internal::vtio_control_registry::EscapeSequenceMatchEntry =
+                        ::vtio_control_derive::__internal::vtio_control_registry::EscapeSequenceMatchEntry {
+                            name: #struct_name_str,
+                            intro: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer::#intro_variant,
+                            prefix: &[#(#prefix_bytes),*],
+                            final_byte: #fb,
+                            handler: #handler_name,
+                        };
+                }
+            }).collect();
+            quote! { #(#entries)* }
         } else {
             generate_registry_entry(
                 struct_name,
@@ -1170,13 +1233,14 @@ fn generate_escape_sequence_impl(
             var_params: &var_params,
             intermediate: &attrs.intermediate,
             final_byte,
+            final_bytes: &attrs.final_bytes,
             dcs_data_params: dcs_data_params.as_deref(),
             positional_params: positional_params.as_deref(),
             osc_number: attrs.number.as_deref(),
             osc_data: attrs.data.as_deref(),
             data_sep: attrs.data_sep.as_deref(),
             param_sep: attrs.param_sep.as_deref(),
-            emit_struct,
+            emit_struct: false,
         })
     }
 }
@@ -1247,6 +1311,7 @@ struct VariableSequenceParams<'a> {
     data_sep: Option<&'a str>,
     param_sep: Option<&'a str>,
     emit_struct: bool,
+    final_bytes: &'a [u8],
 }
 
 /// Generate a variable (non-const) sequence implementation.
@@ -1268,6 +1333,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         data_sep,
         param_sep,
         emit_struct,
+        final_bytes,
     } = params;
     
     // Split generics for impl blocks
@@ -1434,7 +1500,17 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
         // For PM/APC, don't write finalbyte (they only have data + ST)
         if !matches!(intro, "PM" | "APC") {
-            write_ops.write_char(final_byte as char);
+            // Check if we have multiple final bytes - if so, call trait method
+            if final_bytes.len() > 1 {
+                write_ops.add_raw(quote! {
+                    __total += ::vtenc::encode::WriteSeq::write_seq(
+                        &::vtio_control_derive::__internal::vtio_control_base::DynamicFinalByte::final_byte(self),
+                        buf
+                    )?;
+                });
+            } else {
+                write_ops.write_char(final_byte as char);
+            }
         }
     }
 
@@ -2008,11 +2084,11 @@ fn generate_esc_sequence_impl(
 
     if is_const {
         // For const sequences, finalbyte is required
-        let Some(final_byte) = attrs.final_byte else {
+        let Some(final_byte) = attrs.final_bytes.first().copied() else {
             diagnostics.push(error_required_attr(
                 struct_name.span(),
                 "finalbyte",
-                "'X' where X is the final byte character (for const sequences)",
+                "'X' where X is the final byte character",
             ));
             return emit_diagnostics(diagnostics);
         };

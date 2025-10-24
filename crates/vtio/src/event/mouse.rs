@@ -2,10 +2,11 @@
 //!
 //! See <https://terminalguide.namepad.de/mouse/> for details.
 
-use vtenc::{ConstEncodedLen, Encode, EncodeError, const_composite, write_csi};
+use vtenc::{IntoSeq, WriteSeq, const_composite};
+use vtio_control_base::{DynamicFinalByte, EscapeSequenceParam};
+use vtio_control_derive::{terminal_mode, VTControl};
 
 use crate::event::keyboard::KeyModifiers;
-use vtio_control_derive::terminal_mode;
 
 //
 // Mouse event modes (mutually exclusive).
@@ -224,7 +225,8 @@ const_composite! {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sm__p/> for terminal
 /// support specifics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(csi, finalbyte = 'm')]
 pub struct LinuxMousePointerStyle {
     /// XOR mask for attribute manipulation.
     pub attr_xor: u8,
@@ -232,104 +234,94 @@ pub struct LinuxMousePointerStyle {
     pub char_xor: u8,
 }
 
-impl LinuxMousePointerStyle {
-    /// Create a new Linux mouse pointer style with the specified
-    /// parameters.
+/// Terminal coordinates (column and row).
+///
+/// Both coordinates are 0-based for internal representation but are
+/// converted to 1-based when encoding for terminal sequences.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Coordinates {
+    /// Column position (0-based).
+    pub column: u16,
+    /// Row position (0-based).
+    pub row: u16,
+}
+
+impl Coordinates {
+    /// Create new coordinates.
     #[must_use]
-    pub const fn new(attr_xor: u8, char_xor: u8) -> Self {
-        Self { attr_xor, char_xor }
+    pub const fn new(column: u16, row: u16) -> Self {
+        Self { column, row }
     }
 }
 
-impl ConstEncodedLen for LinuxMousePointerStyle {
-    // CSI (2) + max attr_xor (3) + ";" (1) + max char_xor (3) + "m" (1)
-    // = 10
-    const ENCODED_LEN: usize = 10;
-}
-
-impl Encode for LinuxMousePointerStyle {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.attr_xor, ";", self.char_xor, "m")
+impl IntoSeq for Coordinates {
+    fn into_seq(&self) -> impl WriteSeq {
+        // Coordinates are encoded as two separate parameters with a
+        // semicolon between them. Convert to 1-based for terminal
+        // sequences.
+        CoordinatesSeq {
+            column: self.column + 1,
+            row: self.row + 1,
+        }
     }
 }
 
-impl Encode for MouseEvent {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        let mods = self.modifiers;
+struct CoordinatesSeq {
+    column: u16,
+    row: u16,
+}
 
-        // Calculate modifier offset for SGR mode
-        let mod_offset = if mods.contains(KeyModifiers::SHIFT) {
-            4
-        } else {
-            0
-        } + if mods.contains(KeyModifiers::ALT) {
-            8
-        } else {
-            0
-        } + if mods.contains(KeyModifiers::CONTROL) {
-            16
-        } else {
-            0
-        };
-
-        // Map mouse event kinds to SGR button codes
-        let (base_button, final_char) = match self.kind {
-            MouseEventKind::Down(button) => {
-                let btn_code = match button {
-                    MouseButton::Left => 0,
-                    MouseButton::Middle => 1,
-                    MouseButton::Right => 2,
-                };
-                (btn_code, b'M')
-            }
-            MouseEventKind::Up(button) => {
-                let btn_code = match button {
-                    MouseButton::Left => 0,
-                    MouseButton::Middle => 1,
-                    MouseButton::Right => 2,
-                };
-                (btn_code, b'm')
-            }
-            MouseEventKind::Drag(button) => {
-                let btn_code = match button {
-                    MouseButton::Left => 0,
-                    MouseButton::Middle => 1,
-                    MouseButton::Right => 2,
-                };
-                // Add drag bit (bit 5 = 32)
-                (btn_code + 32, b'M')
-            }
-            MouseEventKind::Moved => {
-                // Mouse move without button
-                (3 + 32, b'M')
-            }
-            MouseEventKind::ScrollUp => (1 << 6, b'M'),
-            MouseEventKind::ScrollDown => (1 << 6 | 1, b'M'),
-            MouseEventKind::ScrollLeft => (1 << 6 | 2, b'M'),
-            MouseEventKind::ScrollRight => (1 << 6 | 3, b'M'),
-        };
-
-        let button_code = base_button + mod_offset;
-
-        // Convert coordinates (0-based to 1-based for SGR)
-        let x = self.column + 1;
-        let y = self.row + 1;
-
-        // Generate SGR sequence: ESC[<btn;col;row(M|m)
-        write_csi!(buf; "<", button_code, ";", x, ";", y, final_char as char)
+impl WriteSeq for CoordinatesSeq {
+    fn write_seq<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, vtenc::EncodeError> {
+        use vtenc::encode::{write_str_into, WriteSeq};
+        let mut total = 0;
+        total += WriteSeq::write_seq(&self.column, buf)?;
+        total += write_str_into(buf, ";")?;
+        total += WriteSeq::write_seq(&self.row, buf)?;
+        Ok(total)
     }
 }
 
-/// Represents a mouse event.
+impl From<EscapeSequenceParam> for Coordinates {
+    fn from(param: EscapeSequenceParam) -> Self {
+        // Coordinates are encoded as separate params, but we receive
+        // them as a single param here. Extract first value only.
+        let col = param.first() as u16;
+        Self {
+            column: col.saturating_sub(1),
+            row: 0, // Will be set from second param
+        }
+    }
+}
+
+impl From<&EscapeSequenceParam> for Coordinates {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.clone())
+    }
+}
+
+/// Represents a mouse event in SGR format.
+///
+/// This structure encodes mouse events using the SGR mouse reporting
+/// format, which uses sequences like `ESC[<btn;col;row;M` for button
+/// press/movement and `ESC[<btn;col;row;m` for button release.
+///
+/// The button code is computed from the event kind and modifiers
+/// during encoding. During parsing, both the kind and modifiers are
+/// extracted from the button code.
 ///
 /// # Platform-specific Notes
 ///
 /// ## Mouse Buttons
 ///
 /// Some platforms/terminals do not report mouse button for the
-/// `MouseEventKind::Up` and `MouseEventKind::Drag` events. `MouseButton::Left`
-/// is returned if we don't know which button was used.
+/// `MouseEventKind::Up` and `MouseEventKind::Drag` events.
+/// `MouseButton::Left` is returned if we don't know which button was
+/// used.
 ///
 /// ## Key Modifiers
 ///
@@ -341,12 +333,110 @@ impl Encode for MouseEvent {
 pub struct MouseEvent {
     /// The kind of mouse event that was caused.
     pub kind: MouseEventKind,
-    /// The column that the event occurred on.
-    pub column: u16,
-    /// The row that the event occurred on.
-    pub row: u16,
+    /// The coordinates where the event occurred.
+    pub coords: Coordinates,
     /// The key modifiers active when the event occurred.
     pub modifiers: KeyModifiers,
+}
+
+impl vtenc::Encode for MouseEvent {
+    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, vtenc::EncodeError> {
+        use vtenc::encode::{write_str_into, WriteSeq};
+
+        let mut total = 0;
+        // Write CSI introducer
+        total += write_str_into(buf, "\x1b[")?;
+        // Write intermediate '<'
+        total += write_str_into(buf, "<")?;
+        // Write button code and coordinates
+        total += WriteSeq::write_seq(&self.into_seq(), buf)?;
+        // Write final byte (M or m)
+        total += WriteSeq::write_seq(&(self.kind.final_byte() as char), buf)?;
+        Ok(total)
+    }
+}
+
+impl MouseEvent {
+    /// Create a new mouse event.
+    #[must_use]
+    pub const fn new(kind: MouseEventKind, coords: Coordinates, modifiers: KeyModifiers) -> Self {
+        Self {
+            kind,
+            coords,
+            modifiers,
+        }
+    }
+
+    /// Get the column where the event occurred.
+    #[must_use]
+    pub const fn column(&self) -> u16 {
+        self.coords.column
+    }
+
+    /// Get the row where the event occurred.
+    #[must_use]
+    pub const fn row(&self) -> u16 {
+        self.coords.row
+    }
+
+    /// Compute the SGR button code from kind and modifiers.
+    fn button_code(&self) -> u16 {
+        let base_button = self.kind.base_button_code();
+        let mod_offset = self.modifiers.sgr_modifier_offset();
+        base_button + mod_offset
+    }
+}
+
+impl DynamicFinalByte for MouseEvent {
+    fn final_byte(&self) -> u8 {
+        self.kind.final_byte()
+    }
+}
+
+impl IntoSeq for MouseEvent {
+    fn into_seq(&self) -> impl WriteSeq {
+        // Encode button code and coordinates as separate parameters
+        MouseEventSeq {
+            button_code: self.button_code(),
+            coords: self.coords,
+        }
+    }
+}
+
+struct MouseEventSeq {
+    button_code: u16,
+    coords: Coordinates,
+}
+
+impl WriteSeq for MouseEventSeq {
+    fn write_seq<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, vtenc::EncodeError> {
+        use vtenc::encode::{write_str_into, WriteSeq};
+        let mut total = 0;
+        total += WriteSeq::write_seq(&self.button_code, buf)?;
+        total += write_str_into(buf, ";")?;
+        total += WriteSeq::write_seq(&self.coords.into_seq(), buf)?;
+        Ok(total)
+    }
+}
+
+impl KeyModifiers {
+    /// Calculate modifier offset for SGR mode encoding.
+    const fn sgr_modifier_offset(self) -> u16 {
+        let mut offset = 0;
+        if self.contains(KeyModifiers::SHIFT) {
+            offset += 4;
+        }
+        if self.contains(KeyModifiers::ALT) {
+            offset += 8;
+        }
+        if self.contains(KeyModifiers::CONTROL) {
+            offset += 16;
+        }
+        offset
+    }
 }
 
 /// A mouse event kind.
@@ -356,8 +446,9 @@ pub struct MouseEvent {
 /// ## Mouse Buttons
 ///
 /// Some platforms/terminals do not report mouse button for the
-/// `MouseEventKind::Up` and `MouseEventKind::Drag` events. `MouseButton::Left`
-/// is returned if we don't know which button was used.
+/// `MouseEventKind::Up` and `MouseEventKind::Drag` events.
+/// `MouseButton::Left` is returned if we don't know which button was
+/// used.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum MouseEventKind {
@@ -379,6 +470,70 @@ pub enum MouseEventKind {
     ScrollRight,
 }
 
+impl MouseEventKind {
+    /// Get the base SGR button code (without modifiers).
+    const fn base_button_code(self) -> u16 {
+        match self {
+            MouseEventKind::Down(button) | MouseEventKind::Up(button) => button.code(),
+            MouseEventKind::Drag(button) => button.code() + 32, // Add drag bit
+            MouseEventKind::Moved => 3 + 32,                    // Mouse move without button
+            MouseEventKind::ScrollUp => 1 << 6,
+            MouseEventKind::ScrollDown => (1 << 6) | 1,
+            MouseEventKind::ScrollLeft => (1 << 6) | 2,
+            MouseEventKind::ScrollRight => (1 << 6) | 3,
+        }
+    }
+
+    /// Get the final byte for SGR encoding ('M' or 'm').
+    const fn final_byte(self) -> u8 {
+        match self {
+            MouseEventKind::Up(_) => b'm',
+            _ => b'M',
+        }
+    }
+}
+
+impl IntoSeq for MouseEventKind {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.base_button_code()
+    }
+}
+
+impl From<EscapeSequenceParam> for MouseEventKind {
+    fn from(param: EscapeSequenceParam) -> Self {
+        let code = param.first() as u16;
+        // Parse SGR button code
+        let base_code = code & 0x3F; // Mask out modifier bits
+        let is_drag = (code & 32) != 0;
+
+        if base_code >= 64 {
+            // Scroll events
+            match base_code & 0x03 {
+                0 => MouseEventKind::ScrollUp,
+                1 => MouseEventKind::ScrollDown,
+                2 => MouseEventKind::ScrollLeft,
+                _ => MouseEventKind::ScrollRight,
+            }
+        } else if base_code == 35 && is_drag {
+            // Mouse move without button
+            MouseEventKind::Moved
+        } else {
+            let button = MouseButton::from_code((base_code & 0x03) as u8);
+            if is_drag {
+                MouseEventKind::Drag(button)
+            } else {
+                MouseEventKind::Down(button)
+            }
+        }
+    }
+}
+
+impl From<&EscapeSequenceParam> for MouseEventKind {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.clone())
+    }
+}
+
 /// Represents a mouse button.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
@@ -391,18 +546,63 @@ pub enum MouseButton {
     Middle,
 }
 
+impl MouseButton {
+    /// Get the SGR button code.
+    const fn code(self) -> u16 {
+        match self {
+            MouseButton::Left => 0,
+            MouseButton::Middle => 1,
+            MouseButton::Right => 2,
+        }
+    }
+
+    /// Create from SGR button code.
+    const fn from_code(code: u8) -> Self {
+        match code {
+            1 => MouseButton::Middle,
+            2 => MouseButton::Right,
+            _ => MouseButton::Left,
+        }
+    }
+}
+
+impl IntoSeq for MouseButton {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.code()
+    }
+}
+
+impl From<u8> for MouseButton {
+    fn from(value: u8) -> Self {
+        Self::from_code(value)
+    }
+}
+
+impl From<EscapeSequenceParam> for MouseButton {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from_code(param.first())
+    }
+}
+
+impl From<&EscapeSequenceParam> for MouseButton {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use vtenc::Encode;
+
     #[test]
     fn test_encode_mouse_event_down() {
-        let mut event = MouseEvent {
-            kind: MouseEventKind::Down(MouseButton::Left),
-            column: 0,
-            row: 0,
-            modifiers: KeyModifiers::NONE,
-        };
+        let mut event = MouseEvent::new(
+            MouseEventKind::Down(MouseButton::Left),
+            Coordinates::new(0, 0),
+            KeyModifiers::NONE,
+        );
         let mut buf = [0u8; 64];
         let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<0;1;1M");
@@ -410,12 +610,11 @@ mod tests {
 
     #[test]
     fn test_encode_mouse_event_up() {
-        let mut event = MouseEvent {
-            kind: MouseEventKind::Up(MouseButton::Left),
-            column: 0,
-            row: 0,
-            modifiers: KeyModifiers::NONE,
-        };
+        let mut event = MouseEvent::new(
+            MouseEventKind::Up(MouseButton::Left),
+            Coordinates::new(0, 0),
+            KeyModifiers::NONE,
+        );
         let mut buf = [0u8; 64];
         let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<0;1;1m");
@@ -423,12 +622,11 @@ mod tests {
 
     #[test]
     fn test_encode_mouse_event_scroll() {
-        let mut event = MouseEvent {
-            kind: MouseEventKind::ScrollUp,
-            column: 0,
-            row: 0,
-            modifiers: KeyModifiers::NONE,
-        };
+        let mut event = MouseEvent::new(
+            MouseEventKind::ScrollUp,
+            Coordinates::new(0, 0),
+            KeyModifiers::NONE,
+        );
         let mut buf = [0u8; 64];
         let len = event.encode(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<64;1;1M");
