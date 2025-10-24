@@ -1,11 +1,12 @@
 //! Buffer control/information messages.
 
 use vtenc::{
-    ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, format_dcs, format_esc,
-    format_osc, write_csi, write_dcs, write_int, write_str_into,
+    ConstEncodedLen, Encode, EncodeError, IntoSeq, WriteSeq, write_csi, write_dcs, write_int,
+    write_str_into,
 };
 
-use vtio_control_derive::terminal_mode;
+use vtio_control_base::EscapeSequenceParam;
+use vtio_control_derive::{VTControl, terminal_mode};
 
 terminal_mode!(
     /// Insert mode (`IRM`).
@@ -316,11 +317,9 @@ terminal_mode!(
 ///
 /// See <https://terminalguide.namepad.de/seq/osc-10/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(osc, data = "10;?")]
 pub struct RequestDefaultForeground;
-
-impl ConstEncode for RequestDefaultForeground {
-    const STR: &'static str = format_osc!("10;?");
-}
 
 /// Request default background color.
 ///
@@ -332,22 +331,18 @@ impl ConstEncode for RequestDefaultForeground {
 ///
 /// See <https://terminalguide.namepad.de/seq/osc-11/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(osc, data = "11;?")]
 pub struct RequestDefaultBackground;
-
-impl ConstEncode for RequestDefaultBackground {
-    const STR: &'static str = format_osc!("11;?");
-}
 
 /// Request text attributes (SGR) using `DECRQSS`.
 ///
 /// Query SGR state using DEC Request Status String.
 ///
 /// The terminal replies with the current SGR attributes.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(dcs, intermediate = "$", finalbyte = 'q', data = "m")]
 pub struct RequestTextAttributes;
-
-impl ConstEncode for RequestTextAttributes {
-    const STR: &'static str = format_dcs!("$qm");
-}
 
 /// Full Reset (`RIS`).
 ///
@@ -363,12 +358,9 @@ impl ConstEncode for RequestTextAttributes {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_sc/> for terminal
 /// support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(esc, finalbyte = 'c')]
 pub struct FullReset;
-
-impl ConstEncode for FullReset {
-    const STR: &'static str = format_esc!("c");
-}
 
 /// Request Terminal ID (`DECID`).
 ///
@@ -376,12 +368,9 @@ impl ConstEncode for FullReset {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_cz/> for terminal
 /// support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(esc, finalbyte = 'Z')]
 pub struct RequestTerminalID;
-
-impl ConstEncode for RequestTerminalID {
-    const STR: &'static str = format_esc!("Z");
-}
 
 /// Request primary device attributes (`DA1`).
 ///
@@ -393,11 +382,9 @@ impl ConstEncode for RequestTerminalID {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sc/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(csi, finalbyte = 'c')]
 pub struct RequestPrimaryDeviceAttributes;
-
-impl ConstEncode for RequestPrimaryDeviceAttributes {
-    const STR: &'static str = format_csi!("c");
-}
 
 /// Request secondary device attributes (`DA2`).
 ///
@@ -408,11 +395,9 @@ impl ConstEncode for RequestPrimaryDeviceAttributes {
 ///
 /// See <https://terminalguide.namepad.de/seq/> for terminal support
 /// specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(csi, intermediate = ">", finalbyte = 'c')]
 pub struct RequestSecondaryDeviceAttributes;
-
-impl ConstEncode for RequestSecondaryDeviceAttributes {
-    const STR: &'static str = format_csi!(">c");
-}
 
 /// Request tertiary device attributes (`DA3`).
 ///
@@ -424,11 +409,9 @@ impl ConstEncode for RequestSecondaryDeviceAttributes {
 ///
 /// See <https://terminalguide.namepad.de/seq/> for terminal support
 /// specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(csi, intermediate = "=", finalbyte = 'c')]
 pub struct RequestTertiaryDeviceAttributes;
-
-impl ConstEncode for RequestTertiaryDeviceAttributes {
-    const STR: &'static str = format_csi!("=c");
-}
 
 /// Terminal conformance level for DA1 response.
 ///
@@ -448,12 +431,49 @@ pub enum ConformanceLevel {
     VT420 = 64,
 }
 
+impl Default for ConformanceLevel {
+    fn default() -> Self {
+        Self::VT100
+    }
+}
+
+impl IntoSeq for ConformanceLevel {
+    fn into_seq(&self) -> impl WriteSeq {
+        *self as u8
+    }
+}
+
+impl From<u8> for ConformanceLevel {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::VT100,
+            6 => Self::VT102,
+            62 => Self::VT220,
+            63 => Self::VT320,
+            64 => Self::VT420,
+            _ => Self::default(),
+        }
+    }
+}
+
+impl From<EscapeSequenceParam> for ConformanceLevel {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
+impl From<&EscapeSequenceParam> for ConformanceLevel {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
 /// Terminal capability flags for DA1 response.
 ///
 /// These flags indicate which features the terminal supports.
 /// Multiple capabilities can be combined in a single response.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-#[repr(u16)]
+#[repr(u8)]
 pub enum TerminalCapability {
     /// 132 columns mode (`DECCOLM`).
     Columns132 = 1,
@@ -503,6 +523,96 @@ pub enum TerminalCapability {
     VT525Xterm = 52,
     /// Modern xterm/VT525-like
     VT525ModernXterm = 67,
+    /// Sentinel
+    Unrecognized(u8),
+}
+
+impl From<&TerminalCapability> for u8 {
+    fn from(value: &TerminalCapability) -> Self {
+        match value {
+            TerminalCapability::Columns132 => 1,
+            TerminalCapability::Printer => 2,
+            TerminalCapability::ReGISGraphics => 3,
+            TerminalCapability::SixelGraphics => 4,
+            TerminalCapability::SelectiveErase => 6,
+            TerminalCapability::SoftCharacterSets => 7,
+            TerminalCapability::UserDefinedKeys => 8,
+            TerminalCapability::NationalReplacementCharsets => 9,
+            TerminalCapability::Blink => 12,
+            TerminalCapability::TechnicalCharset => 15,
+            TerminalCapability::LocatorDevice => 16,
+            TerminalCapability::UserDefinedKeysExtended => 17,
+            TerminalCapability::NationalReplacementCharsetsExtended => 18,
+            TerminalCapability::MoreThan24Lines => 19,
+            TerminalCapability::HorizontalScrolling => 21,
+            TerminalCapability::Color => 22,
+            TerminalCapability::SoftKeyLabels => 23,
+            TerminalCapability::RectangularAreaOps => 24,
+            TerminalCapability::LocatorEvents => 29,
+            TerminalCapability::WindowingExtensions => 42,
+            TerminalCapability::CursorPositionReportFormat => 44,
+            TerminalCapability::ExtendedColor => 46,
+            TerminalCapability::VT525Xterm => 52,
+            TerminalCapability::VT525ModernXterm => 67,
+            TerminalCapability::Unrecognized(b) => *b,
+        }
+    }
+}
+
+impl From<TerminalCapability> for u8 {
+    fn from(value: TerminalCapability) -> Self {
+        Self::from(&value)
+    }
+}
+
+impl IntoSeq for TerminalCapability {
+    fn into_seq(&self) -> impl WriteSeq {
+        u8::from(self)
+    }
+}
+
+impl From<u8> for TerminalCapability {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => TerminalCapability::Columns132,
+            2 => TerminalCapability::Printer,
+            3 => TerminalCapability::ReGISGraphics,
+            4 => TerminalCapability::SixelGraphics,
+            6 => TerminalCapability::SelectiveErase,
+            7 => TerminalCapability::SoftCharacterSets,
+            8 => TerminalCapability::UserDefinedKeys,
+            9 => TerminalCapability::NationalReplacementCharsets,
+            12 => TerminalCapability::Blink,
+            15 => TerminalCapability::TechnicalCharset,
+            16 => TerminalCapability::LocatorDevice,
+            17 => TerminalCapability::UserDefinedKeysExtended,
+            18 => TerminalCapability::NationalReplacementCharsetsExtended,
+            19 => TerminalCapability::MoreThan24Lines,
+            21 => TerminalCapability::HorizontalScrolling,
+            22 => TerminalCapability::Color,
+            23 => TerminalCapability::SoftKeyLabels,
+            24 => TerminalCapability::RectangularAreaOps,
+            29 => TerminalCapability::LocatorEvents,
+            42 => TerminalCapability::WindowingExtensions,
+            44 => TerminalCapability::CursorPositionReportFormat,
+            46 => TerminalCapability::ExtendedColor,
+            52 => TerminalCapability::VT525Xterm,
+            67 => TerminalCapability::VT525ModernXterm,
+            n => TerminalCapability::Unrecognized(n),
+        }
+    }
+}
+
+impl From<&EscapeSequenceParam> for TerminalCapability {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
+impl From<EscapeSequenceParam> for TerminalCapability {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(&param)
+    }
 }
 
 /// Response to primary device attributes request (`DA1`).
@@ -539,7 +649,7 @@ impl Encode for PrimaryDeviceAttributesResponse {
 
         for cap in &self.capabilities {
             written += write_str_into(buf, ";")?;
-            written += write_int(buf, *cap as u16)?;
+            written += write_int(buf, u8::from(cap))?;
         }
 
         written += write_str_into(buf, "c")?;
@@ -698,9 +808,6 @@ impl Encode for SelectVTConformanceLevel {
 ///
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-quote-p/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(dcs, intermediate = "$", finalbyte = 'q', data = "\"p")]
 pub struct RequestVTConformanceLevel;
-
-impl ConstEncode for RequestVTConformanceLevel {
-    const STR: &'static str = format_dcs!("$q\"p");
-}
