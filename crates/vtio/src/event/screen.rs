@@ -1,6 +1,6 @@
 //! Screen and line erase commands.
 
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, format_esc, write_csi};
+use vtio_control_derive::VTControl;
 
 /// Erase Display Below (`ED`).
 ///
@@ -20,12 +20,9 @@ use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_csi, forma
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'J')]
 pub struct EraseDisplayBelow;
-
-impl ConstEncode for EraseDisplayBelow {
-    const STR: &'static str = format_csi!("J");
-}
 
 /// Erase Display Above (`ED`).
 ///
@@ -43,12 +40,9 @@ impl ConstEncode for EraseDisplayBelow {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(params = ["1"], finalbyte = 'J')]
 pub struct EraseDisplayAbove;
-
-impl ConstEncode for EraseDisplayAbove {
-    const STR: &'static str = format_csi!("1J");
-}
 
 /// Erase Display Complete (`ED`).
 ///
@@ -66,12 +60,9 @@ impl ConstEncode for EraseDisplayAbove {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(params = ["2"], finalbyte = 'J')]
 pub struct EraseDisplayComplete;
-
-impl ConstEncode for EraseDisplayComplete {
-    const STR: &'static str = format_csi!("2J");
-}
 
 /// Erase Display Scroll-back (`ED`).
 ///
@@ -87,16 +78,15 @@ impl ConstEncode for EraseDisplayComplete {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(params = ["3"], finalbyte = 'J')]
 pub struct EraseDisplayScrollback;
-
-impl ConstEncode for EraseDisplayScrollback {
-    const STR: &'static str = format_csi!("3J");
-}
 
 /// Erase Line Right (`EL`).
 ///
 /// Erase from cursor position (inclusive) to the end of the line.
+///
+/// This is the same as `CSI 0 K` or `CSI K`.
 ///
 /// Erases all cells from the cursor position to the end of the current line,
 /// including the cell at the cursor position. The cursor position does not
@@ -107,12 +97,9 @@ impl ConstEncode for EraseDisplayScrollback {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ck/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'K')]
 pub struct EraseLineRight;
-
-impl ConstEncode for EraseLineRight {
-    const STR: &'static str = format_csi!("K");
-}
 
 /// Erase Line Left (`EL`).
 ///
@@ -127,12 +114,9 @@ impl ConstEncode for EraseLineRight {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ck/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(params = ["1"], finalbyte = 'K')]
 pub struct EraseLineLeft;
-
-impl ConstEncode for EraseLineLeft {
-    const STR: &'static str = format_csi!("1K");
-}
 
 /// Erase Line Complete (`EL`).
 ///
@@ -148,12 +132,9 @@ impl ConstEncode for EraseLineLeft {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ck/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(params = ["2"], finalbyte = 'K')]
 pub struct EraseLineComplete;
-
-impl ConstEncode for EraseLineComplete {
-    const STR: &'static str = format_csi!("2K");
-}
 
 /// Selective Erase Display Below (`DECSED`).
 ///
@@ -170,12 +151,9 @@ impl ConstEncode for EraseLineComplete {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cj__p/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(private = '?', finalbyte = 'J')]
 pub struct SelectiveEraseDisplayBelow;
-
-impl ConstEncode for SelectiveEraseDisplayBelow {
-    const STR: &'static str = format_csi!("?J");
-}
 
 /// Selective Erase Display Above (`DECSED`).
 ///
@@ -192,12 +170,9 @@ impl ConstEncode for SelectiveEraseDisplayBelow {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cj__p/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(private = '?', params = ["1"], finalbyte = 'J')]
 pub struct SelectiveEraseDisplayAbove;
-
-impl ConstEncode for SelectiveEraseDisplayAbove {
-    const STR: &'static str = format_csi!("?1J");
-}
 
 /// Selective Erase Display Complete (`DECSED`).
 ///
@@ -211,12 +186,9 @@ impl ConstEncode for SelectiveEraseDisplayAbove {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cj__p/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(private = '?', params = ["2"], finalbyte = 'J')]
 pub struct SelectiveEraseDisplayComplete;
-
-impl ConstEncode for SelectiveEraseDisplayComplete {
-    const STR: &'static str = format_csi!("?2J");
-}
 
 /// Selective Erase Line Right (`DECSEL`).
 ///
@@ -231,12 +203,9 @@ impl ConstEncode for SelectiveEraseDisplayComplete {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ck__p/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(private = '?', finalbyte = 'K')]
 pub struct SelectiveEraseLineRight;
-
-impl ConstEncode for SelectiveEraseLineRight {
-    const STR: &'static str = format_csi!("?K");
-}
 
 /// Selective Erase Line Left (`DECSEL`).
 ///
@@ -251,12 +220,9 @@ impl ConstEncode for SelectiveEraseLineRight {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ck__p/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(private = '?', params = ["1"], finalbyte = 'K')]
 pub struct SelectiveEraseLineLeft;
-
-impl ConstEncode for SelectiveEraseLineLeft {
-    const STR: &'static str = format_csi!("?1K");
-}
 
 /// Selective Erase Line Complete (`DECSEL`).
 ///
@@ -270,12 +236,9 @@ impl ConstEncode for SelectiveEraseLineLeft {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ck__p/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(private = '?', params = ["2"], finalbyte = 'K')]
 pub struct SelectiveEraseLineComplete;
-
-impl ConstEncode for SelectiveEraseLineComplete {
-    const STR: &'static str = format_csi!("?2K");
-}
 
 /// Insert Line (`IL`).
 ///
@@ -305,20 +268,9 @@ impl ConstEncode for SelectiveEraseLineComplete {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cl/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'L')]
 pub struct InsertLine(pub u16);
-
-impl ConstEncodedLen for InsertLine {
-    // CSI (2) + max u16 digits (5) + "L" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for InsertLine {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "L")
-    }
-}
 
 /// Delete Line (`DL`).
 ///
@@ -346,20 +298,9 @@ impl Encode for InsertLine {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cm/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'M')]
 pub struct DeleteLine(pub u16);
-
-impl ConstEncodedLen for DeleteLine {
-    // CSI (2) + max u16 digits (5) + "M" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for DeleteLine {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "M")
-    }
-}
 
 /// Delete Character (`DCH`).
 ///
@@ -388,20 +329,9 @@ impl Encode for DeleteLine {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cp/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'P')]
 pub struct DeleteCharacter(pub u16);
-
-impl ConstEncodedLen for DeleteCharacter {
-    // CSI (2) + max u16 digits (5) + "P" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for DeleteCharacter {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "P")
-    }
-}
 
 /// Insert Column (`DECIC`).
 ///
@@ -431,20 +361,9 @@ impl Encode for DeleteCharacter {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_x7d_right_brace_t_tick/>
 /// for terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(intermediate = "'", finalbyte = '}')]
 pub struct InsertColumn(pub u16);
-
-impl ConstEncodedLen for InsertColumn {
-    // CSI (2) + max u16 digits (5) + "'" (1) + "}" (1) = 9
-    const ENCODED_LEN: usize = 9;
-}
-
-impl Encode for InsertColumn {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "\'}")
-    }
-}
 
 /// Delete Column (`DECDC`).
 ///
@@ -472,20 +391,9 @@ impl Encode for InsertColumn {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_x7e_tilde_t_tick/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(intermediate = "'", finalbyte = '~')]
 pub struct DeleteColumn(pub u16);
-
-impl ConstEncodedLen for DeleteColumn {
-    // CSI (2) + max u16 digits (5) + "'" (1) + "~" (1) = 9
-    const ENCODED_LEN: usize = 9;
-}
-
-impl Encode for DeleteColumn {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "\'~")
-    }
-}
 
 /// Fill Screen with E (`DECALN`).
 ///
@@ -497,12 +405,9 @@ impl Encode for DeleteColumn {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a8/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[esc(intermediate = "#", finalbyte = '8')]
 pub struct FillScreenWithE;
-
-impl ConstEncode for FillScreenWithE {
-    const STR: &'static str = format_esc!("#8");
-}
 
 /// Set Double Height Line Top Half (`DECDHL`).
 ///
@@ -524,12 +429,9 @@ impl ConstEncode for FillScreenWithE {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a3/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[esc(intermediate = "#", finalbyte = '3')]
 pub struct SetDoubleHeightLineTopHalf;
-
-impl ConstEncode for SetDoubleHeightLineTopHalf {
-    const STR: &'static str = format_esc!("#3");
-}
 
 /// Set Double Height Line Bottom Half (`DECDHL`).
 ///
@@ -551,12 +453,9 @@ impl ConstEncode for SetDoubleHeightLineTopHalf {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a4/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[esc(intermediate = "#", finalbyte = '4')]
 pub struct SetDoubleHeightLineBottomHalf;
-
-impl ConstEncode for SetDoubleHeightLineBottomHalf {
-    const STR: &'static str = format_esc!("#4");
-}
 
 /// Set Single Width Line (`DECSWL`).
 ///
@@ -569,12 +468,9 @@ impl ConstEncode for SetDoubleHeightLineBottomHalf {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a5/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[esc(intermediate = "#", finalbyte = '5')]
 pub struct SetSingleWidthLine;
-
-impl ConstEncode for SetSingleWidthLine {
-    const STR: &'static str = format_esc!("#5");
-}
 
 /// Set Double Width Line (`DECDWL`).
 ///
@@ -594,9 +490,6 @@ impl ConstEncode for SetSingleWidthLine {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a6/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[esc(intermediate = "#", finalbyte = '6')]
 pub struct SetDoubleWidthLine;
-
-impl ConstEncode for SetDoubleWidthLine {
-    const STR: &'static str = format_esc!("#6");
-}
