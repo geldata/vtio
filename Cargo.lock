@@ -4,11 +4,11 @@ version = 4
 
 [[package]]
 name = "bitflags"
-version = "2.9.4"
+version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
+checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 dependencies = [
- "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -22,6 +22,15 @@ name = "constcat"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "136d3e02915a2cea4d74caa8681e2d44b1c3254bdbf17d11d41d587ff858832c"
+
+[[package]]
+name = "convert_case"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "derive_more"
@@ -38,9 +47,11 @@ version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
+ "convert_case",
  "proc-macro2",
  "quote",
  "syn",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -76,16 +87,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
-
-[[package]]
 name = "proc-macro2"
-version = "1.0.101"
+version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
+checksum = "5ee95bc4ef87b8d5ba32e8b7714ccc834865276eab0aed5c9958d00ec45f49e8"
 dependencies = [
  "unicode-ident",
 ]
@@ -153,9 +158,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.106"
+version = "2.0.108"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ede7c438028d4436d71104916910f5bb611972c5cfd7f89b8300a8186e6fada6"
+checksum = "da58917d35242480a05c2897064da0a80589a2a0476c9a3f2fdc83b53502e917"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -164,9 +169,21 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.19"
+version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f63a545481291138910575129486daeaf8ac54aee4387fe7906919f7830c7d9d"
+checksum = "462eeb75aeb73aea900253ce739c8e18a67423fadf006037cd3ff27e82748a06"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
+
+[[package]]
+name = "unicode-xid"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "version_check"
@@ -184,20 +201,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtderive"
-version = "0.0.0"
-dependencies = [
- "linkme",
- "proc-macro2",
- "proc-macro2-diagnostics",
- "quote",
- "smallvec",
- "syn",
- "vtenc",
- "vtparser",
-]
-
-[[package]]
 name = "vtenc"
 version = "0.0.0"
 dependencies = [
@@ -207,30 +210,58 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtmsg"
+name = "vtio"
 version = "0.0.0"
 dependencies = [
  "bitflags",
- "bytes",
- "linkme",
- "paste",
- "serde",
- "smallvec",
- "vtderive",
- "vtenc",
- "vtparser",
-]
-
-[[package]]
-name = "vtparser"
-version = "0.0.0"
-dependencies = [
  "derive_more",
  "linkme",
  "serde",
  "smallvec",
  "vt-push-parser",
  "vtenc",
+ "vtio_control_base",
+ "vtio_control_derive",
+ "vtio_control_registry",
+]
+
+[[package]]
+name = "vtio_control_base"
+version = "0.0.0"
+dependencies = [
+ "derive_more",
+ "smallvec",
+ "vtenc",
+]
+
+[[package]]
+name = "vtio_control_derive"
+version = "0.0.0"
+dependencies = [
+ "linkme",
+ "smallvec",
+ "vtio_control_base",
+ "vtio_control_derive_internal",
+ "vtio_control_registry",
+]
+
+[[package]]
+name = "vtio_control_derive_internal"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "proc-macro2-diagnostics",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "vtio_control_registry"
+version = "0.0.0"
+dependencies = [
+ "linkme",
+ "smallvec",
+ "vtio_control_base",
 ]
 
 [[package]]

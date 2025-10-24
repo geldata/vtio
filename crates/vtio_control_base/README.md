@@ -24,7 +24,7 @@ formatting, and more.
 For sequences with fixed parameters, use a unit struct:
 
 ```rust
-use vtderive::csi;
+use vtio_control_derive::csi;
 
 #[csi(private = '?', params = ["6"], finalbyte = 'h')]
 struct DecSetMode;
@@ -43,7 +43,7 @@ These automatically implement `ConstEncode` for zero-cost encoding.
 For sequences with runtime parameters, define a struct with fields:
 
 ```rust
-use vtderive::csi;
+use vtio_control_derive::csi;
 
 #[csi(finalbyte = 'H')]
 struct CursorPosition {
@@ -80,7 +80,7 @@ fn my_custom_handler(params: &vtparser::EscapeSequenceParams) {
 Used for terminal window titles, notifications, and other OS-level commands.
 
 ```rust
-use vtderive::osc;
+use vtio_control_derive::osc;
 
 #[osc(params = ["0"], finalbyte = ';')]
 struct SetWindowTitle;
@@ -91,7 +91,7 @@ struct SetWindowTitle;
 Used for advanced device control interactions.
 
 ```rust
-use vtderive::dcs;
+use vtio_control_derive::dcs;
 
 #[dcs(finalbyte = 'q')]
 struct RequestStatus;
@@ -102,7 +102,7 @@ struct RequestStatus;
 Used for character set switching in internationalization scenarios.
 
 ```rust
-use vtderive::ss2;
+use vtio_control_derive::ss2;
 
 #[ss2(finalbyte = 'G')]
 struct SingleShift2;
@@ -113,7 +113,7 @@ struct SingleShift2;
 Used for character set switching in internationalization scenarios.
 
 ```rust
-use vtderive::ss3;
+use vtio_control_derive::ss3;
 
 #[ss3(finalbyte = 'H')]
 struct SingleShift3;
@@ -124,7 +124,7 @@ struct SingleShift3;
 Used for privacy-related communication between applications and terminals.
 
 ```rust
-use vtderive::pm;
+use vtio_control_derive::pm;
 
 #[pm(finalbyte = 'p')]
 struct PrivacyMessage;
@@ -135,7 +135,7 @@ struct PrivacyMessage;
 Used for passing data between applications and the terminal emulator.
 
 ```rust
-use vtderive::apc;
+use vtio_control_derive::apc;
 
 #[apc(finalbyte = 'a')]
 struct ApplicationCommand;
@@ -146,7 +146,7 @@ struct ApplicationCommand;
 Indicates the end of an escape sequence.
 
 ```rust
-use vtderive::st;
+use vtio_control_derive::st;
 
 #[st(finalbyte = '\\')]
 struct StringTerminator;
@@ -157,7 +157,7 @@ struct StringTerminator;
 Enables application keypad mode in DEC VT220 terminals.
 
 ```rust
-use vtderive::deckpam;
+use vtio_control_derive::deckpam;
 
 #[deckpam(finalbyte = '=')]
 struct KeypadApplicationMode;
@@ -168,7 +168,7 @@ struct KeypadApplicationMode;
 Disables application keypad mode in DEC VT220 terminals.
 
 ```rust
-use vtderive::deckpnm;
+use vtio_control_derive::deckpnm;
 
 #[deckpnm(finalbyte = '>')]
 struct KeypadNumericMode;
@@ -277,7 +277,7 @@ struct UnknownAttribute;
 ## Example: Complete Usage
 
 ```rust
-use vtderive::csi;
+use vtio_control_derive::csi;
 use vtparser::EscapeSequenceParams;
 use vtenc::encode::Encode;
 

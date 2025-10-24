@@ -38,7 +38,7 @@ macro_rules! simple_command {
 
         impl vtenc::Encode for $name {
             fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-                vtenc::write_osc!(buf; $crate::iterm::ITERM2_OSC_PREFIX, Self::KEY)
+                vtenc::write_osc!(buf; $crate::event::iterm::ITERM2_OSC_PREFIX, Self::KEY)
             }
         }
     };
@@ -71,7 +71,7 @@ macro_rules! iterm2_param_command {
 
         impl Encode for $name {
             fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-                vtenc::write_osc!(buf; $crate::iterm::ITERM2_OSC_PREFIX, Self::KEY, "=", self.$value_field)
+                vtenc::write_osc!(buf; $crate::event::iterm::ITERM2_OSC_PREFIX, Self::KEY, "=", self.$value_field)
             }
         }
     };
@@ -101,7 +101,7 @@ macro_rules! iterm2_string_param_command {
 
         impl Encode for $name<'_> {
             fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-                vtenc::write_osc!(buf; $crate::iterm::ITERM2_OSC_PREFIX, Self::KEY, "=", self.$value_field)
+                vtenc::write_osc!(buf; $crate::event::iterm::ITERM2_OSC_PREFIX, Self::KEY, "=", self.$value_field)
             }
         }
     };

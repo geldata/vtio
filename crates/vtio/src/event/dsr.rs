@@ -5,7 +5,7 @@
 //!
 //! See <https://terminalguide.namepad.de/seq/csi_sn/> for details.
 
-use vtderive::csi;
+use vtio_control_derive::csi;
 
 /// Request Operating Status (`DSR`).
 ///

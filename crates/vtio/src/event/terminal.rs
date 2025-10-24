@@ -5,7 +5,7 @@ use vtenc::{
     format_osc, write_csi, write_dcs, write_int, write_str_into,
 };
 
-use vtderive::terminal_mode;
+use vtio_control_derive::terminal_mode;
 
 /// Insert mode (`IRM`).
 ///

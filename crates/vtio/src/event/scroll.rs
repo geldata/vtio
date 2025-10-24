@@ -57,7 +57,7 @@
 //! - The cursor can move outside the scrolling region using explicit
 //!   positioning commands
 
-use vtderive::terminal_mode;
+use vtio_control_derive::terminal_mode;
 use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_dcs, write_csi};
 
 /// Smooth Scroll Mode (`DECSCLM`).

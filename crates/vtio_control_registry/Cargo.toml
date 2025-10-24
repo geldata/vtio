@@ -1,0 +1,12 @@
+[package]
+name = "vtio_control_registry"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[dependencies]
+smallvec = { version = "1.15.0", features = ["const_new", "const_generics"] }
+linkme = "0.3"
+
+vtio_control_base = { path = "../vtio_control_base" }

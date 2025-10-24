@@ -4,8 +4,8 @@
 
 use vtenc::{ConstEncodedLen, Encode, EncodeError, const_composite, write_csi};
 
-use crate::keyboard::KeyModifiers;
-use vtderive::terminal_mode;
+use crate::event::keyboard::KeyModifiers;
+use vtio_control_derive::terminal_mode;
 
 //
 // Mouse event modes (mutually exclusive).

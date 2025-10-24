@@ -1,6 +1,6 @@
 //! Terminal character set control and information messages.
 
-use vtderive::{c0, esc};
+use vtio_control_derive::{c0, esc};
 use vtenc::WriteSeq;
 
 /// Enable UTF-8 mode.

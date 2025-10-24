@@ -7,7 +7,7 @@ use bitflags::bitflags;
 use vtenc::{ConstEncode, Encode, EncodeError, format_csi, format_esc, write_csi};
 
 use crate::TerseDisplay;
-use vtderive::terminal_mode;
+use vtio_control_derive::terminal_mode;
 
 /// Disable Keyboard Input (`KAM`).
 ///

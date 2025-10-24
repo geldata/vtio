@@ -1,0 +1,27 @@
+[package]
+name = "vtio"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[features]
+
+#! ### Optional Features
+
+## Enables [`serde`] for various types.
+serde = ["dep:serde", "bitflags/serde", "vt-push-parser/serde"]
+parser = ["dep:vtio_control_registry", "vtio_control_derive/parser"]
+
+[dependencies]
+bitflags = { version = "2.9" }
+derive_more = { version = "2.0.1", features = ["try_from"] }
+linkme = "0.3"
+serde = { version = "1.0", features = ["derive"], optional = true }
+smallvec = { version = "1.15.0", features = ["const_new", "const_generics"] }
+vt-push-parser = { version = "0.11.0" }
+vtenc = { path = "../vtenc" }
+
+vtio_control_base = { path = "../vtio_control_base" }
+vtio_control_derive = { path = "../vtio_control_derive" }
+vtio_control_registry = { path = "../vtio_control_registry", optional = true }

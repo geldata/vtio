@@ -1,0 +1,18 @@
+[package]
+name = "vtio_control_derive"
+description = "Derive macros for terminal escape sequences."
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[features]
+parser = ["dep:linkme", "dep:vtio_control_registry"]
+
+[dependencies]
+smallvec = { version = "1.15.0", features = ["const_new", "const_generics"] }
+linkme = { version = "0.3", optional = true }
+
+vtio_control_base = { path = "../vtio_control_base" }
+vtio_control_derive_internal = { path = "../vtio_control_derive_internal" }
+vtio_control_registry = { path = "../vtio_control_registry", optional = true }

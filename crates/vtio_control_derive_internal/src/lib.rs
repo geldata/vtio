@@ -601,8 +601,8 @@ impl<'a> EscapeSequenceConsts<'a> {
     fn generate_params(&self) -> proc_macro2::TokenStream {
         if self.params.is_empty() {
             quote! {
-                const PARAMS: ::vtparser::EscapeSequenceParams = const {
-                    ::smallvec::SmallVec::new_const()
+                const PARAMS: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParams = const {
+                    ::vtio_control_derive::__internal::smallvec::SmallVec::new_const()
                 };
             }
         } else {
@@ -618,7 +618,7 @@ impl<'a> EscapeSequenceConsts<'a> {
                         // SAFETY: we compute the number above and it is always
                         //         smaller than 32.
                         unsafe {
-                            ::vtparser::EscapeSequenceParam::from_const_with_len_unchecked(
+                            ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam::from_const_with_len_unchecked(
                                 [#(#bytes),*],
                                 #param_len,
                             )
@@ -630,16 +630,16 @@ impl<'a> EscapeSequenceConsts<'a> {
             let num_params = self.params.len();
             let padding_params = (0..(8 - num_params)).map(|_| {
                 quote! {
-                    ::vtparser::EscapeSequenceParam::from_u8(0u8)
+                    ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam::from_u8(0u8)
                 }
             });
 
             quote! {
-                const PARAMS: ::vtparser::EscapeSequenceParams = const {
+                const PARAMS: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParams = const {
                     // SAFETY: we compute the number above and it is always
                     //         smaller than 8.
                     unsafe {
-                        ::smallvec::SmallVec::from_const_with_len_unchecked(
+                        ::vtio_control_derive::__internal::smallvec::SmallVec::from_const_with_len_unchecked(
                             [
                                 #(#param_inits,)*
                                 #(#padding_params,)*
@@ -732,7 +732,7 @@ fn generate_registry_entry(
         quote! {
             let #field_name: #ty = params
                 .get(#i)
-                .map(|p| <#ty as ::core::convert::From<&::vtparser::EscapeSequenceParam>>::from(p))
+                .map(|p| <#ty as ::core::convert::From<&::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam>>::from(p))
                 .unwrap_or_default();
         }
     }
@@ -763,7 +763,7 @@ fn generate_registry_entry(
     };
 
     let handler_fn = quote! {
-        fn #handler_name(params: &[::vtparser::EscapeSequenceParam]) {
+        fn #handler_name(params: &[::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam]) {
             #handler_body
         }
     };
@@ -773,14 +773,16 @@ fn generate_registry_entry(
 
     quote! {
         #[doc(hidden)]
+        #[cfg(feature = "parser")]
         #handler_fn
 
         #[doc(hidden)]
-        #[::linkme::distributed_slice(::vtparser::ESCAPE_SEQUENCE_REGISTRY)]
-        static #registry_name: ::vtparser::EscapeSequenceMatchEntry =
-            ::vtparser::EscapeSequenceMatchEntry {
+        #[cfg(feature = "parser")]
+        #[::vtio_control_derive::__internal::linkme::distributed_slice(::vtio_control_derive::__internal::vtio_control_registry::ESCAPE_SEQUENCE_REGISTRY)]
+        static #registry_name: ::vtio_control_derive::__internal::vtio_control_registry::EscapeSequenceMatchEntry =
+            ::vtio_control_derive::__internal::vtio_control_registry::EscapeSequenceMatchEntry {
                 name: #struct_name_str,
-                intro: ::vtparser::EscapeSequenceIntroducer::#intro_variant,
+                intro: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer::#intro_variant,
                 prefix: &[#(#prefix_bytes),*],
                 final_byte: #final_byte,
                 handler: #handler_name,
@@ -884,13 +886,13 @@ fn generate_escape_sequence_impl(
         quote! {
             #input
 
-            impl ::vtparser::EscapeSequence for #struct_name {
-                const INTRO: ::vtparser::EscapeSequenceIntroducer =
-                    ::vtparser::EscapeSequenceIntroducer::#intro_variant;
+            impl ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name {
+                const INTRO: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer =
+                    ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer::#intro_variant;
                 #consts_impl
             }
 
-            impl ::vtenc::encode::ConstEncode for #struct_name {
+            impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
                 const STR: &'static str = #const_str;
             }
 
@@ -1150,19 +1152,19 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
         #new_constructor
 
-        impl ::vtparser::EscapeSequence for #struct_name {
-            const INTRO: ::vtparser::EscapeSequenceIntroducer =
-                ::vtparser::EscapeSequenceIntroducer::#intro_variant;
+        impl ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name {
+            const INTRO: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer =
+                ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer::#intro_variant;
             #consts_impl
         }
 
-        impl ::vtenc::encode::ConstEncodedLen for #struct_name {
+        impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name {
             const ENCODED_LEN: usize = #encoded_len;
         }
 
-        impl ::vtenc::encode::Encode for #struct_name {
+        impl ::vtio_control_derive::__internal::vtio_control_base::Encode for #struct_name {
             #[inline]
-            fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtenc::encode::EncodeError> {
+            fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
                 let mut __total = 0usize;
                 #(#all_write_ops)*
                 Ok(__total)
@@ -1413,7 +1415,7 @@ fn generate_esc_sequence_impl(
         quote! {
             #input
 
-            impl ::vtenc::encode::ConstEncode for #struct_name {
+            impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
                 const STR: &'static str = #const_str;
             }
         }
@@ -1441,13 +1443,13 @@ fn generate_esc_sequence_impl(
         quote! {
             #input
 
-            impl ::vtenc::encode::ConstEncodedLen for #struct_name {
+            impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name {
                 const ENCODED_LEN: usize = 4; // Conservative upper bound: ESC + intermediate + 2-byte charset
             }
 
-            impl ::vtenc::encode::Encode for #struct_name {
-                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtenc::encode::EncodeError> {
-                    ::vtenc::write_esc!(buf; #intermediate_str, #(self.#field_idents),*)
+            impl ::vtio_control_derive::__internal::vtio_control_base::Encode for #struct_name {
+                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
+                    ::vtio_control_derive::__internal::vtio_control_base::write_esc!(buf; #intermediate_str, #(self.#field_idents),*)
                 }
             }
         }
@@ -1560,7 +1562,7 @@ pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input
 
-        impl ::vtenc::encode::ConstEncode for #struct_name {
+        impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
             const STR: &'static str = #const_str;
         }
     };
@@ -1673,22 +1675,22 @@ pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtderive::csi(#private_attr params = #params_array, finalbyte = 'h')]
+        #[::vtio_control_derive::csi(#private_attr params = #params_array, finalbyte = 'h')]
         #vis struct #enable_name;
 
         #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtderive::csi(#private_attr params = #params_array, finalbyte = 'l')]
+        #[::vtio_control_derive::csi(#private_attr params = #params_array, finalbyte = 'l')]
         #vis struct #disable_name;
 
         #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtderive::csi(#private_attr params = #params_array, intermediate = "$", finalbyte = 'p')]
+        #[::vtio_control_derive::csi(#private_attr params = #params_array, intermediate = "$", finalbyte = 'p')]
         #vis struct #request_name;
 
         #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtderive::csi(#private_attr intermediate = "$", finalbyte = 'y')]
+        #[::vtio_control_derive::csi(#private_attr intermediate = "$", finalbyte = 'y')]
         #vis struct #base_name {
             pub enabled: bool,
         }
