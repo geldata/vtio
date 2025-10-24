@@ -247,6 +247,12 @@ fn parse_string_literal(
     example: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<String> {
+    // Unwrap Expr::Group to handle macro-expanded tokens
+    let value = match value {
+        Expr::Group(group) => &*group.expr,
+        other => other,
+    };
+
     if let Expr::Lit(ExprLit {
         lit: Lit::Str(s), ..
     }) = value
@@ -312,6 +318,12 @@ fn parse_char_as_byte(
     example: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<u8> {
+    // Unwrap Expr::Group to handle macro-expanded tokens
+    let value = match value {
+        Expr::Group(group) => &*group.expr,
+        other => other,
+    };
+
     if let Expr::Lit(ExprLit {
         lit: Lit::Char(ch), ..
     }) = value
@@ -342,8 +354,20 @@ fn parse_private(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<u8> 
 fn parse_params(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<Vec<u8>> {
     let mut params = Vec::new();
 
+    // Unwrap Expr::Group to handle macro-expanded tokens
+    let value = match value {
+        Expr::Group(group) => &*group.expr,
+        other => other,
+    };
+
     if let Expr::Array(arr) = value {
         for elem in arr.elems.iter() {
+            // Unwrap Expr::Group for array elements too
+            let elem = match elem {
+                Expr::Group(group) => &*group.expr,
+                other => other,
+            };
+
             if let Expr::Lit(ExprLit {
                 lit: Lit::Str(s), ..
             }) = elem
@@ -1639,98 +1663,3 @@ fn generate_esc_sequence_impl(
         }
     }
 }
-
-
-
-
-/// Helper procedural macro for terminal_mode declarative macro.
-///
-/// This macro generates the four terminal mode control structs with proper
-/// VTControl derives and CSI attributes. It's called by the declarative
-/// terminal_mode! macro after struct names have been constructed with paste.
-///
-/// Syntax:
-///   __terminal_mode_impl!(EnableName, DisableName, RequestName, BaseName, private_char, [params]);
-///   or
-///   __terminal_mode_impl!(EnableName, DisableName, RequestName, BaseName, , [params]);
-#[proc_macro]
-pub fn __terminal_mode_impl(input: TokenStream) -> TokenStream {
-    let input2: proc_macro2::TokenStream = input.into();
-    let mut tokens = input2.into_iter().peekable();
-    
-    // Parse: enable_name, disable_name, request_name, base_name, private, [params]
-    let mut idents = Vec::new();
-    let mut private_char: Option<char> = None;
-    let mut params_list = Vec::new();
-    
-    let mut in_array = false;
-    
-    while let Some(token) = tokens.next() {
-        match token {
-            proc_macro2::TokenTree::Ident(id) => {
-                if !in_array {
-                    idents.push(id);
-                }
-            }
-            proc_macro2::TokenTree::Literal(lit) => {
-                if in_array {
-                    params_list.push(lit);
-                } else {
-                    // This is the private char
-                    let s = lit.to_string();
-                    if s.starts_with('\'') && s.len() == 3 {
-                        private_char = Some(s.chars().nth(1).unwrap());
-                    }
-                }
-            }
-            proc_macro2::TokenTree::Punct(p) if p.as_char() == ',' => {}
-            proc_macro2::TokenTree::Group(g) if g.delimiter() == proc_macro2::Delimiter::Bracket => {
-                for token in g.stream() {
-                    if let proc_macro2::TokenTree::Literal(lit) = token {
-                        params_list.push(lit);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    
-    if idents.len() < 4 {
-        panic!("Expected 4 struct names");
-    }
-    
-    let enable_name = &idents[0];
-    let disable_name = &idents[1];
-    let request_name = &idents[2];
-    let base_name = &idents[3];
-    
-    // Build private attribute
-    let private_attr = if let Some(ch) = private_char {
-        quote! { private = #ch, }
-    } else {
-        quote! {}
-    };
-    
-    let expanded = quote! {
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
-        #[csi(#private_attr params = [#(#params_list),*], finalbyte = 'h')]
-        pub struct #enable_name;
-
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
-        #[csi(#private_attr params = [#(#params_list),*], finalbyte = 'l')]
-        pub struct #disable_name;
-
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
-        #[csi(#private_attr params = [#(#params_list),*], intermediate = "$", finalbyte = 'p')]
-        pub struct #request_name;
-
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
-        #[csi(#private_attr intermediate = "$", finalbyte = 'y')]
-        pub struct #base_name {
-            pub enabled: bool,
-        }
-    };
-    
-    TokenStream::from(expanded)
-}
-

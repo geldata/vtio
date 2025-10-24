@@ -45,19 +45,26 @@ macro_rules! terminal_mode {
     ($(#[$meta:meta])* $base_name:ident, private = $private:literal, params = [$($params:literal),* $(,)?]) => {
         $crate::__internal::paste::paste! {
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(private = $private, params = [#(#params),*], finalbyte = 'h')]
+            #[csi(private = $private, params = [$($params),*], finalbyte = 'h')]
             pub struct [<Enable $base_name>];
+        }
 
+        $crate::__internal::paste::paste! {
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(private = $private, params = [#(#params),*], finalbyte = 'l')]
+            #[csi(private = $private, params = [$($params),*], finalbyte = 'l')]
             pub struct [<Disable $base_name>];
+        }
 
+        $crate::__internal::paste::paste! {
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(private = $private, params = [#(#params),*], intermediate = "$", finalbyte = 'l')]
+            #[csi(private = $private, params = [$($params),*], intermediate = "$", finalbyte = 'l')]
             pub struct [<Request $base_name>];
+        }
 
+        $crate::__internal::paste::paste! {
+            $(#[$meta])*
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(private = $private, intermediate = "$", finalbyte = 'y')]
+            #[csi(private = $private, params = [$($params),*], intermediate = "$", finalbyte = 'y')]
             pub struct [<$base_name>] {
                 pub enabled: bool,
             }
@@ -67,20 +74,26 @@ macro_rules! terminal_mode {
     ($(#[$meta:meta])* $base_name:ident, params = [$($params:literal),* $(,)?]) => {
         $crate::__internal::paste::paste! {
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(params = [#(#params),*], finalbyte = 'h')]
+            #[csi(params = [$($params),*], finalbyte = 'h')]
             pub struct [<Enable $base_name>];
+        }
 
+        $crate::__internal::paste::paste! {
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(params = [#(#params),*], finalbyte = 'l')]
+            #[csi(params = [$($params),*], finalbyte = 'l')]
             pub struct [<Disable $base_name>];
+        }
 
+        $crate::__internal::paste::paste! {
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(params = [#(#params),*], intermediate = "$", finalbyte = 'l')]
+            #[csi(params = [$($params),*], intermediate = "$", finalbyte = 'l')]
             pub struct [<Request $base_name>];
+        }
 
+        $crate::__internal::paste::paste! {
             $(#[$meta])*
             #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
-            #[csi(params = [#(#params),*], intermediate = "$", finalbyte = 'y')]
+            #[csi(params = [$($params),*], intermediate = "$", finalbyte = 'y')]
             pub struct [<$base_name>] {
                 pub enabled: bool,
             }
