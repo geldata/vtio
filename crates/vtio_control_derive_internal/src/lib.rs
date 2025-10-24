@@ -1194,7 +1194,8 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     }
 }
 
-/// Unified derive macro for terminal control sequences.
+/// Derive macro generating an implementation of a VT control function
+/// (aka control sequence).
 ///
 /// This macro examines the attributes on a struct to determine which type
 /// of control sequence to generate (CSI, DCS, OSC, ESC, etc.).
@@ -1202,7 +1203,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 /// # Example
 ///
 /// ```ignore
-/// #[derive(Control)]
+/// #[derive(VTControl)]
 /// #[csi(private = '?', finalbyte = 'n')]
 /// pub struct UdkStatusReport {
 ///     pub status: u8,
@@ -1224,7 +1225,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 /// - `deckpnm`: DEC Keypad Numeric Mode sequences
 /// - `c0`: C0 control character sequences
 #[proc_macro_derive(
-    Control,
+    VTControl,
     attributes(
         csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0
     )
@@ -1745,22 +1746,22 @@ pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
         #[csi(#private_attr params = #params_array, finalbyte = 'h')]
         #vis struct #enable_name;
 
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
         #[csi(#private_attr params = #params_array, finalbyte = 'l')]
         #vis struct #disable_name;
 
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
         #[csi(#private_attr params = #params_array, intermediate = "$", finalbyte = 'p')]
         #vis struct #request_name;
 
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
         #[csi(#private_attr intermediate = "$", finalbyte = 'y')]
         #vis struct #base_name {
             pub enabled: bool,

@@ -1,6 +1,6 @@
 //! Terminal character set control and information messages.
 
-use vtio_control_derive::Control;
+use crate::VTControl;
 use vtenc::WriteSeq;
 
 /// Enable UTF-8 mode.
@@ -9,7 +9,7 @@ use vtenc::WriteSeq;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zpercent_cg/> for
 /// terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = 'G', intermediate = "%")]
 pub struct EnableUTF8Mode;
 
@@ -17,7 +17,7 @@ pub struct EnableUTF8Mode;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_zpercent_x40_at/> for
 /// terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = '@', intermediate = "%")]
 pub struct DisableUTF8Mode;
 
@@ -28,7 +28,7 @@ pub struct DisableUTF8Mode;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_c0-n/> for terminal support
 /// specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[c0(code = 0x0E)]
 pub struct ShiftOut;
 
@@ -39,7 +39,7 @@ pub struct ShiftOut;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_c0-o/> for terminal support
 /// specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[c0(code = 0x0F)]
 pub struct ShiftIn;
 
@@ -49,7 +49,7 @@ pub struct ShiftIn;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_sn/> for terminal support
 /// specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = 'n')]
 pub struct LockingShift2;
 
@@ -59,7 +59,7 @@ pub struct LockingShift2;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_so/> for terminal support
 /// specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = 'o')]
 pub struct LockingShift3;
 
@@ -69,7 +69,7 @@ pub struct LockingShift3;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_x7e_tilde/> for terminal
 /// support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = '~')]
 pub struct LockingShift1Right;
 
@@ -79,7 +79,7 @@ pub struct LockingShift1Right;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_x7d_right_brace/> for
 /// terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = '}')]
 pub struct LockingShift2Right;
 
@@ -89,7 +89,7 @@ pub struct LockingShift2Right;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_x7c_pipe/> for terminal
 /// support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = '|')]
 pub struct LockingShift3Right;
 
@@ -99,7 +99,7 @@ pub struct LockingShift3Right;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_cn/> for terminal
 /// support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = 'N')]
 pub struct SingleShift2;
 
@@ -109,7 +109,7 @@ pub struct SingleShift2;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_co/> for terminal
 /// support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(finalbyte = 'O')]
 pub struct SingleShift3;
 
@@ -259,7 +259,7 @@ impl vtenc::IntoSeq for CharsetCode {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(intermediate = "(")]
 pub struct DesignateG0 {
     pub charset: CharsetCode,
@@ -272,7 +272,7 @@ pub struct DesignateG0 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(intermediate = ")")]
 pub struct DesignateG1 {
     pub charset: CharsetCode,
@@ -285,7 +285,7 @@ pub struct DesignateG1 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(intermediate = "*")]
 pub struct DesignateG2 {
     pub charset: CharsetCode,
@@ -298,7 +298,7 @@ pub struct DesignateG2 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(intermediate = "+")]
 pub struct DesignateG3 {
     pub charset: CharsetCode,
@@ -311,7 +311,7 @@ pub struct DesignateG3 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(intermediate = "-")]
 pub struct DesignateG1_96 {
     pub charset: CharsetCode,
@@ -324,7 +324,7 @@ pub struct DesignateG1_96 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(intermediate = ".")]
 pub struct DesignateG2_96 {
     pub charset: CharsetCode,
@@ -337,7 +337,7 @@ pub struct DesignateG2_96 {
 ///
 /// See <https://terminalguide.namepad.de/seq/> charset designation section
 /// for terminal support specifics and details.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[esc(intermediate = "/")]
 pub struct DesignateG3_96 {
     pub charset: CharsetCode,

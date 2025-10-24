@@ -1569,10 +1569,10 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn modifier_keycode_display_windows() {
-        assert_eq!(format!("{}", Modifier(LeftControl)), "Left Ctrl");
+        assert_eq!(format!("{}", Modifier(LeftVTControl)), "Left Ctrl");
         assert_eq!(format!("{}", Modifier(LeftAlt)), "Left Alt");
         assert_eq!(format!("{}", Modifier(LeftSuper)), "Left Windows");
-        assert_eq!(format!("{}", Modifier(RightControl)), "Right Ctrl");
+        assert_eq!(format!("{}", Modifier(RightVTControl)), "Right Ctrl");
         assert_eq!(format!("{}", Modifier(RightAlt)), "Right Alt");
         assert_eq!(format!("{}", Modifier(RightSuper)), "Right Windows");
     }
@@ -1580,10 +1580,10 @@ mod tests {
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     #[test]
     fn modifier_keycode_display_other() {
-        assert_eq!(format!("{}", Modifier(LeftControl)), "Left Ctrl");
+        assert_eq!(format!("{}", Modifier(LeftVTControl)), "Left Ctrl");
         assert_eq!(format!("{}", Modifier(LeftAlt)), "Left Alt");
         assert_eq!(format!("{}", Modifier(LeftSuper)), "Left Super");
-        assert_eq!(format!("{}", Modifier(RightControl)), "Right Ctrl");
+        assert_eq!(format!("{}", Modifier(RightVTControl)), "Right Ctrl");
         assert_eq!(format!("{}", Modifier(RightAlt)), "Right Alt");
         assert_eq!(format!("{}", Modifier(RightSuper)), "Right Super");
     }
