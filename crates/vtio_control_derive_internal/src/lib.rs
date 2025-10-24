@@ -495,6 +495,39 @@ enum PositionalParam {
     Optional(String, syn::Type),
 }
 
+/// Extract paramidx attribute from a field if present.
+///
+/// Returns the parameter index if the field has a `#[vtctl(paramidx = N)]`
+/// attribute, indicating it should be parsed from parameter N but not
+/// encoded as a separate parameter.
+fn get_paramidx_attr(field: &syn::Field) -> Option<usize> {
+    for attr in &field.attrs {
+        if attr.path().is_ident("vtctl") {
+            if let Ok(list) = attr.meta.require_list() {
+                if let Ok(meta_list) = list.parse_args_with(
+                    Punctuated::<Meta, Token![,]>::parse_terminated
+                ) {
+                    for meta in meta_list {
+                        if let Meta::NameValue(nv) = meta {
+                            if nv.path.is_ident("paramidx") {
+                                if let Expr::Lit(ExprLit {
+                                    lit: Lit::Int(int_lit), ..
+                                }) = &nv.value
+                                {
+                                    if let Ok(idx) = int_lit.base10_parse::<usize>() {
+                                        return Some(idx);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Remove helper attributes from struct fields.
 ///
 /// Filter out attributes like `#[vtctl(...)]` that are used by the macro but
@@ -950,13 +983,16 @@ fn generate_registry_entry(
     // Helper function to generate parameter parsing code for a field.
     //
     // Convert parameter to the target type using From<EscapeSequenceParam>.
+    // If paramidx is Some(idx), parse from that specific parameter index.
     fn generate_param_parsing(
         i: usize,
         name: &str,
         ty: &syn::Type,
         struct_span: proc_macro2::Span,
+        paramidx: Option<usize>,
     ) -> proc_macro2::TokenStream {
         let field_name = syn::Ident::new(name, struct_span);
+        let param_index = paramidx.unwrap_or(i);
 
         // Check if this is an optional type
         if is_option_type(ty) {
@@ -964,14 +1000,14 @@ fn generate_registry_entry(
             let inner_ty = extract_option_inner_type(ty).unwrap_or_else(|| ty.clone());
             quote! {
                 let #field_name: #ty = params
-                    .get(#i)
+                    .get(#param_index)
                     .map(|p| <#inner_ty as ::core::convert::From<&::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam>>::from(p));
             }
         } else {
             // For non-optional types, use unwrap_or_default
             quote! {
                 let #field_name: #ty = params
-                    .get(#i)
+                    .get(#param_index)
                     .map(|p| <#ty as ::core::convert::From<&::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam>>::from(p))
                     .unwrap_or_default();
             }
@@ -987,7 +1023,7 @@ fn generate_registry_entry(
         let param_parsing: Vec<_> = params
             .iter()
             .enumerate()
-            .map(|(i, (name, ty))| generate_param_parsing(i, name, ty, struct_name.span()))
+            .map(|(i, (name, ty))| generate_param_parsing(i, name, ty, struct_name.span(), None))
             .collect();
 
         let field_names: Vec<_> = params
@@ -1067,6 +1103,13 @@ fn generate_escape_sequence_impl(
 
     // Extract variable parameters from struct fields
     let var_params = extract_var_params_from_struct(&input);
+    
+    // Extract paramidx attributes for each field
+    let field_paramidx: Vec<Option<usize>> = if let syn::Fields::Named(ref fields) = input.fields {
+        fields.named.iter().map(|f| get_paramidx_attr(f)).collect()
+    } else {
+        Vec::new()
+    };
 
     // For CSI sequences, validate that optional parameters come after required ones
     if intro == "CSI" {
@@ -1241,6 +1284,7 @@ fn generate_escape_sequence_impl(
             data_sep: attrs.data_sep.as_deref(),
             param_sep: attrs.param_sep.as_deref(),
             emit_struct: false,
+            field_paramidx: &field_paramidx,
         })
     }
 }
@@ -1312,6 +1356,7 @@ struct VariableSequenceParams<'a> {
     param_sep: Option<&'a str>,
     emit_struct: bool,
     final_bytes: &'a [u8],
+    field_paramidx: &'a [Option<usize>],
 }
 
 /// Generate a variable (non-const) sequence implementation.
@@ -1334,6 +1379,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         param_sep,
         emit_struct,
         final_bytes,
+        field_paramidx,
     } = params;
     
     // Split generics for impl blocks
@@ -1468,14 +1514,20 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     // Write regular params if NOT using DCS/OSC data params
     if dcs_data_params.is_none() || !matches!(intro, "DCS" | "OSC") {
         let start_index = const_params.len();
+        let mut encoded_param_count = start_index;
+        
         for (i, (name, ty)) in var_params.iter().enumerate() {
             let field_name = syn::Ident::new(name, struct_name.span());
+            
+            // Skip fields that have paramidx attribute (they're folded into other params)
+            if field_paramidx.get(i).and_then(|&x| x).is_some() {
+                continue;
+            }
             
             // Check if this is an optional parameter
             if is_option_type(ty) {
                 // Generate conditional write for optional parameters
-                let sep_index = start_index + i;
-                let sep = if sep_index > 0 { ";" } else { "" };
+                let sep = if encoded_param_count > 0 { ";" } else { "" };
                 let write_op = quote! {
                     if let Some(ref value) = self.#field_name {
                         __total += ::vtenc::encode::write_str_into(buf, #sep)?;
@@ -1485,8 +1537,9 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                 write_ops.add_raw(write_op);
             } else {
                 // Regular required parameter
-                write_ops.write_separator(start_index + i);
+                write_ops.write_separator(encoded_param_count);
                 write_ops.write_field(&field_name);
+                encoded_param_count += 1;
             }
         }
     }
@@ -1504,7 +1557,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             if final_bytes.len() > 1 {
                 write_ops.add_raw(quote! {
                     __total += ::vtenc::encode::WriteSeq::write_seq(
-                        &::vtio_control_derive::__internal::vtio_control_base::DynamicFinalByte::final_byte(self),
+                        &(::vtio_control_derive::__internal::vtio_control_base::DynamicFinalByte::final_byte(self) as char),
                         buf
                     )?;
                 });

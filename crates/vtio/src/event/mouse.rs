@@ -329,44 +329,27 @@ impl From<&EscapeSequenceParam> for Coordinates {
 /// combinations for all mouse event types. For example - macOS reports
 /// `Ctrl` + left mouse button click as a right mouse button click.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(csi, intermediate = "<", finalbyte = ['M', 'm'])]
 pub struct MouseEvent {
     /// The kind of mouse event that was caused.
+    /// Parsed from parameter 0 (button code).
     pub kind: MouseEventKind,
+    /// The key modifiers active when the event occurred.
+    /// Parsed from parameter 0 (button code).
+    #[vtctl(paramidx = 0)]
+    pub modifiers: KeyModifiers,
     /// The coordinates where the event occurred.
     pub coords: Coordinates,
-    /// The key modifiers active when the event occurred.
-    pub modifiers: KeyModifiers,
 }
 
-impl vtenc::Encode for MouseEvent {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, vtenc::EncodeError> {
-        use vtenc::encode::{write_str_into, WriteSeq};
-
-        let mut total = 0;
-        // Write CSI introducer
-        total += write_str_into(buf, "\x1b[")?;
-        // Write intermediate '<'
-        total += write_str_into(buf, "<")?;
-        // Write button code and coordinates
-        total += WriteSeq::write_seq(&self.into_seq(), buf)?;
-        // Write final byte (M or m)
-        total += WriteSeq::write_seq(&(self.kind.final_byte() as char), buf)?;
-        Ok(total)
+impl DynamicFinalByte for MouseEvent {
+    fn final_byte(&self) -> u8 {
+        self.kind.final_byte()
     }
 }
 
 impl MouseEvent {
-    /// Create a new mouse event.
-    #[must_use]
-    pub const fn new(kind: MouseEventKind, coords: Coordinates, modifiers: KeyModifiers) -> Self {
-        Self {
-            kind,
-            coords,
-            modifiers,
-        }
-    }
-
     /// Get the column where the event occurred.
     #[must_use]
     pub const fn column(&self) -> u16 {
@@ -379,63 +362,26 @@ impl MouseEvent {
         self.coords.row
     }
 
-    /// Compute the SGR button code from kind and modifiers.
-    fn button_code(&self) -> u16 {
-        let base_button = self.kind.base_button_code();
-        let mod_offset = self.modifiers.sgr_modifier_offset();
-        base_button + mod_offset
-    }
-}
-
-impl DynamicFinalByte for MouseEvent {
-    fn final_byte(&self) -> u8 {
-        self.kind.final_byte()
-    }
-}
-
-impl IntoSeq for MouseEvent {
-    fn into_seq(&self) -> impl WriteSeq {
-        // Encode button code and coordinates as separate parameters
-        MouseEventSeq {
-            button_code: self.button_code(),
-            coords: self.coords,
-        }
-    }
-}
-
-struct MouseEventSeq {
-    button_code: u16,
-    coords: Coordinates,
-}
-
-impl WriteSeq for MouseEventSeq {
-    fn write_seq<W: std::io::Write + ?Sized>(
-        &self,
-        buf: &mut W,
-    ) -> Result<usize, vtenc::EncodeError> {
-        use vtenc::encode::{write_str_into, WriteSeq};
-        let mut total = 0;
-        total += WriteSeq::write_seq(&self.button_code, buf)?;
-        total += write_str_into(buf, ";")?;
-        total += WriteSeq::write_seq(&self.coords.into_seq(), buf)?;
-        Ok(total)
-    }
-}
-
-impl KeyModifiers {
     /// Calculate modifier offset for SGR mode encoding.
     const fn sgr_modifier_offset(self) -> u16 {
         let mut offset = 0;
-        if self.contains(KeyModifiers::SHIFT) {
+        if self.modifiers.contains(KeyModifiers::SHIFT) {
             offset += 4;
         }
-        if self.contains(KeyModifiers::ALT) {
+        if self.modifiers.contains(KeyModifiers::ALT) {
             offset += 8;
         }
-        if self.contains(KeyModifiers::CONTROL) {
+        if self.modifiers.contains(KeyModifiers::CONTROL) {
             offset += 16;
         }
         offset
+    }
+
+    /// Compute the SGR button code from kind and modifiers.
+    fn sgr_button_code(&self) -> u16 {
+        let base_button = self.kind.base_button_code();
+        let mod_offset = self.sgr_modifier_offset();
+        base_button + mod_offset
     }
 }
 
@@ -502,8 +448,8 @@ impl IntoSeq for MouseEventKind {
 impl From<EscapeSequenceParam> for MouseEventKind {
     fn from(param: EscapeSequenceParam) -> Self {
         let code = param.first() as u16;
-        // Parse SGR button code
-        let base_code = code & 0x3F; // Mask out modifier bits
+        // Parse SGR button code (mask out modifier bits)
+        let base_code = code & !0x1C; // Remove shift (4), alt (8), ctrl (16) bits
         let is_drag = (code & 32) != 0;
 
         if base_code >= 64 {
@@ -514,8 +460,8 @@ impl From<EscapeSequenceParam> for MouseEventKind {
                 2 => MouseEventKind::ScrollLeft,
                 _ => MouseEventKind::ScrollRight,
             }
-        } else if base_code == 35 && is_drag {
-            // Mouse move without button
+        } else if (base_code & !32) == 3 && is_drag {
+            // Mouse move without button (code 3 + drag bit)
             MouseEventKind::Moved
         } else {
             let button = MouseButton::from_code((base_code & 0x03) as u8);
@@ -590,6 +536,32 @@ impl From<&EscapeSequenceParam> for MouseButton {
     }
 }
 
+impl From<EscapeSequenceParam> for KeyModifiers {
+    fn from(param: EscapeSequenceParam) -> Self {
+        let code = param.first();
+        let mut modifiers = KeyModifiers::NONE;
+
+        // Extract modifier bits from SGR button code
+        if (code & 4) != 0 {
+            modifiers |= KeyModifiers::SHIFT;
+        }
+        if (code & 8) != 0 {
+            modifiers |= KeyModifiers::ALT;
+        }
+        if (code & 16) != 0 {
+            modifiers |= KeyModifiers::CONTROL;
+        }
+
+        modifiers
+    }
+}
+
+impl From<&EscapeSequenceParam> for KeyModifiers {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -600,8 +572,8 @@ mod tests {
     fn test_encode_mouse_event_down() {
         let mut event = MouseEvent::new(
             MouseEventKind::Down(MouseButton::Left),
-            Coordinates::new(0, 0),
             KeyModifiers::NONE,
+            Coordinates::new(0, 0),
         );
         let mut buf = [0u8; 64];
         let len = event.encode(&mut &mut buf[..]).unwrap();
@@ -612,8 +584,8 @@ mod tests {
     fn test_encode_mouse_event_up() {
         let mut event = MouseEvent::new(
             MouseEventKind::Up(MouseButton::Left),
-            Coordinates::new(0, 0),
             KeyModifiers::NONE,
+            Coordinates::new(0, 0),
         );
         let mut buf = [0u8; 64];
         let len = event.encode(&mut &mut buf[..]).unwrap();
@@ -624,8 +596,8 @@ mod tests {
     fn test_encode_mouse_event_scroll() {
         let mut event = MouseEvent::new(
             MouseEventKind::ScrollUp,
-            Coordinates::new(0, 0),
             KeyModifiers::NONE,
+            Coordinates::new(0, 0),
         );
         let mut buf = [0u8; 64];
         let len = event.encode(&mut &mut buf[..]).unwrap();

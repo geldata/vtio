@@ -551,6 +551,12 @@ bitflags! {
     }
 }
 
+impl Default for KeyModifiers {
+    fn default() -> Self {
+        Self::NONE
+    }
+}
+
 impl TerseDisplay for KeyModifiers {
     fn terse_fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut first = true;
