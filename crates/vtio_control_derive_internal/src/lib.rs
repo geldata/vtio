@@ -351,6 +351,10 @@ struct EscapeSequenceAttributes {
     data: Option<String>,
     /// Optional numeric parameter for OSC sequences (Ps in ESC ] Ps; Pt ST).
     number: Option<String>,
+    /// Custom separator between static data and first field (default: ";").
+    data_sep: Option<String>,
+    /// Custom separator between parameters/fields (default: ";").
+    param_sep: Option<String>,
 }
 
 /// Parse a character literal attribute and convert to u8.
@@ -676,6 +680,13 @@ fn parse_number(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<Strin
     parse_string_literal(value, "number", "133", diagnostics)
 }
 
+/// Parse a separator string attribute.
+///
+/// Extract a separator string from an attribute like `data_sep = "="`.
+fn parse_separator(value: &Expr, attr_name: &str, diagnostics: &mut Vec<Diagnostic>) -> Option<String> {
+    parse_string_literal(value, attr_name, "=", diagnostics)
+}
+
 /// Parse all escape sequence attributes from the macro input.
 ///
 /// Process the punctuated list of meta items from the attribute macro,
@@ -692,6 +703,8 @@ fn parse_escape_sequence_attributes(
         final_byte: None,
         data: None,
         number: None,
+        data_sep: None,
+        param_sep: None,
     };
 
     for meta in meta_list {
@@ -703,12 +716,14 @@ fn parse_escape_sequence_attributes(
                 "finalbyte" => attrs.final_byte = parse_finalbyte(value, diagnostics),
                 "data" => attrs.data = parse_data(value, diagnostics),
                 "number" => attrs.number = parse_number(value, diagnostics),
+                "data_sep" => attrs.data_sep = parse_separator(value, "data_sep", diagnostics),
+                "param_sep" => attrs.param_sep = parse_separator(value, "param_sep", diagnostics),
                 unknown => {
                     diagnostics.push(
                         meta.span()
                             .error(format!("unknown attribute: {}", unknown))
                             .help(
-                                "valid attributes are: private, params, intermediate, finalbyte, data, number",
+                                "valid attributes are: private, params, intermediate, finalbyte, data, number, data_sep, param_sep",
                             ),
                     );
                 }
@@ -878,6 +893,7 @@ fn generate_prefix_bytes(private: Option<u8>, params: &[Vec<u8>]) -> Vec<u8> {
 /// Generate a registry entry and handler for an escape sequence.
 fn generate_registry_entry(
     struct_name: &Ident,
+    generics: &syn::Generics,
     intro: &str,
     prefix_bytes: &[u8],
     final_byte: u8,
@@ -915,6 +931,9 @@ fn generate_registry_entry(
         }
     }
 
+    // Split generics for use in handler
+    let (_, ty_generics, _) = generics.split_for_impl();
+    
     // Generate handler function
     let handler_body = if let Some(params) = var_params {
         // Variable sequence - parse params and call new
@@ -931,12 +950,12 @@ fn generate_registry_entry(
 
         quote! {
             #(#param_parsing)*
-            let _seq = #struct_name::new(#(#field_names),*);
+            let _seq = #struct_name #ty_generics::new(#(#field_names),*);
         }
     } else {
         // Const sequence - just construct unit struct
         quote! {
-            let _seq = #struct_name;
+            let _seq = #struct_name #ty_generics;
         }
     };
 
@@ -1056,13 +1075,19 @@ fn generate_escape_sequence_impl(
         );
 
         let prefix_bytes = generate_prefix_bytes(attrs.private, &attrs.params);
-        let registry_entry = generate_registry_entry(
-            struct_name,
-            intro,
-            &prefix_bytes,
-            final_byte,
-            None, // const sequence
-        );
+        let has_lifetimes = !input.generics.lifetimes().collect::<Vec<_>>().is_empty();
+        let registry_entry = if has_lifetimes {
+            quote! {}
+        } else {
+            generate_registry_entry(
+                struct_name,
+                &input.generics,
+                intro,
+                &prefix_bytes,
+                final_byte,
+                None,
+            )
+        };
 
         // Generate the const string for ConstEncode
         let const_str = generate_const_str(
@@ -1083,16 +1108,18 @@ fn generate_escape_sequence_impl(
             quote! {}
         };
 
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
         quote! {
             #struct_def
 
-            impl ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name #ty_generics #where_clause {
                 const INTRO: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer =
                     ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer::#intro_variant;
                 #consts_impl
             }
 
-            impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name #ty_generics #where_clause {
                 const STR: &'static str = #const_str;
             }
 
@@ -1115,6 +1142,8 @@ fn generate_escape_sequence_impl(
             positional_params: positional_params.as_deref(),
             osc_number: attrs.number.as_deref(),
             osc_data: attrs.data.as_deref(),
+            data_sep: attrs.data_sep.as_deref(),
+            param_sep: attrs.param_sep.as_deref(),
             emit_struct,
         })
     }
@@ -1183,6 +1212,8 @@ struct VariableSequenceParams<'a> {
     positional_params: Option<&'a [PositionalParam]>,
     osc_number: Option<&'a str>,
     osc_data: Option<&'a str>,
+    data_sep: Option<&'a str>,
+    param_sep: Option<&'a str>,
     emit_struct: bool,
 }
 
@@ -1202,8 +1233,13 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         positional_params,
         osc_number,
         osc_data,
+        data_sep,
+        param_sep,
         emit_struct,
     } = params;
+    
+    // Split generics for impl blocks
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     // Struct is already defined by the user, we just need to generate the impls
 
     // Generate new constructor
@@ -1238,7 +1274,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     };
 
     let new_constructor = quote! {
-        impl #struct_name {
+        impl #impl_generics #struct_name #ty_generics #where_clause {
             #[allow(clippy::too_many_arguments)]
             #[inline]
             pub fn new(#(#field_names: #field_types),*) -> Self {
@@ -1367,10 +1403,17 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                 i > 0 // Normal behavior: separator after first element
             };
 
+            // Determine which separator to use
+            let separator = if needs_separator && i == 0 && data_sep.is_some() {
+                data_sep.unwrap() // Use custom data separator for first field after static data
+            } else {
+                param_sep.unwrap_or(";") // Use param separator (or default ";") for subsequent fields
+            };
+
             match param {
                 PositionalParam::Required(field_name, _ty) => {
                     if needs_separator {
-                        write_ops.write_str(";");
+                        write_ops.write_str(separator);
                     }
                     let field_ident = syn::Ident::new(field_name, struct_name.span());
                     write_ops.write_field(&field_ident);
@@ -1378,9 +1421,10 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                 PositionalParam::Optional(field_name, _ty) => {
                     // Generate conditional write for optional positional parameters
                     let field_ident = syn::Ident::new(field_name, struct_name.span());
+                    let sep_lit = separator;
                     let write_op = quote! {
                         if let Some(ref value) = self.#field_ident {
-                            __total += ::vtenc::encode::write_str_into(buf, ";")?;
+                            __total += ::vtenc::encode::write_str_into(buf, #sep_lit)?;
                             __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
                         }
                     };
@@ -1401,10 +1445,18 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             } else {
                 i > 0 // Normal behavior: separator after first element
             };
+
+            // Determine which separator to use
+            let separator = if needs_separator && i == 0 && data_sep.is_some() {
+                data_sep.unwrap() // Use custom data separator for first field after static data
+            } else {
+                param_sep.unwrap_or(";") // Use param separator (or default ";") for subsequent fields
+            };
+
             match param {
                 DcsDataParam::Field(boxed) => {
                     if needs_separator {
-                        write_ops.write_str(";");
+                        write_ops.write_str(separator);
                     }
                     let (field_name, _ty) = &**boxed;
                     let field_ident = syn::Ident::new(field_name, struct_name.span());
@@ -1414,9 +1466,10 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                     // Generate conditional write for optional fields
                     let (field_name, _ty) = &**boxed;
                     let field_ident = syn::Ident::new(field_name, struct_name.span());
+                    let sep_lit = separator;
                     let write_op = quote! {
                         if let Some(ref value) = self.#field_ident {
-                            __total += ::vtenc::encode::write_str_into(buf, ";")?;
+                            __total += ::vtenc::encode::write_str_into(buf, #sep_lit)?;
                             __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
                         }
                     };
@@ -1424,7 +1477,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
                 }
                 DcsDataParam::Literal(lit) => {
                     if needs_separator {
-                        write_ops.write_str(";");
+                        write_ops.write_str(separator);
                     }
                     write_ops.write_str(lit);
                 }
@@ -1443,13 +1496,16 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     let consts = EscapeSequenceConsts::new(private, &[], intermediate, final_byte);
     let consts_impl = consts.generate_all();
 
-    // For sequences with positional parameters, don't generate registry entry
-    // since positionals are in the data section and need special parsing
-    let registry_entry = if positional_params.is_some() {
+    // For sequences with positional parameters or lifetime parameters,
+    // don't generate registry entry since positionals are in the data section
+    // and lifetimes make it impossible to construct without borrowed data
+    let has_lifetimes = !input.generics.lifetimes().collect::<Vec<_>>().is_empty();
+    let registry_entry = if positional_params.is_some() || has_lifetimes {
         quote! {}
     } else {
         generate_registry_entry(
             struct_name,
+            &input.generics,
             intro,
             &[],
             final_byte,
@@ -1471,17 +1527,17 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
         #constructor
 
-        impl ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name {
+        impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name #ty_generics #where_clause {
             const INTRO: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer =
                 ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer::#intro_variant;
             #consts_impl
         }
 
-        impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name {
+        impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name #ty_generics #where_clause {
             const ENCODED_LEN: usize = #encoded_len;
         }
 
-        impl ::vtio_control_derive::__internal::vtio_control_base::Encode for #struct_name {
+        impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::Encode for #struct_name #ty_generics #where_clause {
             #[inline]
             fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
                 let mut __total = 0usize;
@@ -1533,6 +1589,10 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 ///   sequences. Optional parameters must come after required ones.
 /// - `#[vtctl(literal = "value")]`: Mark a field as a literal string constant in
 ///   DCS data parameters.
+/// - `#[vtctl(data_sep = "=")]`: Custom separator between static data and first
+///   field (default: ";").
+/// - `#[vtctl(param_sep = "|")]`: Custom separator between parameters/fields
+///   (default: ";").
 #[proc_macro_derive(VTControl, attributes(vtctl))]
 pub fn derive_control(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
@@ -1847,8 +1907,9 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             };
 
             let const_str = format!("{}", code as char);
+            let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
             let expanded = quote! {
-                impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
+                impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name #ty_generics #where_clause {
                     const STR: &'static str = #const_str;
                 }
             };
@@ -1932,10 +1993,12 @@ fn generate_esc_sequence_impl(
             quote! {}
         };
 
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
         quote! {
             #struct_def
 
-            impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name #ty_generics #where_clause {
                 const STR: &'static str = #const_str;
             }
         }
@@ -1966,14 +2029,16 @@ fn generate_esc_sequence_impl(
             quote! {}
         };
 
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
         quote! {
             #struct_def
 
-            impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name #ty_generics #where_clause {
                 const ENCODED_LEN: usize = 4; // Conservative upper bound: ESC + intermediate + 2-byte charset
             }
 
-            impl ::vtio_control_derive::__internal::vtio_control_base::Encode for #struct_name {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::Encode for #struct_name #ty_generics #where_clause {
                 fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
                     ::vtio_control_derive::__internal::vtio_control_base::write_esc!(buf; #intermediate_str, #(self.#field_idents),*)
                 }

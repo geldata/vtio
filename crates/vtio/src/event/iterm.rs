@@ -17,77 +17,13 @@
 //! This module provides type-safe wrappers for known sequences and a
 //! generic mechanism for encoding arbitrary key=value pairs.
 
+use std::borrow::Cow;
+
 use vtenc::{Encode, EncodeError, IntoSeq, WriteSeq, write_osc};
 use vtio_control_derive::VTControl;
+use vtio_control_base::EscapeSequenceParam;
 
 const ITERM2_OSC_PREFIX: &str = "1337;";
-
-
-
-/// Generate an iTerm2 command type with a single typed parameter.
-///
-/// Creates a type that implements `ITerm2Command` by writing
-/// `key=value` where the key is fixed and the value is of a given type.
-macro_rules! iterm2_param_command {
-    ($(#[$meta:meta])* $name:ident { $value_field:ident: $type:ty }) => {
-        $(#[$meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-        pub struct $name {
-            pub $value_field: $type,
-        }
-
-        impl $name {
-            /// The command key string.
-            pub const KEY: &'static str = std::stringify!($name);
-
-            /// Create a new command instance.
-            pub fn new<T>($value_field: T) -> Self
-                where
-                    T: Into<$type>
-            {
-                Self { $value_field: $value_field.into() }
-            }
-        }
-
-        impl Encode for $name {
-            fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-                vtenc::write_osc!(buf; $crate::event::iterm::ITERM2_OSC_PREFIX, Self::KEY, "=", self.$value_field)
-            }
-        }
-    };
-}
-
-/// Generate an iTerm2 command type with a single string parameter.
-///
-/// Creates a type that implements `ITerm2Command` by writing
-/// `key=value` where the key is fixed and the value is a `str`.
-macro_rules! iterm2_string_param_command {
-    ($(#[$meta:meta])* $name:ident { $value_field:ident }) => {
-        $(#[$meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-        pub struct $name<'a> {
-            pub $value_field: &'a str,
-        }
-
-        impl<'a> $name<'a> {
-            /// The command key string.
-            pub const KEY: &'static str = std::stringify!($name);
-
-            /// Create a new command instance.
-            pub fn new($value_field: &'a str) -> Self {
-                Self { $value_field }
-            }
-        }
-
-        impl Encode for $name<'_> {
-            fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-                vtenc::write_osc!(buf; $crate::event::iterm::ITERM2_OSC_PREFIX, Self::KEY, "=", self.$value_field)
-            }
-        }
-    };
-}
-
-// Simple commands (no parameters)
 
 /// Set a mark at the current cursor position.
 ///
@@ -173,32 +109,67 @@ pub enum CursorShapeValue {
     Underline = 2,
 }
 
+impl Default for CursorShapeValue {
+    fn default() -> Self {
+        Self::Block
+    }
+}
+
 impl IntoSeq for CursorShapeValue {
     fn into_seq(&self) -> impl WriteSeq {
         *self as u8
     }
 }
 
-iterm2_param_command!(
-    /// Set the cursor shape.
-    CursorShape { shape: CursorShapeValue }
-);
+impl From<u8> for CursorShapeValue {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Block,
+            1 => Self::VerticalBar,
+            2 => Self::Underline,
+            _ => Self::default(),
+        }
+    }
+}
 
-iterm2_string_param_command!(
-    /// Set the current directory path.
-    ///
-    /// Inform iTerm2 of the current working directory to enable
-    /// semantic history and other path-based features.
-    CurrentDir { path }
-);
+impl From<&EscapeSequenceParam> for CursorShapeValue {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
 
-iterm2_string_param_command!(
-    /// Change the session's profile.
-    ///
-    /// Switch to a different profile by name. The profile must exist
-    /// in iTerm2's configuration.
-    SetProfile { profile }
-);
+impl From<EscapeSequenceParam> for CursorShapeValue {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(&param)
+    }
+}
+
+/// Set the cursor shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "CursorShape", data_sep = "=")]
+pub struct CursorShape {
+    pub shape: CursorShapeValue,
+}
+
+/// Set the current directory path.
+///
+/// Inform iTerm2 of the current working directory to enable
+/// semantic history and other path-based features.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "CurrentDir", data_sep = "=")]
+pub struct CurrentDir<'a> {
+    pub path: &'a str,
+}
+
+/// Change the session's profile.
+///
+/// Switch to a different profile by name. The profile must exist
+/// in iTerm2's configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "SetProfile", data_sep = "=")]
+pub struct SetProfile<'a> {
+    pub profile: &'a str,
+}
 
 /// Attention request modes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -224,22 +195,50 @@ impl IntoSeq for Clipboard {
     }
 }
 
-iterm2_param_command!(
-    /// Start copying text to a clipboard.
-    ///
-    /// All text received after this command is placed in the specified
-    /// pasteboard until `EndCopy` is received.
-    CopyToClipboard { clipboard: Clipboard }
-);
+impl Default for Clipboard {
+    fn default() -> Self {
+        Self::General
+    }
+}
 
-iterm2_string_param_command!(
-    /// Set background image from a file path.
-    ///
-    /// The value should be a base64-encoded filename. An empty string
-    /// removes the background image. User confirmation is required as
-    /// a security measure.
-    SetBackgroundImageFile { base64_path }
-);
+impl From<&EscapeSequenceParam> for Clipboard {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        let s = String::from_utf8_lossy(param);
+        match &s {
+            Cow::Borrowed("rule") => Self::Rule,
+            Cow::Borrowed("find") => Self::Find,
+            Cow::Borrowed("font") => Self::Font,
+            _ => Self::default(),
+        }
+    }
+}
+
+impl From<EscapeSequenceParam> for Clipboard {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(&param)
+    }
+}
+
+/// Start copying text to a clipboard.
+///
+/// All text received after this command is placed in the specified
+/// pasteboard until `EndCopy` is received.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "CopyToClipboard", data_sep = "=")]
+pub struct CopyToClipboard {
+    pub clipboard: Clipboard,
+}
+
+/// Set background image from a file path.
+///
+/// The value should be a base64-encoded filename. An empty string
+/// removes the background image. User confirmation is required as
+/// a security measure.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "SetBackgroundImageFile", data_sep = "=")]
+pub struct SetBackgroundImageFile<'a> {
+    pub base64_path: &'a str,
+}
 
 /// Attention request modes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -254,6 +253,12 @@ pub enum AttentionMode {
     Fireworks,
 }
 
+impl Default for AttentionMode {
+    fn default() -> Self {
+        Self::No
+    }
+}
+
 impl IntoSeq for AttentionMode {
     fn into_seq(&self) -> impl WriteSeq {
         match self {
@@ -265,10 +270,31 @@ impl IntoSeq for AttentionMode {
     }
 }
 
-iterm2_param_command!(
-    /// Request attention with visual effects.
-    RequestAttention { mode: AttentionMode }
-);
+impl From<&EscapeSequenceParam> for AttentionMode {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        let s = String::from_utf8_lossy(param);
+        match &s {
+            Cow::Borrowed("yes") => Self::Yes,
+            Cow::Borrowed("once") => Self::Once,
+            Cow::Borrowed("no") => Self::No,
+            Cow::Borrowed("fireworks") => Self::Fireworks,
+            _ => Self::default(),
+        }
+    }
+}
+
+impl From<EscapeSequenceParam> for AttentionMode {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(&param)
+    }
+}
+
+/// Request attention with visual effects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "RequestAttention", data_sep = "=")]
+pub struct RequestAttention {
+    pub mode: AttentionMode,
+}
 
 /// Unicode version values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -279,21 +305,51 @@ pub enum UnicodeVersionValue {
     V9 = 9,
 }
 
+impl Default for UnicodeVersionValue {
+    fn default() -> Self {
+        Self::V9
+    }
+}
+
 impl IntoSeq for UnicodeVersionValue {
     fn into_seq(&self) -> impl WriteSeq {
         *self as u8
     }
 }
 
-iterm2_param_command!(
-    /// Set Unicode width table version.
-    ///
-    /// Can also push/pop values on a stack using special string values
-    /// (use `GenericCommand` for that).
-    UnicodeVersion { version: UnicodeVersionValue }
-);
+impl From<u8> for UnicodeVersionValue {
+    fn from(value: u8) -> Self {
+        match value {
+            8 => Self::V8,
+            9 => Self::V9,
+            _ => Self::default(),
+        }
+    }
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+impl From<&EscapeSequenceParam> for UnicodeVersionValue {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        Self::from(param.first())
+    }
+}
+
+impl From<EscapeSequenceParam> for UnicodeVersionValue {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(&param)
+    }
+}
+
+/// Set Unicode width table version.
+///
+/// Can also push/pop values on a stack using special string values
+/// (use `GenericCommand` for that).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "UnicodeVersion", data_sep = "=")]
+pub struct UnicodeVersion {
+    pub version: UnicodeVersionValue,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Iterm2Bool(bool);
 
 impl From<bool> for Iterm2Bool {
@@ -308,30 +364,57 @@ impl IntoSeq for Iterm2Bool {
     }
 }
 
-iterm2_param_command!(
-    /// Enable or disable the cursor guide (highlight cursor line).
-    HighlightCursorLine { enabled: Iterm2Bool }
-);
+impl From<&EscapeSequenceParam> for Iterm2Bool {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        let s = String::from_utf8_lossy(param);
+        match &s {
+            Cow::Borrowed("yes") => Self(true),
+            Cow::Borrowed("no") => Self(false),
+            _ => Self::default(),
+        }
+    }
+}
 
-iterm2_string_param_command!(
-    /// Copy text to the general clipboard.
-    Copy { base64_text }
-);
+impl From<EscapeSequenceParam> for Iterm2Bool {
+    fn from(param: EscapeSequenceParam) -> Self {
+        Self::from(&param)
+    }
+}
 
-iterm2_string_param_command!(
-    /// Report the value of a session variable.
-    ReportVariable { base64_name }
-);
+/// Enable or disable the cursor guide (highlight cursor line).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "HighlightCursorLine", data_sep = "=")]
+pub struct HighlightCursorLine {
+    pub enabled: Iterm2Bool,
+}
 
-iterm2_string_param_command!(
-    /// Request file upload from the user.
-    RequestUpload { format }
-);
+/// Copy text to the general clipboard.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "Copy", data_sep = "=")]
+pub struct Copy<'a> {
+    pub base64_text: &'a str,
+}
 
-iterm2_string_param_command!(
-    /// Open a URL in the default browser.
-    OpenUrl { base64_url }
-);
+/// Report the value of a session variable.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "ReportVariable", data_sep = "=")]
+pub struct ReportVariable<'a> {
+    pub base64_name: &'a str,
+}
+
+/// Request file upload from the user.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "RequestUpload", data_sep = "=")]
+pub struct RequestUpload<'a> {
+    pub format: &'a str,
+}
+
+/// Open a URL in the default browser.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(osc, number = "1337", data = "OpenUrl", data_sep = "=")]
+pub struct OpenUrl<'a> {
+    pub base64_url: &'a str,
+}
 
 /// Generic command for arbitrary key=value pairs.
 ///
