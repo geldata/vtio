@@ -20,8 +20,8 @@
 use std::borrow::Cow;
 
 use vtenc::{Encode, EncodeError, IntoSeq, WriteSeq, write_osc};
-use vtio_control_derive::VTControl;
 use vtio_control_base::EscapeSequenceParam;
+use vtio_control_derive::VTControl;
 
 const ITERM2_OSC_PREFIX: &str = "1337;";
 
@@ -486,87 +486,126 @@ impl Encode for GenericCommand {
     }
 }
 
-/// Annotation with optional parameters.
+/// Annotation message with optional length parameter.
+///
+/// The length specifies how many cells the annotation spans.
+/// In the wire format, if length is present, it appears BEFORE the message.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AddAnnotation<'a> {
+pub struct AnnotationMessage<'a> {
     pub message: &'a str,
     pub length: Option<u32>,
-    pub x_coord: Option<u32>,
-    pub y_coord: Option<u32>,
-    pub hidden: bool,
 }
 
-impl<'a> AddAnnotation<'a> {
-    /// Create a simple annotation with just a message.
+impl<'a> AnnotationMessage<'a> {
+    /// Create a new annotation message without length.
     #[must_use]
     pub fn new(message: &'a str) -> Self {
         Self {
             message,
             length: None,
-            x_coord: None,
-            y_coord: None,
-            hidden: false,
         }
     }
 
+    /// Create a new annotation message with length.
     #[must_use]
-    pub fn key(&self) -> &'static str {
-        if self.hidden {
-            "AddHiddenAnnotation"
-        } else {
-            "AddAnnotation"
+    pub fn with_length(message: &'a str, length: u32) -> Self {
+        Self {
+            message,
+            length: Some(length),
         }
-    }
-
-    /// Set the length of cells to annotate.
-    #[must_use]
-    pub fn with_length(mut self, length: u32) -> Self {
-        self.length = Some(length);
-        self
-    }
-
-    /// Set the coordinates for the annotation.
-    #[must_use]
-    pub fn with_coords(mut self, x: u32, y: u32) -> Self {
-        self.x_coord = Some(x);
-        self.y_coord = Some(y);
-        self
     }
 }
 
-impl Encode for AddAnnotation<'_> {
-    fn encode<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        if let Some(len) = self.length {
-            if let (Some(x), Some(y)) = (self.x_coord, self.y_coord) {
-                write_osc!(
-                    buf;
-                    ITERM2_OSC_PREFIX,
-                    self.key(),
-                    len,
-                    "|",
-                    self.message,
-                    "|",
-                    x,
-                    "|",
-                    y
-                )
-            } else {
-                write_osc!(
-                    buf;
-                    ITERM2_OSC_PREFIX,
-                    self.key(),
-                    len,
-                    "|",
-                    self.message
-                )
-            }
-        } else {
-            write_osc!(
-                buf;
-                ITERM2_OSC_PREFIX,
-                self.key(),
-                self.message
-            )
+impl IntoSeq for AnnotationMessage<'_> {
+    fn into_seq(&self) -> impl WriteSeq {
+        AnnotationMessageSeq {
+            length: self.length,
+            message: self.message,
         }
     }
+}
+
+struct AnnotationMessageSeq<'a> {
+    length: Option<u32>,
+    message: &'a str,
+}
+
+impl WriteSeq for AnnotationMessageSeq<'_> {
+    fn write_seq<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+        let mut total = 0;
+        if let Some(len) = self.length {
+            total += WriteSeq::write_seq(&len, buf)?;
+            total += WriteSeq::write_seq(&"|", buf)?;
+        }
+        total += WriteSeq::write_seq(&self.message, buf)?;
+        Ok(total)
+    }
+}
+
+/// Annotation coordinates (x, y position).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AnnotationCoords {
+    pub x: u32,
+    pub y: u32,
+}
+
+impl AnnotationCoords {
+    /// Create new annotation coordinates.
+    #[must_use]
+    pub fn new(x: u32, y: u32) -> Self {
+        Self { x, y }
+    }
+}
+
+impl WriteSeq for AnnotationCoords {
+    fn write_seq<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
+        let mut total = 0;
+        total += WriteSeq::write_seq(&self.x, buf)?;
+        total += WriteSeq::write_seq(&"|", buf)?;
+        total += WriteSeq::write_seq(&self.y, buf)?;
+        Ok(total)
+    }
+}
+
+/// Add an annotation at the current cursor position.
+///
+/// Annotations appear as clickable markers in the terminal that can have
+/// associated text messages and optional length/position parameters.
+///
+/// The wire format is: `OSC 1337;AddAnnotation=[length|]message[|x|y] ST`
+/// where length and coordinates are optional.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(
+    osc,
+    number = "1337",
+    data = "AddAnnotation",
+    data_sep = "=",
+    param_sep = "|"
+)]
+pub struct AddAnnotation<'a> {
+    pub message: AnnotationMessage<'a>,
+    pub coords: Option<AnnotationCoords>,
+}
+
+/// Add a hidden annotation at the current cursor position.
+///
+/// Similar to `AddAnnotation`, but the annotation is not visible in the
+/// terminal UI by default.
+///
+/// The wire format is: `OSC 1337;AddHiddenAnnotation=[length|]message[|x|y] ST`
+/// where length and coordinates are optional.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, VTControl)]
+#[vtctl(
+    osc,
+    number = "1337",
+    data = "AddHiddenAnnotation",
+    data_sep = "=",
+    param_sep = "|"
+)]
+pub struct AddHiddenAnnotation<'a> {
+    pub message: AnnotationMessage<'a>,
+    pub coords: Option<AnnotationCoords>,
 }
