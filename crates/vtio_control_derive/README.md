@@ -79,12 +79,52 @@ fn my_custom_handler(params: &vtparser::EscapeSequenceParams) {
 
 Used for terminal window titles, notifications, and other OS-level commands.
 
+#### Basic OSC Sequences
+
 ```rust
 use vtio_control_derive::osc;
 
-#[osc(params = ["0"], finalbyte = ';')]
+#[osc(number = "0", data = "Set Title")]
 struct SetWindowTitle;
 ```
+
+#### OSC with Positional Parameters
+
+OSC (and DCS) sequences support positional parameters using the
+`#[vtctl(positional)]` attribute. Positional parameters are encoded as
+semicolon-separated values in the data section.
+
+```rust
+use vtio_control_derive::VTControl;
+
+// Shell integration command end with optional exit code
+#[derive(Debug, Clone, Copy, VTControl)]
+#[osc(number = "133", data = "D")]
+struct CommandEnd {
+    #[vtctl(positional)]
+    pub exit_code: Option<i32>,
+}
+
+// Usage:
+let cmd_no_exit = CommandEnd { exit_code: None };
+// Encodes to: OSC 133;D ST
+
+let cmd_success = CommandEnd { exit_code: Some(0) };
+// Encodes to: OSC 133;D;0 ST
+
+let cmd_failure = CommandEnd { exit_code: Some(1) };
+// Encodes to: OSC 133;D;1 ST
+```
+
+**Rules for positional parameters:**
+- Mark fields with `#[vtctl(positional)]` to include them as positional
+  parameters
+- Optional positionals (using `Option<T>`) must come after all required
+  positionals
+- When encoding, `None` values are omitted along with any subsequent
+  parameters
+- Positional parameters are separated by semicolons
+- Supported for both OSC and DCS sequences
 
 ### `#[dcs]` - Device Control String
 
@@ -197,6 +237,24 @@ All macros support the following attributes:
   omitted, a default handler named `{struct_name}_handler` (in lowercase)
   is assumed.
 
+### OSC/DCS Specific Attributes
+
+For OSC and DCS sequences:
+
+- `number` (optional): The OSC command number (e.g., `"133"` for shell
+  integration)
+
+- `data` (optional): Static data prefix for the OSC/DCS command
+
+### Field Attributes
+
+For fields within variable sequence structs:
+
+- `#[vtctl(positional)]`: Marks a field as a positional parameter for
+  OSC/DCS sequences. Positional parameters are encoded as semicolon-
+  separated values. Optional positional parameters (using `Option<T>`)
+  must come after all required positional parameters
+
 ## Struct Definition
 
 For **const sequences**, use a unit struct:
@@ -241,6 +299,32 @@ The implementation:
 - Uses struct fields as parameters in declaration order
 - Encodes efficiently without heap allocation
 - Provides compile-time length bounds for buffer allocation
+
+## Positional Parameter Validation
+
+The derive macro validates positional parameter ordering at compile time:
+
+```rust
+// Valid: required before optional
+#[derive(VTControl)]
+#[osc(number = "999", data = "TEST")]
+struct ValidOrder {
+    #[vtctl(positional)]
+    pub required: i32,
+    #[vtctl(positional)]
+    pub optional: Option<i32>,
+}
+
+// Invalid: required after optional - compile error!
+#[derive(VTControl)]
+#[osc(number = "999", data = "TEST")]
+struct InvalidOrder {
+    #[vtctl(positional)]
+    pub optional: Option<i32>,
+    #[vtctl(positional)]
+    pub required: i32,  // Error: required positional must come before optional
+}
+```
 
 ## Error Reporting
 

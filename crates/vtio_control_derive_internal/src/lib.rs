@@ -471,7 +471,7 @@ fn extract_var_params_from_struct(input: &ItemStruct) -> Option<Vec<(String, syn
     }
 }
 
-/// Represents a DCS data parameter (either a field or a constant literal).
+/// Represents a DCS/OSC data parameter (either a field or a constant literal).
 #[derive(Clone)]
 enum DcsDataParam {
     /// A required field from the struct
@@ -482,17 +482,99 @@ enum DcsDataParam {
     Literal(String),
 }
 
+/// Represents a positional parameter for OSC/DCS sequences.
+#[derive(Clone)]
+enum PositionalParam {
+    /// A required positional parameter
+    Required(String, syn::Type),
+    /// An optional positional parameter (must come after all required ones)
+    Optional(String, syn::Type),
+}
+
 /// Remove helper attributes from struct fields.
 ///
-/// Filter out attributes like `#[literal]` that are used by the macro but
-/// should not appear in the generated output.
+/// Filter out attributes like `#[literal]` and `#[vtctl(...)]` that are used
+/// by the macro but should not appear in the generated output.
 fn remove_helper_attributes(mut input: ItemStruct) -> ItemStruct {
     if let syn::Fields::Named(ref mut fields) = input.fields {
         for field in fields.named.iter_mut() {
-            field.attrs.retain(|attr| !attr.path().is_ident("literal"));
+            field.attrs.retain(|attr| {
+                !attr.path().is_ident("literal") && !attr.path().is_ident("vtctl")
+            });
         }
     }
     input
+}
+
+/// Check if a field has the `#[vtctl(positional)]` attribute.
+fn is_positional_field(field: &syn::Field) -> bool {
+    field.attrs.iter().any(|attr| {
+        if attr.path().is_ident("vtctl") {
+            if let Ok(list) = attr.meta.require_list() {
+                if let Ok(nested) = list.parse_args::<syn::Ident>() {
+                    return nested == "positional";
+                }
+            }
+        }
+        false
+    })
+}
+
+/// Extract positional parameters from struct fields.
+///
+/// Validates that optional positionals come after required ones and returns
+/// an ordered list of positional parameters.
+fn extract_positional_params(
+    input: &ItemStruct,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<Vec<PositionalParam>> {
+    match &input.fields {
+        syn::Fields::Named(fields) => {
+            let mut params = Vec::new();
+            let mut seen_optional = false;
+
+            for field in &fields.named {
+                if !is_positional_field(field) {
+                    continue;
+                }
+
+                let name = field_ident(field).to_string();
+                let ty = &field.ty;
+
+                if is_unit_type(ty) {
+                    diagnostics.push(
+                        field.span()
+                            .error("positional parameter cannot be unit type"),
+                    );
+                    continue;
+                }
+
+                let is_optional = is_option_type(ty);
+
+                if is_optional {
+                    seen_optional = true;
+                    let inner_ty = extract_option_inner_type(ty).unwrap_or_else(|| ty.clone());
+                    params.push(PositionalParam::Optional(name, inner_ty));
+                } else {
+                    if seen_optional {
+                        diagnostics.push(
+                            field.span()
+                                .error("required positional parameter must come before optional ones")
+                                .help("reorder fields so that all required positionals come first"),
+                        );
+                    }
+                    params.push(PositionalParam::Required(name, ty.clone()));
+                }
+            }
+
+            if params.is_empty() {
+                None
+            } else {
+                Some(params)
+            }
+        }
+        syn::Fields::Unnamed(_) | syn::Fields::Unit => None,
+    }
 }
 
 /// Extract DCS data parameters from struct fields, including literal annotations.
@@ -623,7 +705,7 @@ fn parse_escape_sequence_attributes(
             diagnostics.push(
                 meta.span()
                     .error("expected name-value pairs in attribute")
-                    .help("example: #[csi(private = '?', params = [\"6\"], finalbyte = 'h')]"),
+                    .help("example: #[vtctl(csi, private = '?', params = [\"6\"], finalbyte = 'h')]"),
             );
         }
     }
@@ -915,6 +997,13 @@ fn generate_escape_sequence_impl(
         None
     };
 
+    // Extract positional parameters for OSC/DCS sequences
+    let positional_params = if intro == "DCS" || intro == "OSC" {
+        extract_positional_params(&input, diagnostics)
+    } else {
+        None
+    };
+
     // Now remove helper attributes from the struct before emitting it
     let input = remove_helper_attributes(input.clone());
 
@@ -1011,6 +1100,7 @@ fn generate_escape_sequence_impl(
             intermediate: &attrs.intermediate,
             final_byte,
             dcs_data_params: dcs_data_params.as_deref(),
+            positional_params: positional_params.as_deref(),
             osc_number: attrs.number.as_deref(),
             osc_data: attrs.data.as_deref(),
             emit_struct,
@@ -1078,6 +1168,7 @@ struct VariableSequenceParams<'a> {
     intermediate: &'a [u8],
     final_byte: u8,
     dcs_data_params: Option<&'a [DcsDataParam]>,
+    positional_params: Option<&'a [PositionalParam]>,
     osc_number: Option<&'a str>,
     osc_data: Option<&'a str>,
     emit_struct: bool,
@@ -1096,6 +1187,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         intermediate,
         final_byte,
         dcs_data_params,
+        positional_params,
         osc_number,
         osc_data,
         emit_struct,
@@ -1205,7 +1297,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     let mut write_ops = WriteOperationBuilder::new();
 
     write_ops.write_str(intro_str);
-    
+
     // For OSC, write number parameter first
     if intro == "OSC" {
         if let Some(num) = osc_number {
@@ -1243,15 +1335,50 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         // This will be handled by osc_number in variable sequence generation
     } else {
         write_ops.write_intermediate_bytes(intermediate);
-        
+
         // For PM/APC, don't write finalbyte (they only have data + ST)
         if !matches!(intro, "PM" | "APC") {
             write_ops.write_char(final_byte as char);
         }
     }
 
+    // Write positional parameters (for OSC/DCS sequences with #[vtctl(positional)])
+    if let Some(positionals) = positional_params
+        && matches!(intro, "DCS" | "OSC")
+    {
+        for (i, param) in positionals.iter().enumerate() {
+            // For OSC with static data prefix, add separator before first field
+            // For DCS or OSC without static data, use normal index-based separator
+            let needs_separator = if intro == "OSC" && osc_data.is_some() {
+                true // Always add separator since static data was written
+            } else {
+                i > 0 // Normal behavior: separator after first element
+            };
+
+            match param {
+                PositionalParam::Required(field_name, _ty) => {
+                    if needs_separator {
+                        write_ops.write_str(";");
+                    }
+                    let field_ident = syn::Ident::new(field_name, struct_name.span());
+                    write_ops.write_field(&field_ident);
+                }
+                PositionalParam::Optional(field_name, _ty) => {
+                    // Generate conditional write for optional positional parameters
+                    let field_ident = syn::Ident::new(field_name, struct_name.span());
+                    let write_op = quote! {
+                        if let Some(ref value) = self.#field_ident {
+                            __total += ::vtenc::encode::write_str_into(buf, ";")?;
+                            __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
+                        }
+                    };
+                    write_ops.add_raw(write_op);
+                }
+            }
+        }
+    }
     // Write DCS/OSC data params (for DCS/OSC sequences with dcs_data_params)
-    if let Some(data_params) = dcs_data_params
+    else if let Some(data_params) = dcs_data_params
         && matches!(intro, "DCS" | "OSC")
     {
         for (i, param) in data_params.iter().enumerate() {
@@ -1304,13 +1431,19 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     let consts = EscapeSequenceConsts::new(private, &[], intermediate, final_byte);
     let consts_impl = consts.generate_all();
 
-    let registry_entry = generate_registry_entry(
-        struct_name,
-        intro,
-        &[],
-        final_byte,
-        Some(var_params), // variable sequence with params
-    );
+    // For sequences with positional parameters, don't generate registry entry
+    // since positionals are in the data section and need special parsing
+    let registry_entry = if positional_params.is_some() {
+        quote! {}
+    } else {
+        generate_registry_entry(
+            struct_name,
+            intro,
+            &[],
+            final_byte,
+            Some(var_params),
+        )
+    };
 
     let struct_def = if emit_struct {
         quote! { #input }
@@ -1359,13 +1492,15 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 ///
 /// ```ignore
 /// #[derive(VTControl)]
-/// #[csi(private = '?', finalbyte = 'n')]
+/// #[vtctl(csi, private = '?', finalbyte = 'n')]
 /// pub struct UdkStatusReport {
 ///     pub status: u8,
 /// }
 /// ```
 ///
-/// # Supported Attributes
+/// # Supported Sequence Types
+///
+/// All sequence types are specified using the `#[vtctl(type, ...)]` attribute:
 ///
 /// - `csi`: Control Sequence Introducer sequences
 /// - `dcs`: Device Control String sequences
@@ -1381,9 +1516,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 /// - `c0`: C0 control character sequences
 #[proc_macro_derive(
     VTControl,
-    attributes(
-        csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0, literal
-    )
+    attributes(literal, vtctl)
 )]
 pub fn derive_control(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
@@ -1431,34 +1564,72 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 .map(|i| i.to_string())
                 .unwrap_or_default();
 
-            match path_str.as_str() {
-                "csi" | "dcs" | "osc" | "esc" | "ss2" | "ss3" | "pm" | "apc" | "st"
-                | "deckpam" | "deckpnm" | "c0" => {
-                    if control_attr.is_some() {
+            if path_str == "vtctl" {
+                if control_attr.is_some() {
+                    diagnostics.push(
+                        attr.span()
+                            .error("multiple vtctl attributes found")
+                            .help("only one #[vtctl(...)] attribute is allowed"),
+                    );
+                    return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                }
+
+                // Parse the nested meta items
+                let nested: Punctuated<Meta, Token![,]> =
+                    match meta.parse_args_with(Punctuated::parse_terminated) {
+                        Ok(n) => n,
+                        Err(e) => {
+                            diagnostics.push(
+                                attr.span()
+                                    .error(format!("failed to parse attribute: {}", e)),
+                            );
+                            return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                        }
+                    };
+
+                let mut nested_vec: Vec<Meta> = nested.into_iter().collect();
+
+                // First element should be the sequence type identifier
+                if nested_vec.is_empty() {
+                    diagnostics.push(
+                        attr.span()
+                            .error("vtctl attribute requires a sequence type")
+                            .help("example: #[vtctl(csi, finalbyte = 'H')] or #[vtctl(osc, number = \"133\", data = \"D\")]"),
+                    );
+                    return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                }
+
+                let first_meta = nested_vec.remove(0);
+                let sequence_type = match first_meta {
+                    Meta::Path(ref path) => {
+                        path.get_ident()
+                            .map(|i| i.to_string())
+                            .unwrap_or_default()
+                    }
+                    _ => {
                         diagnostics.push(
-                            attr.span()
-                                .error("multiple control sequence attributes found")
-                                .help("only one attribute (csi, dcs, osc, etc.) is allowed"),
+                            first_meta.span()
+                                .error("expected sequence type identifier")
+                                .help("valid types: csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0"),
                         );
                         return TokenStream::from(emit_diagnostics(&mut diagnostics));
                     }
+                };
 
-                    // Parse the nested meta items
-                    let nested: Punctuated<Meta, Token![,]> =
-                        match meta.parse_args_with(Punctuated::parse_terminated) {
-                            Ok(n) => n,
-                            Err(e) => {
-                                diagnostics.push(
-                                    attr.span()
-                                        .error(format!("failed to parse attribute: {}", e)),
-                                );
-                                return TokenStream::from(emit_diagnostics(&mut diagnostics));
-                            }
-                        };
-
-                    control_attr = Some((path_str, nested.into_iter().collect()));
+                match sequence_type.as_str() {
+                    "csi" | "dcs" | "osc" | "esc" | "ss2" | "ss3" | "pm" | "apc" | "st"
+                    | "deckpam" | "deckpnm" | "c0" => {
+                        control_attr = Some((sequence_type, nested_vec));
+                    }
+                    _ => {
+                        diagnostics.push(
+                            first_meta.span()
+                                .error(format!("unknown sequence type: {}", sequence_type))
+                                .help("valid types: csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0"),
+                        );
+                        return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                    }
                 }
-                _ => {}
             }
         }
     }
@@ -1676,7 +1847,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 input
                     .span()
                     .error("no control sequence attribute found")
-                    .help("add one of: #[csi(...)], #[dcs(...)], #[osc(...)], #[esc(...)], #[ss2(...)], #[ss3(...)], #[pm(...)], #[apc(...)], #[st(...)], #[deckpam(...)], #[deckpnm(...)], #[c0(...)]"),
+                    .help("add #[vtctl(type, ...)] where type is one of: csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0\nexample: #[vtctl(csi, finalbyte = 'H')] or #[vtctl(osc, number = \"133\", data = \"D\")]"),
             );
             TokenStream::from(emit_diagnostics(&mut diagnostics))
         }

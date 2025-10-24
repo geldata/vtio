@@ -12,6 +12,16 @@
 //!
 //! These sequences are supported by modern terminal emulators including
 //! `iTerm2`, `VSCode`, `WezTerm`, and others.
+//!
+//! ## Positional Parameters
+//!
+//! Some shell integration sequences support optional positional parameters.
+//! Fields marked with `#[vtctl(positional)]` are encoded as semicolon-
+//! separated values in the OSC data section. Optional positional parameters
+//! (using `Option<T>`) must come after all required positional parameters.
+//!
+//! When encoding, optional parameters that are `None` are omitted, along with
+//! any subsequent parameters.
 
 use vtio_control_derive::VTControl;
 
@@ -25,7 +35,7 @@ use vtio_control_derive::VTControl;
 /// - This should be emitted at the very start of drawing the prompt.
 /// - Must be paired with `PromptEnd` to mark where the prompt ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
-#[osc(number = "133", data = "A")]
+#[vtctl(osc, number = "133", data = "A")]
 pub struct PromptStart;
 
 /// A command that marks the end of a shell prompt and the beginning of user
@@ -40,7 +50,7 @@ pub struct PromptStart;
 /// - This should be emitted right before accepting user input.
 /// - Should follow a `PromptStart` sequence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
-#[osc(number = "133", data = "B")]
+#[vtctl(osc, number = "133", data = "B")]
 pub struct PromptEnd;
 
 /// A command that marks the start of command execution and output.
@@ -55,12 +65,12 @@ pub struct PromptEnd;
 /// - Should follow a `PromptEnd` sequence.
 /// - Must be paired with `CommandEnd` to mark where output ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
-#[osc(number = "133", data = "C")]
+#[vtctl(osc, number = "133", data = "C")]
 pub struct CommandStart;
 
 /// A command that marks the end of command output.
 ///
-/// This sequence (OSC 133;D or OSC 133;D;exit_code) indicates where the
+/// This sequence (`OSC 133;D` or OSC `133;D;exit_code`) indicates where the
 /// command output ends. It can optionally include the command's exit code.
 /// Terminal emulators can use this to track command execution status and
 /// enable features like showing success/failure indicators.
@@ -71,21 +81,92 @@ pub struct CommandStart;
 /// - Should follow a `CommandStart` sequence.
 /// - The exit code parameter is optional.
 ///
+/// # Positional Parameters
+///
+/// The `exit_code` field is marked as a positional parameter. When encoded:
+/// - `CommandEnd { exit_code: None }` produces `OSC 133;D ST`
+/// - `CommandEnd { exit_code: Some(0) }` produces `OSC 133;D;0 ST`
+/// - `CommandEnd { exit_code: Some(1) }` produces `OSC 133;D;1 ST`
+///
 /// # Example
 ///
 /// ```ignore
 /// // Report command completion without exit code
-/// let end = CommandEnd::new(None);
+/// let end = CommandEnd { exit_code: None };
 ///
 /// // Report successful command completion
-/// let end = CommandEnd::new(Some(0));
+/// let end = CommandEnd { exit_code: Some(0) };
 ///
 /// // Report command failure
-/// let end = CommandEnd::new(Some(1));
+/// let end = CommandEnd { exit_code: Some(1) };
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
-#[osc(number = "133", data = "D")]
+#[vtctl(osc, number = "133", data = "D")]
 pub struct CommandEnd {
+    #[vtctl(positional)]
     pub exit_code: Option<i32>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vtio_control_base::ConstEncode;
+    use vtio_control_base::Encode;
+
+    #[test]
+    fn test_prompt_start() {
+        assert_eq!(PromptStart::STR, "\x1b]133;A\x1b\\");
+    }
+
+    #[test]
+    fn test_prompt_end() {
+        assert_eq!(PromptEnd::STR, "\x1b]133;B\x1b\\");
+    }
+
+    #[test]
+    fn test_command_start() {
+        assert_eq!(CommandStart::STR, "\x1b]133;C\x1b\\");
+    }
+
+    #[test]
+    fn test_command_end_without_exit_code() {
+        let mut cmd = CommandEnd { exit_code: None };
+        let mut buf = Vec::new();
+        let result = cmd.encode(&mut buf);
+        assert!(result.is_ok());
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D\x1b\\");
+    }
+
+    #[test]
+    fn test_command_end_with_exit_code_zero() {
+        let mut cmd = CommandEnd {
+            exit_code: Some(0),
+        };
+        let mut buf = Vec::new();
+        let result = cmd.encode(&mut buf);
+        assert!(result.is_ok());
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D;0\x1b\\");
+    }
+
+    #[test]
+    fn test_command_end_with_exit_code_nonzero() {
+        let mut cmd = CommandEnd {
+            exit_code: Some(1),
+        };
+        let mut buf = Vec::new();
+        let result = cmd.encode(&mut buf);
+        assert!(result.is_ok());
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D;1\x1b\\");
+    }
+
+    #[test]
+    fn test_command_end_with_large_exit_code() {
+        let mut cmd = CommandEnd {
+            exit_code: Some(127),
+        };
+        let mut buf = Vec::new();
+        let result = cmd.encode(&mut buf);
+        assert!(result.is_ok());
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D;127\x1b\\");
+    }
+}

@@ -100,7 +100,7 @@ terminal_mode!(
 /// <https://vt100.net/docs/vt102-ug/chapter5.html> for terminal support
 /// specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'r')]
+#[vtctl(csi, finalbyte = 'r')]
 pub struct SetTopAndBottomMargins {
     pub top: u16,
     pub bottom: u16,
@@ -124,7 +124,7 @@ pub struct SetTopAndBottomMargins {
 /// See <https://terminalguide.namepad.de/seq/csi_s_u/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 's')]
+#[vtctl(csi, finalbyte = 's')]
 pub struct SetLeftAndRightMargins {
     pub left: u16,
     pub right: u16,
@@ -148,7 +148,7 @@ pub struct SetLeftAndRightMargins {
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-r/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[dcs(intermediate = "$", finalbyte = 'r')]
+#[vtctl(dcs, intermediate = "$", finalbyte = 'r')]
 pub struct RequestTopBottomMargins;
 
 /// Request left and right margins (`DECRQSS` - `DECSLRM`).
@@ -169,7 +169,7 @@ pub struct RequestTopBottomMargins;
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-s/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[dcs(intermediate = "$", finalbyte = 's')]
+#[vtctl(dcs, intermediate = "$", finalbyte = 's')]
 pub struct RequestLeftRightMargins;
 
 /// Scroll Up (`SU`).
@@ -187,7 +187,7 @@ pub struct RequestLeftRightMargins;
 /// See <https://terminalguide.namepad.de/seq/csi_s__u/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'S')]
+#[vtctl(csi, finalbyte = 'S')]
 pub struct ScrollUp(pub u16);
 
 /// Scroll Down (`SD`).
@@ -205,7 +205,7 @@ pub struct ScrollUp(pub u16);
 /// See <https://terminalguide.namepad.de/seq/csi_t__u/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'T')]
+#[vtctl(csi, finalbyte = 'T')]
 pub struct ScrollDown(pub u16);
 
 /// Scroll Left (`SL`).
@@ -225,7 +225,7 @@ pub struct ScrollDown(pub u16);
 /// See <https://terminalguide.namepad.de/seq/csi_sp_at/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(intermediate = " ", finalbyte = '@')]
+#[vtctl(csi, intermediate = " ", finalbyte = '@')]
 pub struct ScrollLeft(pub u16);
 
 /// Scroll Right (`SR`).
@@ -245,5 +245,5 @@ pub struct ScrollLeft(pub u16);
 /// See <https://terminalguide.namepad.de/seq/csi_sp_a/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(intermediate = " ", finalbyte = 'A')]
+#[vtctl(csi, intermediate = " ", finalbyte = 'A')]
 pub struct ScrollRight(pub u16);

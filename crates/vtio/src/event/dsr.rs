@@ -21,7 +21,7 @@ use crate::VTControl;
 /// See <https://terminalguide.namepad.de/seq/csi_sn-5/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(params = ["5"], finalbyte = 'n')]
+#[vtctl(csi, params = ["5"], finalbyte = 'n')]
 pub struct RequestOperatingStatus;
 
 /// Operating Status Report (`DSR`).
@@ -34,7 +34,7 @@ pub struct RequestOperatingStatus;
 /// See <https://terminalguide.namepad.de/seq/csi_sn-5/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(params = ["0"], finalbyte = 'n')]
+#[vtctl(csi, params = ["0"], finalbyte = 'n')]
 pub struct OperatingStatusReport;
 
 /// Request Operating Status (private mode) (`DSR`).
@@ -49,7 +49,7 @@ pub struct OperatingStatusReport;
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["5"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["5"], finalbyte = 'n')]
 pub struct RequestOperatingStatusPrivate;
 
 /// Operating Status Report (private mode) (`DSR`).
@@ -59,7 +59,7 @@ pub struct RequestOperatingStatusPrivate;
 /// This report indicates that the terminal is operating correctly.
 /// The status code is always 0.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["0"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["0"], finalbyte = 'n')]
 pub struct OperatingStatusReportPrivate;
 
 /// Request Printer Status (`DSR`).
@@ -73,7 +73,7 @@ pub struct OperatingStatusReportPrivate;
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["15"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["15"], finalbyte = 'n')]
 pub struct RequestPrinterStatus;
 
 /// Printer Status Report (`DSR`).
@@ -85,7 +85,7 @@ pub struct RequestPrinterStatus;
 /// - 11: printer not ready
 /// - 13: no printer
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', finalbyte = 'n')]
+#[vtctl(csi, private = '?', finalbyte = 'n')]
 pub struct PrinterStatusReport {
     /// Printer status code.
     pub status: u8,
@@ -122,7 +122,7 @@ impl PrinterStatusReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["25"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["25"], finalbyte = 'n')]
 pub struct RequestUdkStatus;
 
 /// User Defined Key Status Report (`DSR`).
@@ -133,7 +133,7 @@ pub struct RequestUdkStatus;
 /// - 20: UDK locked
 /// - 21: UDK unlocked
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', finalbyte = 'n')]
+#[vtctl(csi, private = '?', finalbyte = 'n')]
 pub struct UdkStatusReport {
     /// UDK status code.
     pub status: u8,
@@ -164,7 +164,7 @@ impl UdkStatusReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["26"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["26"], finalbyte = 'n')]
 pub struct RequestKeyboardStatus;
 
 /// Keyboard Status Report (`DSR`).
@@ -174,7 +174,7 @@ pub struct RequestKeyboardStatus;
 /// The status code is typically 27, and the dialect identifies the
 /// keyboard language/layout.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["27"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["27"], finalbyte = 'n')]
 pub struct KeyboardStatusReport {
     /// Keyboard dialect code.
     pub dialect: u8,
@@ -189,7 +189,7 @@ pub struct KeyboardStatusReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["55"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["55"], finalbyte = 'n')]
 pub struct RequestLocatorStatus;
 
 /// DEC Locator Status Report (`DSR`).
@@ -200,7 +200,7 @@ pub struct RequestLocatorStatus;
 /// - 50: no locator
 /// - 53: locator available
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', finalbyte = 'n')]
+#[vtctl(csi, private = '?', finalbyte = 'n')]
 pub struct LocatorStatusReport {
     /// Locator status code.
     pub status: u8,
@@ -229,7 +229,7 @@ impl LocatorStatusReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["56"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["56"], finalbyte = 'n')]
 pub struct RequestLocatorType;
 
 /// DEC Locator Type Report (`DSR`).
@@ -238,7 +238,7 @@ pub struct RequestLocatorType;
 ///
 /// The type code indicates the locator device type.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["57"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["57"], finalbyte = 'n')]
 pub struct LocatorTypeReport {
     /// Locator type code.
     pub locator_type: u8,
@@ -255,7 +255,7 @@ pub struct LocatorTypeReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["75"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["75"], finalbyte = 'n')]
 pub struct RequestDataIntegrityStatus;
 
 /// Data Integrity Status Report (`DSR`).
@@ -266,7 +266,7 @@ pub struct RequestDataIntegrityStatus;
 /// - 70: ready, no malfunction detected
 /// - 71: malfunction detected
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', finalbyte = 'n')]
+#[vtctl(csi, private = '?', finalbyte = 'n')]
 pub struct DataIntegrityStatusReport {
     /// Data integrity status code.
     pub status: u8,
@@ -297,7 +297,7 @@ impl DataIntegrityStatusReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["85"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["85"], finalbyte = 'n')]
 pub struct RequestMultipleSessionStatus;
 
 /// Multiple Session Status Report (`DSR`).
@@ -309,7 +309,7 @@ pub struct RequestMultipleSessionStatus;
 /// - 81: no sessions available
 /// - 83: not configured for multiple sessions
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', finalbyte = 'n')]
+#[vtctl(csi, private = '?', finalbyte = 'n')]
 pub struct MultipleSessionStatusReport {
     /// Multiple session status code.
     pub status: u8,
@@ -345,14 +345,14 @@ impl MultipleSessionStatusReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["62"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["62"], finalbyte = 'n')]
 pub struct RequestMacroSpaceStatus;
 
 /// Macro Space Status Report (`DSR`).
 ///
 /// Response indicating available macro space.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["63"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["63"], finalbyte = 'n')]
 pub struct MacroSpaceStatusReport {
     /// Available macro space in bytes.
     pub space: u16,
@@ -368,7 +368,7 @@ pub struct MacroSpaceStatusReport {
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["63"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["63"], finalbyte = 'n')]
 pub struct RequestMemoryChecksum {
     /// Identifier for the memory region to checksum.
     pub id: u16,
@@ -378,7 +378,7 @@ pub struct RequestMemoryChecksum {
 ///
 /// Response containing the memory checksum.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["63"], finalbyte = 'n')]
+#[vtctl(csi, private = '?', params = ["63"], finalbyte = 'n')]
 pub struct MemoryChecksumReport {
     /// Memory region identifier.
     pub id: u16,

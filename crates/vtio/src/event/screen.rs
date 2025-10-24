@@ -21,7 +21,7 @@ use vtio_control_derive::VTControl;
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'J')]
+#[vtctl(csi, finalbyte = 'J')]
 pub struct EraseDisplayBelow;
 
 /// Erase Display Above (`ED`).
@@ -41,7 +41,7 @@ pub struct EraseDisplayBelow;
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(params = ["1"], finalbyte = 'J')]
+#[vtctl(csi, params = ["1"], finalbyte = 'J')]
 pub struct EraseDisplayAbove;
 
 /// Erase Display Complete (`ED`).
@@ -61,7 +61,7 @@ pub struct EraseDisplayAbove;
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(params = ["2"], finalbyte = 'J')]
+#[vtctl(csi, params = ["2"], finalbyte = 'J')]
 pub struct EraseDisplayComplete;
 
 /// Erase Display Scroll-back (`ED`).
@@ -79,7 +79,7 @@ pub struct EraseDisplayComplete;
 /// See <https://terminalguide.namepad.de/seq/csi_cj/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(params = ["3"], finalbyte = 'J')]
+#[vtctl(csi, params = ["3"], finalbyte = 'J')]
 pub struct EraseDisplayScrollback;
 
 /// Erase Line Right (`EL`).
@@ -98,7 +98,7 @@ pub struct EraseDisplayScrollback;
 /// See <https://terminalguide.namepad.de/seq/csi_ck/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'K')]
+#[vtctl(csi, finalbyte = 'K')]
 pub struct EraseLineRight;
 
 /// Erase Line Left (`EL`).
@@ -115,7 +115,7 @@ pub struct EraseLineRight;
 /// See <https://terminalguide.namepad.de/seq/csi_ck/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(params = ["1"], finalbyte = 'K')]
+#[vtctl(csi, params = ["1"], finalbyte = 'K')]
 pub struct EraseLineLeft;
 
 /// Erase Line Complete (`EL`).
@@ -133,7 +133,7 @@ pub struct EraseLineLeft;
 /// See <https://terminalguide.namepad.de/seq/csi_ck/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(params = ["2"], finalbyte = 'K')]
+#[vtctl(csi, params = ["2"], finalbyte = 'K')]
 pub struct EraseLineComplete;
 
 /// Selective Erase Display Below (`DECSED`).
@@ -152,7 +152,7 @@ pub struct EraseLineComplete;
 /// See <https://terminalguide.namepad.de/seq/csi_cj__p/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', finalbyte = 'J')]
+#[vtctl(csi, private = '?', finalbyte = 'J')]
 pub struct SelectiveEraseDisplayBelow;
 
 /// Selective Erase Display Above (`DECSED`).
@@ -171,7 +171,7 @@ pub struct SelectiveEraseDisplayBelow;
 /// See <https://terminalguide.namepad.de/seq/csi_cj__p/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["1"], finalbyte = 'J')]
+#[vtctl(csi, private = '?', params = ["1"], finalbyte = 'J')]
 pub struct SelectiveEraseDisplayAbove;
 
 /// Selective Erase Display Complete (`DECSED`).
@@ -187,7 +187,7 @@ pub struct SelectiveEraseDisplayAbove;
 /// See <https://terminalguide.namepad.de/seq/csi_cj__p/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["2"], finalbyte = 'J')]
+#[vtctl(csi, private = '?', params = ["2"], finalbyte = 'J')]
 pub struct SelectiveEraseDisplayComplete;
 
 /// Selective Erase Line Right (`DECSEL`).
@@ -204,7 +204,7 @@ pub struct SelectiveEraseDisplayComplete;
 /// See <https://terminalguide.namepad.de/seq/csi_ck__p/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', finalbyte = 'K')]
+#[vtctl(csi, private = '?', finalbyte = 'K')]
 pub struct SelectiveEraseLineRight;
 
 /// Selective Erase Line Left (`DECSEL`).
@@ -221,7 +221,7 @@ pub struct SelectiveEraseLineRight;
 /// See <https://terminalguide.namepad.de/seq/csi_ck__p/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["1"], finalbyte = 'K')]
+#[vtctl(csi, private = '?', params = ["1"], finalbyte = 'K')]
 pub struct SelectiveEraseLineLeft;
 
 /// Selective Erase Line Complete (`DECSEL`).
@@ -237,7 +237,7 @@ pub struct SelectiveEraseLineLeft;
 /// See <https://terminalguide.namepad.de/seq/csi_ck__p/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(private = '?', params = ["2"], finalbyte = 'K')]
+#[vtctl(csi, private = '?', params = ["2"], finalbyte = 'K')]
 pub struct SelectiveEraseLineComplete;
 
 /// Insert Line (`IL`).
@@ -269,7 +269,7 @@ pub struct SelectiveEraseLineComplete;
 /// See <https://terminalguide.namepad.de/seq/csi_cl/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'L')]
+#[vtctl(csi, finalbyte = 'L')]
 pub struct InsertLine(pub u16);
 
 /// Delete Line (`DL`).
@@ -299,7 +299,7 @@ pub struct InsertLine(pub u16);
 /// See <https://terminalguide.namepad.de/seq/csi_cm/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'M')]
+#[vtctl(csi, finalbyte = 'M')]
 pub struct DeleteLine(pub u16);
 
 /// Delete Character (`DCH`).
@@ -330,7 +330,7 @@ pub struct DeleteLine(pub u16);
 /// See <https://terminalguide.namepad.de/seq/csi_cp/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(finalbyte = 'P')]
+#[vtctl(csi, finalbyte = 'P')]
 pub struct DeleteCharacter(pub u16);
 
 /// Insert Column (`DECIC`).
@@ -362,7 +362,7 @@ pub struct DeleteCharacter(pub u16);
 /// See <https://terminalguide.namepad.de/seq/csi_x7d_right_brace_t_tick/>
 /// for terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(intermediate = "'", finalbyte = '}')]
+#[vtctl(csi, intermediate = "'", finalbyte = '}')]
 pub struct InsertColumn(pub u16);
 
 /// Delete Column (`DECDC`).
@@ -392,7 +392,7 @@ pub struct InsertColumn(pub u16);
 /// See <https://terminalguide.namepad.de/seq/csi_x7e_tilde_t_tick/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[csi(intermediate = "'", finalbyte = '~')]
+#[vtctl(csi, intermediate = "'", finalbyte = '~')]
 pub struct DeleteColumn(pub u16);
 
 /// Fill Screen with E (`DECALN`).
@@ -406,7 +406,7 @@ pub struct DeleteColumn(pub u16);
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a8/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[esc(intermediate = "#", finalbyte = '8')]
+#[vtctl(esc, intermediate = "#", finalbyte = '8')]
 pub struct FillScreenWithE;
 
 /// Set Double Height Line Top Half (`DECDHL`).
@@ -430,7 +430,7 @@ pub struct FillScreenWithE;
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a3/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[esc(intermediate = "#", finalbyte = '3')]
+#[vtctl(esc, intermediate = "#", finalbyte = '3')]
 pub struct SetDoubleHeightLineTopHalf;
 
 /// Set Double Height Line Bottom Half (`DECDHL`).
@@ -454,7 +454,7 @@ pub struct SetDoubleHeightLineTopHalf;
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a4/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[esc(intermediate = "#", finalbyte = '4')]
+#[vtctl(esc, intermediate = "#", finalbyte = '4')]
 pub struct SetDoubleHeightLineBottomHalf;
 
 /// Set Single Width Line (`DECSWL`).
@@ -469,7 +469,7 @@ pub struct SetDoubleHeightLineBottomHalf;
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a5/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[esc(intermediate = "#", finalbyte = '5')]
+#[vtctl(esc, intermediate = "#", finalbyte = '5')]
 pub struct SetSingleWidthLine;
 
 /// Set Double Width Line (`DECDWL`).
@@ -491,5 +491,5 @@ pub struct SetSingleWidthLine;
 /// See <https://terminalguide.namepad.de/seq/a_esc_zhash_a6/> for
 /// terminal support specifics.
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
-#[esc(intermediate = "#", finalbyte = '6')]
+#[vtctl(esc, intermediate = "#", finalbyte = '6')]
 pub struct SetDoubleWidthLine;
