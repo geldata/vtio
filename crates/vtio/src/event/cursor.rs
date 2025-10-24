@@ -1,7 +1,7 @@
 //! Cursor movement and control commands.
 
 use bitflags::bitflags;
-use vtio_control_derive::{c0, csi, dcs, esc, terminal_mode};
+use vtio_control_derive::{terminal_mode, Control};
 use vtio_control_base::EscapeSequenceParam;
 use vtenc::{IntoSeq, WriteSeq};
 
@@ -84,8 +84,8 @@ pub struct CursorVisibility {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a7/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = '7')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct SaveCursor;
 
 /// Restore cursor (`DECRC`).
@@ -111,8 +111,8 @@ pub struct SaveCursor;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a8/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = '8')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RestoreCursor;
 
 /// Backspace (`BS`).
@@ -126,8 +126,8 @@ pub struct RestoreCursor;
 ///
 /// See <https://terminalguide.namepad.de/seq/c_bs/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[c0(code = 0x08)]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Backspace;
 
 /// Horizontal Tab (`TAB`).
@@ -141,8 +141,8 @@ pub struct Backspace;
 ///
 /// See <https://terminalguide.namepad.de/seq/c_tab/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[c0(code = 0x09)]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct HorizontalTab;
 
 /// Line Feed (`LF`).
@@ -157,8 +157,8 @@ pub struct HorizontalTab;
 ///
 /// See <https://terminalguide.namepad.de/seq/c_lf/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[c0(code = 0x0A)]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct LineFeed;
 
 /// Vertical Tab (`VT`).
@@ -167,8 +167,8 @@ pub struct LineFeed;
 ///
 /// See <https://terminalguide.namepad.de/seq/c_vt/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[c0(code = 0x0B)]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct VerticalTab;
 
 /// Form Feed (`FF`).
@@ -177,8 +177,8 @@ pub struct VerticalTab;
 ///
 /// See <https://terminalguide.namepad.de/seq/c_ff/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[c0(code = 0x0C)]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FormFeed;
 
 /// Carriage Return (`CR`).
@@ -197,8 +197,8 @@ pub struct FormFeed;
 ///
 /// See <https://terminalguide.namepad.de/seq/c_cr/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[c0(code = 0x0D)]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CarriageReturn;
 
 /// Set Cursor Position (`CUP`).
@@ -225,8 +225,8 @@ pub struct CarriageReturn;
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ch/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'H')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorPosition {
     pub row: u16,
     pub col: u16,
@@ -253,8 +253,8 @@ pub struct CursorPosition {
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a6/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = '6')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct BackIndex;
 
 /// Forward Index (`DECFI`).
@@ -278,8 +278,8 @@ pub struct BackIndex;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_a9/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = '9')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ForwardIndex;
 
 /// Index (`IND`).
@@ -301,15 +301,15 @@ pub struct ForwardIndex;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_cd/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = 'D')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Index;
 
 /// Next Line (`NEL`).
 ///
 /// Send [`CarriageReturn`] and [`Index`].
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = 'E')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct NextLine;
 
 /// Horizontal Tab Set (`HTS`).
@@ -318,8 +318,8 @@ pub struct NextLine;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_ch/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = 'H')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct HorizontalTabSet;
 
 /// Reverse Index (`RI`).
@@ -341,8 +341,8 @@ pub struct HorizontalTabSet;
 ///
 /// See <https://terminalguide.namepad.de/seq/a_esc_cm/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[esc(finalbyte = 'M')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ReverseIndex;
 
 /// Cursor Up (`CUU`).
@@ -364,8 +364,8 @@ pub struct ReverseIndex;
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ca/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'A')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorUp(pub u16);
 
 /// Cursor Down (`CUD`).
@@ -388,8 +388,8 @@ pub struct CursorUp(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cb/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'B')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorDown(pub u16);
 
 /// Cursor Left (`CUB`).
@@ -426,8 +426,8 @@ pub struct CursorDown(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cd/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'D')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorLeft(pub u16);
 
 /// Cursor Right (`CUF`).
@@ -451,8 +451,8 @@ pub struct CursorLeft(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cc/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'C')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorRight(pub u16);
 
 /// Cursor Next Line (`CNL`).
@@ -466,8 +466,8 @@ pub struct CursorRight(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ce/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'E')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorNextLine(pub u16);
 
 /// Cursor Previous Line (`CPL`).
@@ -481,8 +481,8 @@ pub struct CursorNextLine(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cf/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'F')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorPreviousLine(pub u16);
 
 /// Cursor Horizontal Absolute (`CHA`).
@@ -498,8 +498,8 @@ pub struct CursorPreviousLine(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cg/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'G')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalAbsolute(pub u16);
 
 /// Cursor Horizontal Forward Tabulation (`CHT`).
@@ -520,8 +520,8 @@ pub struct CursorHorizontalAbsolute(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ci/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'I')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalForwardTab {
     pub amount: u16,
 }
@@ -542,8 +542,8 @@ pub struct CursorHorizontalForwardTab {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cz/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'Z')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalBackwardTab(pub u16);
 
 /// Cursor Horizontal Position Relative (`HPR`).
@@ -567,8 +567,8 @@ pub struct CursorHorizontalBackwardTab(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ca/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'a')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorHorizontalRelative(pub u16);
 
 /// Cursor Vertical Position Absolute (`VPA`).
@@ -588,8 +588,8 @@ pub struct CursorHorizontalRelative(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_cd/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'd')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorVerticalAbsolute(pub u16);
 
 /// Vertical Position Relative (`VPR`).
@@ -612,8 +612,8 @@ pub struct CursorVerticalAbsolute(pub u16);
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_ce/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(finalbyte = 'e')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CursorVerticalRelative(pub u16);
 
 /// Cursor style variants for `DECSCUSR`.
@@ -689,8 +689,8 @@ impl From<&EscapeSequenceParam> for CursorStyle {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sq_t_space/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(intermediate = " ", finalbyte = 'q')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct SetCursorStyle {
     pub style: CursorStyle,
 }
@@ -704,8 +704,8 @@ pub struct SetCursorStyle {
 ///
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-space-q/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[dcs(intermediate = "$", finalbyte = 'q', data = " q")]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestCursorStyle;
 
 bitflags! {
@@ -867,8 +867,8 @@ impl From<&EscapeSequenceParam> for LinuxCursorShape {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sc__p/> for terminal
 /// support specifics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Control)]
 #[csi(intermediate = " ", finalbyte = 'q')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LinuxCursorStyle {
     /// Combined cursor shape and flags value.
     pub shape: LinuxCursorShape,
@@ -947,8 +947,8 @@ impl LinuxCursorStyle {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn-6/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(params = ["6"], finalbyte = 'n')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestCursorPosition;
 
 /// Cursor Position Report (`CPR`).
@@ -959,8 +959,8 @@ pub struct RequestCursorPosition;
 ///
 /// The position may be relative to the scroll area if
 /// [`RelativeCursorOriginMode`] is set, or relative to the screen otherwise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Control)]
 #[csi(finalbyte = 'R')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CursorPositionReport {
     pub row: u16,
     pub col: u16,
@@ -980,8 +980,8 @@ pub struct CursorPositionReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-1/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(params = ["1"], intermediate = "$", finalbyte = 'w')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestCursorInformationReport;
 
 bitflags! {
@@ -1169,8 +1169,8 @@ impl From<&EscapeSequenceParam> for CharacterSetSizes {
 /// See <https://vt100.net/docs/vt510-rm/DECCIR> for the VT510 specification.
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-1/> for
 /// terminal support specifics.
+#[derive(Debug, Clone, PartialEq, Eq, Control)]
 #[dcs(params = ["1"], intermediate = "$", finalbyte = 'u')]
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CursorInformationReport {
     /// Cursor row position (Pr).
     pub row: u16,
@@ -1255,8 +1255,8 @@ impl CursorInformationReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-2/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(params = ["2"], intermediate = "$", finalbyte = 'w')]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct RequestTabStopReport;
 
 /// Tab Stop Report (`DECTABSR`).
@@ -1273,8 +1273,8 @@ pub struct RequestTabStopReport;
 /// See <https://vt100.net/docs/vt510-rm/DECTABSR> for the VT510 specification.
 /// See <https://terminalguide.namepad.de/seq/csi_sw_t_dollar-2/> for
 /// terminal support specifics.
+#[derive(Debug, Clone, PartialEq, Eq, Control)]
 #[dcs(params = ["2"], intermediate = "$", finalbyte = 'u')]
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TabStopReport {
     /// Tab stop column positions, encoded as slash-separated string.
     pub tab_stops: TabStops,

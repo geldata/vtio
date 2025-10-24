@@ -5,7 +5,7 @@
 //!
 //! See <https://terminalguide.namepad.de/seq/csi_sn/> for details.
 
-use vtio_control_derive::csi;
+use vtio_control_derive::Control;
 
 /// Request Operating Status (`DSR`).
 ///
@@ -20,6 +20,7 @@ use vtio_control_derive::csi;
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn-5/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(params = ["5"], finalbyte = 'n')]
 pub struct RequestOperatingStatus;
 
@@ -32,6 +33,7 @@ pub struct RequestOperatingStatus;
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn-5/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(params = ["0"], finalbyte = 'n')]
 pub struct OperatingStatusReport;
 
@@ -46,6 +48,7 @@ pub struct OperatingStatusReport;
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["5"], finalbyte = 'n')]
 pub struct RequestOperatingStatusPrivate;
 
@@ -55,6 +58,7 @@ pub struct RequestOperatingStatusPrivate;
 ///
 /// This report indicates that the terminal is operating correctly.
 /// The status code is always 0.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["0"], finalbyte = 'n')]
 pub struct OperatingStatusReportPrivate;
 
@@ -68,6 +72,7 @@ pub struct OperatingStatusReportPrivate;
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["15"], finalbyte = 'n')]
 pub struct RequestPrinterStatus;
 
@@ -79,8 +84,8 @@ pub struct RequestPrinterStatus;
 /// - 10: printer ready
 /// - 11: printer not ready
 /// - 13: no printer
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PrinterStatusReport {
     /// Printer status code.
     pub status: u8,
@@ -116,6 +121,7 @@ impl PrinterStatusReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["25"], finalbyte = 'n')]
 pub struct RequestUdkStatus;
 
@@ -126,8 +132,8 @@ pub struct RequestUdkStatus;
 /// The status code typically indicates:
 /// - 20: UDK locked
 /// - 21: UDK unlocked
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UdkStatusReport {
     /// UDK status code.
     pub status: u8,
@@ -157,6 +163,7 @@ impl UdkStatusReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["26"], finalbyte = 'n')]
 pub struct RequestKeyboardStatus;
 
@@ -166,8 +173,8 @@ pub struct RequestKeyboardStatus;
 ///
 /// The status code is typically 27, and the dialect identifies the
 /// keyboard language/layout.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["27"], finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyboardStatusReport {
     /// Keyboard dialect code.
     pub dialect: u8,
@@ -181,6 +188,7 @@ pub struct KeyboardStatusReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["55"], finalbyte = 'n')]
 pub struct RequestLocatorStatus;
 
@@ -191,8 +199,8 @@ pub struct RequestLocatorStatus;
 /// The status code indicates:
 /// - 50: no locator
 /// - 53: locator available
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocatorStatusReport {
     /// Locator status code.
     pub status: u8,
@@ -220,6 +228,7 @@ impl LocatorStatusReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["56"], finalbyte = 'n')]
 pub struct RequestLocatorType;
 
@@ -228,8 +237,8 @@ pub struct RequestLocatorType;
 /// Response indicating the type of the DEC locator.
 ///
 /// The type code indicates the locator device type.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["57"], finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocatorTypeReport {
     /// Locator type code.
     pub locator_type: u8,
@@ -245,6 +254,7 @@ pub struct LocatorTypeReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["75"], finalbyte = 'n')]
 pub struct RequestDataIntegrityStatus;
 
@@ -255,8 +265,8 @@ pub struct RequestDataIntegrityStatus;
 /// The status code typically indicates:
 /// - 70: ready, no malfunction detected
 /// - 71: malfunction detected
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DataIntegrityStatusReport {
     /// Data integrity status code.
     pub status: u8,
@@ -286,6 +296,7 @@ impl DataIntegrityStatusReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["85"], finalbyte = 'n')]
 pub struct RequestMultipleSessionStatus;
 
@@ -297,8 +308,8 @@ pub struct RequestMultipleSessionStatus;
 /// - 80: sessions available
 /// - 81: no sessions available
 /// - 83: not configured for multiple sessions
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MultipleSessionStatusReport {
     /// Multiple session status code.
     pub status: u8,
@@ -333,14 +344,15 @@ impl MultipleSessionStatusReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["62"], finalbyte = 'n')]
 pub struct RequestMacroSpaceStatus;
 
 /// Macro Space Status Report (`DSR`).
 ///
 /// Response indicating available macro space.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["63"], finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MacroSpaceStatusReport {
     /// Available macro space in bytes.
     pub space: u16,
@@ -355,8 +367,8 @@ pub struct MacroSpaceStatusReport {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sn/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["63"], finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RequestMemoryChecksum {
     /// Identifier for the memory region to checksum.
     pub id: u16,
@@ -365,8 +377,8 @@ pub struct RequestMemoryChecksum {
 /// Memory Checksum Report (`DSR`).
 ///
 /// Response containing the memory checksum.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Control)]
 #[csi(private = '?', params = ["63"], finalbyte = 'n')]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MemoryChecksumReport {
     /// Memory region identifier.
     pub id: u16,

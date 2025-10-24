@@ -796,6 +796,7 @@ fn generate_escape_sequence_impl(
     intro: &str,
     attrs: EscapeSequenceAttributes,
     diagnostics: &mut Vec<Diagnostic>,
+    emit_struct: bool,
 ) -> proc_macro2::TokenStream {
     let struct_name = &input.ident;
 
@@ -883,8 +884,14 @@ fn generate_escape_sequence_impl(
 
         let consts_impl = consts.generate_all();
 
+        let struct_def = if emit_struct {
+            quote! { #input }
+        } else {
+            quote! {}
+        };
+
         quote! {
-            #input
+            #struct_def
 
             impl ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name {
                 const INTRO: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer =
@@ -912,6 +919,7 @@ fn generate_escape_sequence_impl(
             intermediate: &attrs.intermediate,
             final_byte,
             dcs_data_params: dcs_data_params.as_deref(),
+            emit_struct,
         })
     }
 }
@@ -966,6 +974,7 @@ struct VariableSequenceParams<'a> {
     intermediate: &'a [u8],
     final_byte: u8,
     dcs_data_params: Option<&'a [DcsDataParam]>,
+    emit_struct: bool,
 }
 
 /// Generate a variable (non-const) sequence implementation.
@@ -981,6 +990,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         intermediate,
         final_byte,
         dcs_data_params,
+        emit_struct,
     } = params;
     // Struct is already defined by the user, we just need to generate the impls
 
@@ -1147,10 +1157,19 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         Some(var_params), // variable sequence with params
     );
 
-    quote! {
-        #input
+    let struct_def = if emit_struct {
+        quote! { #input }
+    } else {
+        quote! {}
+    };
 
-        #new_constructor
+    // Always generate constructor for variable sequences
+    let constructor = quote! { #new_constructor };
+
+    quote! {
+        #struct_def
+
+        #constructor
 
         impl ::vtio_control_derive::__internal::vtio_control_base::EscapeSequence for #struct_name {
             const INTRO: ::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceIntroducer =
@@ -1300,6 +1319,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "CSI",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "dcs" => {
@@ -1312,6 +1332,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "DCS",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "osc" => {
@@ -1324,6 +1345,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "OSC",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "ss2" => {
@@ -1336,6 +1358,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "SS2",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "ss3" => {
@@ -1348,6 +1371,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "SS3",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "pm" => {
@@ -1360,6 +1384,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "PM",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "apc" => {
@@ -1372,6 +1397,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "APC",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "st" => {
@@ -1384,6 +1410,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "ST",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "deckpam" => {
@@ -1396,6 +1423,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "DECKPAM",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "deckpnm" => {
@@ -1408,6 +1436,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 "DECKPNM",
                 attrs,
                 &mut diagnostics,
+                false,
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "esc" => {
@@ -1415,7 +1444,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 meta_list.into_iter().collect(),
                 &mut diagnostics,
             );
-            TokenStream::from(generate_esc_sequence_impl(item_struct, attrs, &mut diagnostics))
+            TokenStream::from(generate_esc_sequence_impl(item_struct, attrs, &mut diagnostics, false))
         }
         Some((ref attr_name, meta_list)) if attr_name == "c0" => {
             let struct_name = &item_struct.ident;
@@ -1474,10 +1503,10 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 }
             };
 
-            let code_byte = syn::LitByte::new(code, input.ident.span());
+            let const_str = format!("{}", code as char);
             let expanded = quote! {
                 impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
-                    const STR: &'static str = ::vtio_control_derive::__internal::const_str::const_str!([#code_byte]);
+                    const STR: &'static str = #const_str;
                 }
             };
 
@@ -1498,188 +1527,6 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Helper macro to generate attribute macro functions for escape sequences.
-///
-/// Reduces duplication across similar escape sequence types.
-macro_rules! define_escape_sequence_macro {
-    (
-        $(#[$meta:meta])*
-        $name:ident, $intro:expr
-    ) => {
-        $(#[$meta])*
-        #[proc_macro_attribute]
-        pub fn $name(attr: TokenStream, item: TokenStream) -> TokenStream {
-            let input = parse_macro_input!(item as ItemStruct);
-            let meta_list =
-                parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-            let mut diagnostics = Vec::new();
-            let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-            TokenStream::from(generate_escape_sequence_impl(input, $intro, attrs, &mut diagnostics))
-        }
-    };
-}
-
-define_escape_sequence_macro!(
-    /// Attribute macro for CSI (Control Sequence Introducer) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Const sequence
-    /// #[csi(private='?', params=["6"], finalbyte='h')]
-    /// struct DecSetMode;
-    ///
-    /// // Variable sequence - struct with fields
-    /// #[csi(finalbyte='H')]
-    /// struct CursorPosition {
-    ///     pub row: u16,
-    ///     pub col: u16,
-    /// }
-    ///
-    /// // Mixed const and variable params
-    /// #[csi(private='?', params=["27"], finalbyte='n')]
-    /// struct KeyboardStatusReport {
-    ///     pub dialect: u8,
-    /// }
-    /// ```
-    ///
-    /// # Attributes
-    ///
-    /// - `private` (optional): Character literal for private marker byte
-    /// - `params` (optional): Array of string literals for const parameters
-    /// - `intermediate` (optional): String literal for intermediate bytes
-    /// - `finalbyte` (required): Character literal for final byte
-    ///
-    /// For variable sequences, define the struct with fields. The fields will be used as
-    /// parameters in the encoded sequence. A `new` constructor will be generated automatically.
-    ///
-    /// For mixed sequences with both `params` and fields, const params are emitted first,
-    /// followed by variable params from fields (e.g., `CSI ? 27 ; <dialect> n`).
-    csi, "CSI"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for OSC (Operating System Command) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[osc(params=["0"], finalbyte=';')]
-    /// struct SetWindowTitle;
-    /// ```
-    osc, "OSC"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for SS2 (Single Shift 2) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[ss2(finalbyte='G')]
-    /// struct SingleShift2;
-    /// ```
-    ss2, "SS2"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for SS3 (Single Shift 3) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[ss3(finalbyte='H')]
-    /// struct SingleShift3;
-    /// ```
-    ss3, "SS3"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for DCS (Device Control String) sequences.
-    ///
-    /// Per ECMA-48 §5.6.3, DCS sequences may contain printable data after
-    /// the final byte but before the string terminator (ST).
-    ///
-    /// # Examples
-    ///
-    /// Basic DCS sequence:
-    /// ```ignore
-    /// #[dcs(finalbyte = 'q')]
-    /// struct RequestStatus;
-    /// ```
-    ///
-    /// DCS sequence with intermediate byte and data (DECRQSS format):
-    /// ```ignore
-    /// #[dcs(intermediate = "$", finalbyte = 'q', data = " q")]
-    /// struct RequestCursorStyle;
-    /// ```
-    ///
-    /// This generates: `ESC P $ q <space> q ESC \`
-    dcs, "DCS"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for PM (Privacy Message) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[pm(finalbyte='p')]
-    /// struct PrivacyMessage;
-    /// ```
-    pm, "PM"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for APC (Application Program Command) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[apc(finalbyte='a')]
-    /// struct ApplicationCommand;
-    /// ```
-    apc, "APC"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for ST (String Terminator) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[st(finalbyte='\\')]
-    /// struct StringTerminator;
-    /// ```
-    st, "ST"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for DECKPAM (DEC Keypad Application Mode) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[deckpam(finalbyte='=')]
-    /// struct KeypadApplicationMode;
-    /// ```
-    deckpam, "DECKPAM"
-);
-
-define_escape_sequence_macro!(
-    /// Attribute macro for DECKPNM (DEC Keypad Numeric Mode) sequences.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// #[deckpnm(finalbyte='>')]
-    /// struct KeypadNumericMode;
-    /// ```
-    deckpnm, "DECKPNM"
-);
-
 /// Generate implementation for plain ESC sequences.
 ///
 /// Plain ESC sequences don't have an introducer byte after ESC, they go
@@ -1688,6 +1535,7 @@ fn generate_esc_sequence_impl(
     input: ItemStruct,
     attrs: EscapeSequenceAttributes,
     diagnostics: &mut Vec<Diagnostic>,
+    emit_struct: bool,
 ) -> proc_macro2::TokenStream {
     let struct_name = &input.ident;
 
@@ -1735,8 +1583,14 @@ fn generate_esc_sequence_impl(
         // Add final byte
         const_str.push(final_byte as char);
 
+        let struct_def = if emit_struct {
+            quote! { #input }
+        } else {
+            quote! {}
+        };
+
         quote! {
-            #input
+            #struct_def
 
             impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
                 const STR: &'static str = #const_str;
@@ -1763,8 +1617,14 @@ fn generate_esc_sequence_impl(
             .map(|(field_name, _)| syn::Ident::new(field_name, struct_name.span()))
             .collect();
 
+        let struct_def = if emit_struct {
+            quote! { #input }
+        } else {
+            quote! {}
+        };
+
         quote! {
-            #input
+            #struct_def
 
             impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name {
                 const ENCODED_LEN: usize = 4; // Conservative upper bound: ESC + intermediate + 2-byte charset
@@ -1779,119 +1639,7 @@ fn generate_esc_sequence_impl(
     }
 }
 
-/// Attribute macro for plain ESC sequences.
-///
-/// Generate implementations for escape sequences that start with ESC (\x1B)
-/// followed by optional intermediate bytes and a final byte.
-///
-/// # Example
-///
-/// ```ignore
-/// #[esc(finalbyte = 'G', intermediate = "%")]
-/// struct EnableUTF8Mode;
-/// ```
-///
-/// # Attributes
-///
-/// - `finalbyte` (required): Character literal for the final byte
-/// - `intermediate` (optional): String literal for intermediate bytes
-#[proc_macro_attribute]
-pub fn esc(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
 
-    let mut diagnostics = Vec::new();
-    let attrs = parse_escape_sequence_attributes(meta_list, &mut diagnostics);
-
-    TokenStream::from(generate_esc_sequence_impl(input, attrs, &mut diagnostics))
-}
-
-/// Attribute macro for C0 control characters.
-///
-/// Generate ConstEncode implementation for single-byte C0 control codes.
-///
-/// # Example
-///
-/// ```ignore
-/// #[c0(code = 0x0E)]
-/// struct ShiftOut;
-/// ```
-///
-/// # Attributes
-///
-/// - `code` (required): Integer literal (0x00-0x1F) for the control code byte
-#[proc_macro_attribute]
-pub fn c0(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
-
-    let mut diagnostics = Vec::new();
-    let struct_name = &input.ident;
-
-    // Parse the code attribute
-    let mut code: Option<u8> = None;
-
-    for meta in meta_list {
-        match meta {
-            Meta::NameValue(MetaNameValue {
-                path,
-                value:
-                    Expr::Lit(ExprLit {
-                        lit: Lit::Int(lit_int),
-                        ..
-                    }),
-                ..
-            }) if path.is_ident("code") => match lit_int.base10_parse::<u8>() {
-                Ok(val) if val <= 0x1F => {
-                    code = Some(val);
-                }
-                Ok(_) => {
-                    diagnostics.push(
-                        lit_int
-                            .span()
-                            .error("C0 control code must be in range 0x00-0x1F"),
-                    );
-                }
-                Err(e) => {
-                    diagnostics.push(lit_int.span().error(format!("invalid integer: {}", e)));
-                }
-            },
-            _ => {
-                diagnostics.push(
-                    meta.span()
-                        .error("unsupported attribute")
-                        .help("only 'code' attribute is supported"),
-                );
-            }
-        }
-    }
-
-    let Some(code) = code else {
-        diagnostics.push(error_required_attr(
-            struct_name.span(),
-            "code",
-            "0x.. where 0x.. is the control code byte (0x00-0x1F)",
-        ));
-        return TokenStream::from(emit_diagnostics(&mut diagnostics));
-    };
-
-    if !diagnostics.is_empty() {
-        return TokenStream::from(emit_diagnostics(&mut diagnostics));
-    }
-
-    // Generate the const string
-    let const_str = format!("{}", code as char);
-
-    let expanded = quote! {
-        #input
-
-        impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
-            const STR: &'static str = #const_str;
-        }
-    };
-
-    TokenStream::from(expanded)
-}
 
 /// Attribute macro for terminal mode control structures.
 ///
@@ -1997,23 +1745,23 @@ pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtio_control_derive::csi(#private_attr params = #params_array, finalbyte = 'h')]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[csi(#private_attr params = #params_array, finalbyte = 'h')]
         #vis struct #enable_name;
 
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtio_control_derive::csi(#private_attr params = #params_array, finalbyte = 'l')]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[csi(#private_attr params = #params_array, finalbyte = 'l')]
         #vis struct #disable_name;
 
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtio_control_derive::csi(#private_attr params = #params_array, intermediate = "$", finalbyte = 'p')]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[csi(#private_attr params = #params_array, intermediate = "$", finalbyte = 'p')]
         #vis struct #request_name;
 
         #(#attrs)*
-        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
-        #[::vtio_control_derive::csi(#private_attr intermediate = "$", finalbyte = 'y')]
+        #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::Control)]
+        #[csi(#private_attr intermediate = "$", finalbyte = 'y')]
         #vis struct #base_name {
             pub enabled: bool,
         }
