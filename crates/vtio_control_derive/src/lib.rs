@@ -4,7 +4,7 @@
 //! used to represent terminal control sequences and register them with the
 //! global escape sequence registry.
 
-pub use vtio_control_derive_internal::{c0, csi, dcs, esc, terminal_mode};
+pub use vtio_control_derive_internal::{c0, csi, dcs, esc, terminal_mode, Control};
 
 #[doc(hidden)]
 pub mod __internal {

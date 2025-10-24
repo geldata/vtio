@@ -1175,6 +1175,329 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     }
 }
 
+/// Unified derive macro for terminal control sequences.
+///
+/// This macro examines the attributes on a struct to determine which type
+/// of control sequence to generate (CSI, DCS, OSC, ESC, etc.).
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(Control)]
+/// #[csi(private = '?', finalbyte = 'n')]
+/// pub struct UdkStatusReport {
+///     pub status: u8,
+/// }
+/// ```
+///
+/// # Supported Attributes
+///
+/// - `csi`: Control Sequence Introducer sequences
+/// - `dcs`: Device Control String sequences
+/// - `osc`: Operating System Command sequences
+/// - `esc`: Plain ESC sequences
+/// - `ss2`: Single Shift 2 sequences
+/// - `ss3`: Single Shift 3 sequences
+/// - `pm`: Privacy Message sequences
+/// - `apc`: Application Program Command sequences
+/// - `st`: String Terminator sequences
+/// - `deckpam`: DEC Keypad Application Mode sequences
+/// - `deckpnm`: DEC Keypad Numeric Mode sequences
+/// - `c0`: C0 control character sequences
+#[proc_macro_derive(
+    Control,
+    attributes(
+        csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0
+    )
+)]
+pub fn derive_control(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    let mut diagnostics = Vec::new();
+
+    // Extract struct data
+    let struct_data = match input.data {
+        syn::Data::Struct(ref data) => data,
+        _ => {
+            diagnostics.push(
+                input
+                    .span()
+                    .error("Control can only be derived for structs"),
+            );
+            return TokenStream::from(emit_diagnostics(&mut diagnostics));
+        }
+    };
+
+    // Convert DeriveInput to ItemStruct for compatibility with existing code
+    let item_struct = ItemStruct {
+        attrs: input.attrs.clone(),
+        vis: input.vis.clone(),
+        struct_token: syn::token::Struct {
+            span: input.ident.span(),
+        },
+        ident: input.ident.clone(),
+        generics: input.generics.clone(),
+        fields: struct_data.fields.clone(),
+        semi_token: match struct_data.fields {
+            syn::Fields::Named(_) => None,
+            _ => Some(syn::token::Semi {
+                spans: [input.ident.span()],
+            }),
+        },
+    };
+
+    // Find control sequence attribute
+    let mut control_attr: Option<(String, Vec<Meta>)> = None;
+
+    for attr in &input.attrs {
+        if let Ok(meta) = attr.meta.require_list() {
+            let path_str = meta
+                .path
+                .get_ident()
+                .map(|i| i.to_string())
+                .unwrap_or_default();
+
+            match path_str.as_str() {
+                "csi" | "dcs" | "osc" | "esc" | "ss2" | "ss3" | "pm" | "apc" | "st"
+                | "deckpam" | "deckpnm" | "c0" => {
+                    if control_attr.is_some() {
+                        diagnostics.push(
+                            attr.span()
+                                .error("multiple control sequence attributes found")
+                                .help("only one attribute (csi, dcs, osc, etc.) is allowed"),
+                        );
+                        return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                    }
+
+                    // Parse the nested meta items
+                    let nested: Punctuated<Meta, Token![,]> =
+                        match meta.parse_args_with(Punctuated::parse_terminated) {
+                            Ok(n) => n,
+                            Err(e) => {
+                                diagnostics.push(
+                                    attr.span()
+                                        .error(format!("failed to parse attribute: {}", e)),
+                                );
+                                return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                            }
+                        };
+
+                    control_attr = Some((path_str, nested.into_iter().collect()));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Generate implementation based on attribute
+    match control_attr {
+        Some((ref attr_name, meta_list)) if attr_name == "csi" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "CSI",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "dcs" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "DCS",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "osc" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "OSC",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "ss2" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "SS2",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "ss3" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "SS3",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "pm" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "PM",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "apc" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "APC",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "st" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "ST",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "deckpam" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "DECKPAM",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "deckpnm" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_escape_sequence_impl(
+                item_struct,
+                "DECKPNM",
+                attrs,
+                &mut diagnostics,
+            ))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "esc" => {
+            let attrs = parse_escape_sequence_attributes(
+                meta_list.into_iter().collect(),
+                &mut diagnostics,
+            );
+            TokenStream::from(generate_esc_sequence_impl(item_struct, attrs, &mut diagnostics))
+        }
+        Some((ref attr_name, meta_list)) if attr_name == "c0" => {
+            let struct_name = &item_struct.ident;
+            let mut code: Option<u8> = None;
+
+            for meta in meta_list {
+                match meta {
+                    Meta::NameValue(MetaNameValue {
+                        path,
+                        value:
+                            Expr::Lit(ExprLit {
+                                lit: Lit::Int(lit_int),
+                                ..
+                            }),
+                        ..
+                    }) if path.is_ident("code") => {
+                        code = match lit_int.base10_parse::<u8>() {
+                            Ok(val) if val <= 0x1F => Some(val),
+                            Ok(_) => {
+                                diagnostics.push(
+                                    lit_int
+                                        .span()
+                                        .error("C0 code must be in range 0x00-0x1F"),
+                                );
+                                return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                            }
+                            Err(e) => {
+                                diagnostics.push(lit_int.span().error(format!(
+                                    "invalid C0 code value: {}",
+                                    e
+                                )));
+                                return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                            }
+                        };
+                    }
+                    _ => {
+                        diagnostics.push(
+                            meta.span()
+                                .error("unsupported attribute")
+                                .help("valid attributes are: code = <integer>"),
+                        );
+                        return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                    }
+                }
+            }
+
+            let code = match code {
+                Some(c) => c,
+                None => {
+                    diagnostics.push(error_required_attr(
+                        input.ident.span(),
+                        "code",
+                        "0x0E",
+                    ));
+                    return TokenStream::from(emit_diagnostics(&mut diagnostics));
+                }
+            };
+
+            let code_byte = syn::LitByte::new(code, input.ident.span());
+            let expanded = quote! {
+                impl ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name {
+                    const STR: &'static str = ::vtio_control_derive::__internal::const_str::const_str!([#code_byte]);
+                }
+            };
+
+            TokenStream::from(expanded)
+        }
+        Some(_) => {
+            unreachable!("unknown control sequence attribute");
+        }
+        None => {
+            diagnostics.push(
+                input
+                    .span()
+                    .error("no control sequence attribute found")
+                    .help("add one of: #[csi(...)], #[dcs(...)], #[osc(...)], #[esc(...)], #[ss2(...)], #[ss3(...)], #[pm(...)], #[apc(...)], #[st(...)], #[deckpam(...)], #[deckpnm(...)], #[c0(...)]"),
+            );
+            TokenStream::from(emit_diagnostics(&mut diagnostics))
+        }
+    }
+}
+
 /// Helper macro to generate attribute macro functions for escape sequences.
 ///
 /// Reduces duplication across similar escape sequence types.
