@@ -42,31 +42,48 @@ pub use vtio_control_derive_internal::VTControl;
 /// - `RelativeCursorOriginMode` → CSI ? $ y (with `enabled` field)
 #[macro_export]
 macro_rules! terminal_mode {
-    // With private parameter
-    ($base_name:ident, private = $private:literal, params = [$($params:literal),* $(,)?]) => {
+    ($(#[$meta:meta])* $base_name:ident, private = $private:literal, params = [$($params:literal),* $(,)?]) => {
         $crate::__internal::paste::paste! {
-            $crate::__internal::vtio_control_derive_internal::__terminal_mode_impl!(
-                [<Enable $base_name>],
-                [<Disable $base_name>],
-                [<Request $base_name>],
-                $base_name,
-                $private,
-                [$($params),*]
-            );
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(private = $private, params = [#(#params),*], finalbyte = 'h')]
+            pub struct [<Enable $base_name>];
+
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(private = $private, params = [#(#params),*], finalbyte = 'l')]
+            pub struct [<Disable $base_name>];
+
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(private = $private, params = [#(#params),*], intermediate = "$", finalbyte = 'l')]
+            pub struct [<Request $base_name>];
+
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(private = $private, intermediate = "$", finalbyte = 'y')]
+            pub struct [<$base_name>] {
+                pub enabled: bool,
+            }
         }
     };
-    
-    // Without private parameter
-    ($base_name:ident, params = [$($params:literal),* $(,)?]) => {
+
+    ($(#[$meta:meta])* $base_name:ident, params = [$($params:literal),* $(,)?]) => {
         $crate::__internal::paste::paste! {
-            $crate::__internal::vtio_control_derive_internal::__terminal_mode_impl!(
-                [<Enable $base_name>],
-                [<Disable $base_name>],
-                [<Request $base_name>],
-                $base_name,
-                ,
-                [$($params),*]
-            );
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(params = [#(#params),*], finalbyte = 'h')]
+            pub struct [<Enable $base_name>];
+
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(params = [#(#params),*], finalbyte = 'l')]
+            pub struct [<Disable $base_name>];
+
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(params = [#(#params),*], intermediate = "$", finalbyte = 'l')]
+            pub struct [<Request $base_name>];
+
+            $(#[$meta])*
+            #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, $crate::VTControl)]
+            #[csi(params = [#(#params),*], intermediate = "$", finalbyte = 'y')]
+            pub struct [<$base_name>] {
+                pub enabled: bool,
+            }
         }
     };
 }

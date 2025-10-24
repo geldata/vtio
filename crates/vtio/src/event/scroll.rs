@@ -73,10 +73,7 @@ use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_dcs, write
 ///
 /// See <https://terminalguide.namepad.de/mode/p4/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "4")]
-pub struct SmoothScrollMode {
-    pub enabled: bool,
-}
+terminal_mode!(SmoothScrollMode, private = '?', params = ["4"]);
 
 /// Set Top and Bottom Margins (`DECSTBM`).
 ///

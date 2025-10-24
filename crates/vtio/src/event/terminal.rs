@@ -14,10 +14,7 @@ use vtio_control_derive::terminal_mode;
 ///
 /// See <https://terminalguide.namepad.de/mode/p4/> for terminal
 /// support specifics.
-#[terminal_mode(params = "4")]
-pub struct InsertMode {
-    pub enabled: bool,
-}
+terminal_mode!(InsertMode, params = ["4"]);
 
 /// Cursor blinking mode (`ATT610_BLINK`).
 ///
@@ -28,10 +25,7 @@ pub struct InsertMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p12/> for terminal
 /// support specifics.
-#[terminal_mode(params = "12")]
-pub struct EchoMode {
-    pub enabled: bool,
-}
+terminal_mode!(EchoMode, params = ["12"]);
 
 /// Linefeed/Newline mode (`LNM`).
 ///
@@ -40,10 +34,7 @@ pub struct EchoMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p20/> for terminal
 /// support specifics.
-#[terminal_mode(params = "20")]
-pub struct LinefeedMode {
-    pub enabled: bool,
-}
+terminal_mode!(LinefeedMode, params = ["20"]);
 
 /// Reserved for VT52 emulators (`DECANM`).
 ///
@@ -51,10 +42,7 @@ pub struct LinefeedMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p2/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "2")]
-pub struct VT52Mode {
-    pub enabled: bool,
-}
+terminal_mode!(VT52Mode, private = '?', params = ["2"]);
 
 /// 132 column mode (`DECCOLM`).
 ///
@@ -80,10 +68,7 @@ pub struct VT52Mode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p3/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "3")]
-pub struct HundredThirtyTwoColumnMode {
-    pub enabled: bool,
-}
+terminal_mode!(HundredThirtyTwoColumnMode, private = '?', params = ["3"]);
 
 /// Enable support for 132 column mode (`132COLS`).
 ///
@@ -91,10 +76,7 @@ pub struct HundredThirtyTwoColumnMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p40/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "40")]
-pub struct EnableSupportForHundredThirtyTwoColumnMode {
-    pub enabled: bool,
-}
+terminal_mode!(EnableSupportForHundredThirtyTwoColumnMode, private = '?', params = ["40"]);
 
 /// Do not clear screen on 132 column mode change (`DECNCSM`).
 ///
@@ -104,10 +86,7 @@ pub struct EnableSupportForHundredThirtyTwoColumnMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p95/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "95")]
-pub struct KeepScreenOnHundredThirtyTwoColumnChangeMode {
-    pub enabled: bool,
-}
+terminal_mode!(KeepScreenOnHundredThirtyTwoColumnChangeMode, private = '?', params = ["95"]);
 
 /// Reverse display colors (`DECSCNM`).
 ///
@@ -119,10 +98,7 @@ pub struct KeepScreenOnHundredThirtyTwoColumnChangeMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p5/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "5")]
-pub struct ReverseDisplayColorsMode {
-    pub enabled: bool,
-}
+terminal_mode!(ReverseDisplayColorsMode, private = '?', params = ["5"]);
 
 /// Wraparound mode (`DECAWM`).
 ///
@@ -142,10 +118,7 @@ pub struct ReverseDisplayColorsMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p7/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "7")]
-pub struct LineWraparoundMode {
-    pub enabled: bool,
-}
+terminal_mode!(LineWraparoundMode, private = '?', params = ["7"]);
 
 /// Scrollbar visibility (`RXVT_SCROLLBAR`).
 ///
@@ -153,10 +126,7 @@ pub struct LineWraparoundMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p30/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "30")]
-pub struct ScrollbarVisibilityMode {
-    pub enabled: bool,
-}
+terminal_mode!(ScrollbarVisibilityMode, private = '?', params = ["30"]);
 
 /// Alternate screen buffer (`ALTBUF`).
 ///
@@ -176,10 +146,7 @@ pub struct ScrollbarVisibilityMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p47/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "47")]
-pub struct AlternateScreenBasicMode {
-    pub enabled: bool,
-}
+terminal_mode!(AlternateScreenBasicMode, private = '?', params = ["47"]);
 
 /// Alternate screen buffer with clear on exit.
 ///
@@ -194,10 +161,7 @@ pub struct AlternateScreenBasicMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1047/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "1047")]
-pub struct AlternateScreenClearOnExitMode {
-    pub enabled: bool,
-}
+terminal_mode!(AlternateScreenClearOnExitMode, private = '?', params = ["1047"]);
 
 /// Send Cursor Keys on Mouse Wheel on Alternate Screen.
 ///
@@ -212,10 +176,7 @@ pub struct AlternateScreenClearOnExitMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1007/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "1007")]
-pub struct CursorKeysOnMouseWheelOnAlternateScreenMode {
-    pub enabled: bool,
-}
+terminal_mode!(CursorKeysOnMouseWheelOnAlternateScreenMode, private = '?', params = ["1007"]);
 
 /// Alternate screen buffer with cursor save and clear on enter.
 ///
@@ -232,10 +193,7 @@ pub struct CursorKeysOnMouseWheelOnAlternateScreenMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1049/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "1049")]
-pub struct AlternateScreenMode {
-    pub enabled: bool,
-}
+terminal_mode!(AlternateScreenMode, private = '?', params = ["1049"]);
 
 /// Report focus change.
 ///
@@ -245,10 +203,7 @@ pub struct AlternateScreenMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1004/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "1004")]
-pub struct ReportFocusChangeMode {
-    pub enabled: bool,
-}
+terminal_mode!(ReportFocusChangeMode, private = '?', params = ["1004"]);
 
 /// Inhibit scroll on application output.
 ///
@@ -259,10 +214,7 @@ pub struct ReportFocusChangeMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1010/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "1010")]
-pub struct InhibitScrollOnApplicationOutputMode {
-    pub enabled: bool,
-}
+terminal_mode!(InhibitScrollOnApplicationOutputMode, private = '?', params = ["1010"]);
 
 /// Scroll on keyboard input.
 ///
@@ -270,10 +222,7 @@ pub struct InhibitScrollOnApplicationOutputMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1011/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "1011")]
-pub struct ScrollOnKeyboardInputMode {
-    pub enabled: bool,
-}
+terminal_mode!(ScrollOnKeyboardInputMode, private = '?', params = ["1011"]);
 
 /// Bold/blinking cells are also bright.
 ///
@@ -287,10 +236,7 @@ pub struct ScrollOnKeyboardInputMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1021/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "1021")]
-pub struct BoldBlinkingBrightMode {
-    pub enabled: bool,
-}
+terminal_mode!(BoldBlinkingBrightMode, private = '?', params = ["1021"]);
 
 /// Bracketed paste mode.
 ///
@@ -303,10 +249,7 @@ pub struct BoldBlinkingBrightMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p2004/> for terminal
 /// support specifics.
-#[terminal_mode(private = '?', params = "2004")]
-pub struct BracketedPasteMode {
-    pub enabled: bool,
-}
+terminal_mode!(BracketedPasteMode, private = '?', params = ["2004"]);
 
 /// Synchronized update mode.
 ///
@@ -321,10 +264,7 @@ pub struct BracketedPasteMode {
 /// See <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec>
 /// for more details and <https://terminalguide.namepad.de/mode/p2026/>
 /// for terminal support specifics.
-#[terminal_mode(private = '?', params = "2006")]
-pub struct SynchronizedUpdateMode {
-    pub enabled: bool,
-}
+terminal_mode!(SynchronizedUpdateMode, private = '?', params = ["2006"]);
 
 /// Request default foreground color.
 ///

@@ -26,10 +26,7 @@ use vtio_control_derive::terminal_mode;
 ///
 /// See <https://terminalguide.namepad.de/mode/p9/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "9")]
-pub struct MouseX10Mode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseX10Mode, private = '?', params = ["9"]);
 
 /// Mouse down+up tracking.
 ///
@@ -38,10 +35,7 @@ pub struct MouseX10Mode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1000/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1000")]
-pub struct MouseDownUpTrackingMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseDownUpTrackingMode, private = '?', params = ["1000"]);
 
 /// Mouse highlight mode.
 ///
@@ -56,10 +50,7 @@ pub struct MouseDownUpTrackingMode {
 /// See <https://terminalguide.namepad.de/mode/p1001/> and
 /// <https://terminalguide.namepad.de/mouse/#highlight-tracking>
 /// for terminal support specifics.
-#[terminal_mode(private = '?', params = "1001")]
-pub struct MouseHighlightMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseHighlightMode, private = '?', params = ["1001"]);
 
 /// Mouse click and dragging tracking.
 ///
@@ -68,10 +59,7 @@ pub struct MouseHighlightMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1002/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1002")]
-pub struct MouseClickAndDragTrackingMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseClickAndDragTrackingMode, private = '?', params = ["1002"]);
 
 /// Mouse tracking with movement.
 ///
@@ -80,10 +68,7 @@ pub struct MouseClickAndDragTrackingMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1003/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1003")]
-pub struct MouseAnyEventTrackingMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseAnyEventTrackingMode, private = '?', params = ["1003"]);
 
 //
 // Mouse reporting format modes (mutually exclusive).
@@ -106,10 +91,7 @@ pub struct MouseAnyEventTrackingMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1005/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1005")]
-pub struct MouseReportMultibyteMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseReportMultibyteMode, private = '?', params = ["1005"]);
 
 /// Mouse reporting format digits (SGR mode).
 ///
@@ -122,10 +104,7 @@ pub struct MouseReportMultibyteMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1006/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1006")]
-pub struct MouseReportSgrMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseReportSgrMode, private = '?', params = ["1006"]);
 
 /// Mouse reporting format urxvt.
 ///
@@ -138,10 +117,7 @@ pub struct MouseReportSgrMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1015/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1015")]
-pub struct MouseReportRxvtMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseReportRxvtMode, private = '?', params = ["1015"]);
 
 //
 // Additional mouse-related modes.
@@ -154,10 +130,7 @@ pub struct MouseReportRxvtMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1004/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1004")]
-pub struct MouseReportFocusMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseReportFocusMode, private = '?', params = ["1004"]);
 
 /// Send cursor keys on mouse wheel on alternative screen.
 ///
@@ -172,10 +145,7 @@ pub struct MouseReportFocusMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1007/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1007")]
-pub struct MouseWheelToCursorKeysMode {
-    pub enabled: bool,
-}
+terminal_mode!(MouseWheelToCursorKeysMode, private = '?', params = ["1007"]);
 
 const_composite! {
     /// A command that enables mouse event capture.

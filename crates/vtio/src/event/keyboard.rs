@@ -15,10 +15,7 @@ use vtio_control_derive::terminal_mode;
 ///
 /// See <https://terminalguide.namepad.de/mode/2/> for
 /// terminal support specifics.
-#[terminal_mode(params = "2")]
-pub struct KeyboardInputDisabledMode {
-    pub enabled: bool,
-}
+terminal_mode!(KeyboardInputDisabledMode, params = ["2"]);
 
 /// Cursor Key Format (`DECCKM`).
 ///
@@ -36,10 +33,7 @@ pub struct KeyboardInputDisabledMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1")]
-pub struct CursorKeysMode {
-    pub enabled: bool,
-}
+terminal_mode!(CursorKeysMode, private = '?', params = ["1"]);
 
 /// Repeat Held Keys.
 ///
@@ -48,10 +42,7 @@ pub struct CursorKeysMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p8/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "8")]
-pub struct HeldKeysRepeatMode {
-    pub enabled: bool,
-}
+terminal_mode!(HeldKeysRepeatMode, private = '?', params = ["8"]);
 
 /// Application Keypad Mode (`DECNKM`).
 ///
@@ -59,10 +50,7 @@ pub struct HeldKeysRepeatMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p66/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "66")]
-pub struct ApplicationKeypadMode {
-    pub enabled: bool,
-}
+terminal_mode!(ApplicationKeypadMode, private = '?', params = ["66"]);
 
 /// Backspace Sends Delete (`DECBKM`).
 ///
@@ -70,10 +58,7 @@ pub struct ApplicationKeypadMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p67/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "67")]
-pub struct BackspaceSendsDeleteMode {
-    pub enabled: bool,
-}
+terminal_mode!(BackspaceSendsDeleteMode, private = '?', params = ["67"]);
 
 /// Alt + Key Sends Character with High Bit Set.
 ///
@@ -84,10 +69,7 @@ pub struct BackspaceSendsDeleteMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1034/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1034")]
-pub struct AltKeyHighBitSetMode {
-    pub enabled: bool,
-}
+terminal_mode!(AltKeyHighBitSetMode, private = '?', params = ["1034"]);
 
 /// Ignore Keypad Application Mode When Numlock is Active.
 ///
@@ -105,10 +87,7 @@ pub struct AltKeyHighBitSetMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1035/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1035")]
-pub struct IgnoreKeypadApplicationModeOnNumlockMode {
-    pub enabled: bool,
-}
+terminal_mode!(IgnoreKeypadApplicationModeOnNumlockMode, private = '?', params = ["1035"]);
 
 /// Alt + Key Sends Esc as Prefix.
 ///
@@ -118,10 +97,7 @@ pub struct IgnoreKeypadApplicationModeOnNumlockMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1036/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1036")]
-pub struct AltKeySendsEscPrefixMode {
-    pub enabled: bool,
-}
+terminal_mode!(AltKeySendsEscPrefixMode, private = '?', params = ["1036"]);
 
 /// Delete Key sends DEL.
 ///
@@ -130,10 +106,7 @@ pub struct AltKeySendsEscPrefixMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1037/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1037")]
-pub struct DeleteKeySendsDELMode {
-    pub enabled: bool,
-}
+terminal_mode!(DeleteKeySendsDELMode, private = '?', params = ["1037"]);
 
 /// Additional Modifier + Key Sends Esc as Prefix.
 ///
@@ -142,10 +115,7 @@ pub struct DeleteKeySendsDELMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p1039/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "1039")]
-pub struct AdditionalModifierKeySendsEscPrefix {
-    pub enabled: bool,
-}
+terminal_mode!(AdditionalModifierKeySendsEscPrefix, private = '?', params = ["1039"]);
 
 bitflags! {
     /// Keyboard enhancement flags for the kitty keyboard protocol.
