@@ -57,8 +57,7 @@
 //! - The cursor can move outside the scrolling region using explicit
 //!   positioning commands
 
-use vtio_control_derive::terminal_mode;
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_dcs, write_csi};
+use vtio_control_derive::{terminal_mode, VTControl};
 
 terminal_mode!(
     /// Smooth Scroll Mode (`DECSCLM`).
@@ -100,21 +99,11 @@ terminal_mode!(
 /// See <https://terminalguide.namepad.de/seq/csi_r/> and
 /// <https://vt100.net/docs/vt102-ug/chapter5.html> for terminal support
 /// specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'r')]
 pub struct SetTopAndBottomMargins {
     pub top: u16,
     pub bottom: u16,
-}
-
-impl ConstEncodedLen for SetTopAndBottomMargins {
-    // CSI (2) + max u16 digits (5) + ";" (1) + max u16 digits (5) + "r" (1)
-    const ENCODED_LEN: usize = 14;
-}
-
-impl Encode for SetTopAndBottomMargins {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.top, ";", self.bottom, "r")
-    }
 }
 
 /// Set Left and Right Margins (`DECSLRM`).
@@ -134,21 +123,11 @@ impl Encode for SetTopAndBottomMargins {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_s_u/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 's')]
 pub struct SetLeftAndRightMargins {
     pub left: u16,
     pub right: u16,
-}
-
-impl ConstEncodedLen for SetLeftAndRightMargins {
-    // CSI (2) + max u16 digits (5) + ";" (1) + max u16 digits (5) + "s" (1)
-    const ENCODED_LEN: usize = 14;
-}
-
-impl Encode for SetLeftAndRightMargins {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.left, ";", self.right, "s")
-    }
 }
 
 /// Request top and bottom margins (`DECRQSS` - `DECSTBM`).
@@ -168,11 +147,9 @@ impl Encode for SetLeftAndRightMargins {
 ///
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-r/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[dcs(intermediate = "$", finalbyte = 'r')]
 pub struct RequestTopBottomMargins;
-
-impl ConstEncode for RequestTopBottomMargins {
-    const STR: &'static str = format_dcs!("$qr");
-}
 
 /// Request left and right margins (`DECRQSS` - `DECSLRM`).
 ///
@@ -191,11 +168,9 @@ impl ConstEncode for RequestTopBottomMargins {
 ///
 /// See <https://terminalguide.namepad.de/seq/dcs-dollar-q-s/> for
 /// terminal support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[dcs(intermediate = "$", finalbyte = 's')]
 pub struct RequestLeftRightMargins;
-
-impl ConstEncode for RequestLeftRightMargins {
-    const STR: &'static str = format_dcs!("$qs");
-}
 
 /// Scroll Up (`SU`).
 ///
@@ -211,19 +186,9 @@ impl ConstEncode for RequestLeftRightMargins {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_s__u/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'S')]
 pub struct ScrollUp(pub u16);
-
-impl ConstEncodedLen for ScrollUp {
-    // CSI (2) + max u16 digits (5) + "S" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for ScrollUp {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "S")
-    }
-}
 
 /// Scroll Down (`SD`).
 ///
@@ -239,19 +204,9 @@ impl Encode for ScrollUp {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_t__u/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(finalbyte = 'T')]
 pub struct ScrollDown(pub u16);
-
-impl ConstEncodedLen for ScrollDown {
-    // CSI (2) + max u16 digits (5) + "T" (1) = 8
-    const ENCODED_LEN: usize = 8;
-}
-
-impl Encode for ScrollDown {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, "T")
-    }
-}
 
 /// Scroll Left (`SL`).
 ///
@@ -269,19 +224,9 @@ impl Encode for ScrollDown {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sp_at/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(intermediate = " ", finalbyte = '@')]
 pub struct ScrollLeft(pub u16);
-
-impl ConstEncodedLen for ScrollLeft {
-    // CSI (2) + max u16 digits (5) + " @" (2) = 9
-    const ENCODED_LEN: usize = 9;
-}
-
-impl Encode for ScrollLeft {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, " @")
-    }
-}
 
 /// Scroll Right (`SR`).
 ///
@@ -299,16 +244,6 @@ impl Encode for ScrollLeft {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sp_a/> for terminal
 /// support specifics.
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[csi(intermediate = " ", finalbyte = 'A')]
 pub struct ScrollRight(pub u16);
-
-impl ConstEncodedLen for ScrollRight {
-    // CSI (2) + max u16 digits (5) + " A" (2) = 9
-    const ENCODED_LEN: usize = 9;
-}
-
-impl Encode for ScrollRight {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_csi!(buf; self.0, " A")
-    }
-}
