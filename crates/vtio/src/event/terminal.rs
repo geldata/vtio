@@ -1,9 +1,6 @@
 //! Buffer control/information messages.
 
-use vtenc::{
-    ConstEncodedLen, Encode, EncodeError, IntoSeq, WriteSeq, write_csi, write_dcs, write_int,
-    write_str_into,
-};
+use vtenc::{IntoSeq, WriteSeq};
 
 use vtio_control_base::EscapeSequenceParam;
 use vtio_control_derive::{VTControl, terminal_mode};
@@ -472,7 +469,7 @@ impl From<&EscapeSequenceParam> for ConformanceLevel {
 ///
 /// These flags indicate which features the terminal supports.
 /// Multiple capabilities can be combined in a single response.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Hash)]
 #[repr(u8)]
 pub enum TerminalCapability {
     /// 132 columns mode (`DECCOLM`).
@@ -615,6 +612,68 @@ impl From<EscapeSequenceParam> for TerminalCapability {
     }
 }
 
+/// Terminal capabilities wrapper for encoding.
+///
+/// Encodes a vector of terminal capabilities as a semicolon-separated list.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Capabilities(pub Vec<TerminalCapability>);
+
+impl Capabilities {
+    /// Create from a vector of terminal capabilities.
+    #[must_use]
+    pub fn new(capabilities: Vec<TerminalCapability>) -> Self {
+        Self(capabilities)
+    }
+
+    /// Create from a slice of terminal capabilities.
+    #[must_use]
+    pub fn from_slice(capabilities: &[TerminalCapability]) -> Self {
+        Self(capabilities.to_vec())
+    }
+}
+
+impl IntoSeq for Capabilities {
+    fn into_seq(&self) -> impl WriteSeq {
+        self.0
+            .iter()
+            .map(|cap| u8::from(cap).to_string())
+            .collect::<Vec<String>>()
+            .join(";")
+    }
+}
+
+impl From<Vec<TerminalCapability>> for Capabilities {
+    fn from(caps: Vec<TerminalCapability>) -> Self {
+        Self(caps)
+    }
+}
+
+impl From<EscapeSequenceParam> for Capabilities {
+    fn from(param: EscapeSequenceParam) -> Self {
+        // Parse semicolon-separated capabilities
+        let s = String::from_utf8_lossy(&param);
+        let caps: Vec<TerminalCapability> = s
+            .split(';')
+            .filter_map(|s| s.parse::<u8>().ok())
+            .map(TerminalCapability::from)
+            .collect();
+        Self(caps)
+    }
+}
+
+impl From<&EscapeSequenceParam> for Capabilities {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        // Parse semicolon-separated capabilities
+        let s = String::from_utf8_lossy(param);
+        let caps: Vec<TerminalCapability> = s
+            .split(';')
+            .filter_map(|s| s.parse::<u8>().ok())
+            .map(TerminalCapability::from)
+            .collect();
+        Self(caps)
+    }
+}
+
 /// Response to primary device attributes request (`DA1`).
 ///
 /// Send terminal capabilities in response to a DA1 query.
@@ -623,38 +682,13 @@ impl From<EscapeSequenceParam> for TerminalCapability {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sc/> for terminal
 /// support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Hash, VTControl)]
+#[vtctl(csi, private = '?', finalbyte = 'c')]
 pub struct PrimaryDeviceAttributesResponse {
     /// Conformance level (VT100, VT220, etc.).
     pub conformance_level: ConformanceLevel,
     /// Terminal capabilities to report.
-    pub capabilities: Vec<TerminalCapability>,
-}
-
-impl PrimaryDeviceAttributesResponse {
-    #[inline]
-    #[must_use]
-    pub fn new(conformance_level: ConformanceLevel, capabilities: Vec<TerminalCapability>) -> Self {
-        Self {
-            conformance_level,
-            capabilities,
-        }
-    }
-}
-
-impl Encode for PrimaryDeviceAttributesResponse {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        let mut written = write_csi!(buf; "?", self.conformance_level as i16)?;
-
-        for cap in &self.capabilities {
-            written += write_str_into(buf, ";")?;
-            written += write_int(buf, u8::from(cap))?;
-        }
-
-        written += write_str_into(buf, "c")?;
-        Ok(written)
-    }
+    pub capabilities: Capabilities,
 }
 
 /// Response to secondary device attributes request (`DA2`).
@@ -681,23 +715,93 @@ impl Encode for PrimaryDeviceAttributesResponse {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sc__q/> for terminal support
 /// specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(csi, private = '>', finalbyte = 'c')]
 pub struct SecondaryDeviceAttributesResponse {
     pub terminal_type: u16,
     pub version: u16,
     pub extra: Option<u16>,
 }
 
-impl Encode for SecondaryDeviceAttributesResponse {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        let mut written = write_csi!(buf; ">", self.terminal_type, ";", self.version)?;
-        if let Some(extra) = self.extra {
-            written += write_str_into(buf, ";")?;
-            written += write_int(buf, extra)?;
+/// Unit ID wrapper for hex encoding.
+///
+/// Encodes a 4-byte unit ID as an 8-character hexadecimal string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct UnitId(pub [u8; 4]);
+
+impl UnitId {
+    /// Create from a 4-byte array.
+    #[must_use]
+    pub const fn new(bytes: [u8; 4]) -> Self {
+        Self(bytes)
+    }
+
+    /// Create from a string (takes first 4 bytes).
+    #[must_use]
+    pub fn from_string(s: &str) -> Self {
+        let bytes = s.as_bytes();
+        let mut id = [0u8; 4];
+        let len = bytes.len().min(4);
+        id[..len].copy_from_slice(&bytes[..len]);
+        Self(id)
+    }
+}
+
+impl IntoSeq for UnitId {
+    fn into_seq(&self) -> impl WriteSeq {
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        let mut hex = [0u8; 8];
+
+        for (i, &b) in self.0.iter().enumerate() {
+            hex[2 * i] = HEX[(b >> 4) as usize];
+            hex[2 * i + 1] = HEX[(b & 0x0F) as usize];
         }
-        written += write_str_into(buf, "c")?;
-        Ok(written)
+
+        // SAFETY: we are hexlifying bytes above, so `hex`
+        // is always a valid ASCII string.
+        unsafe { std::str::from_utf8_unchecked(&hex).to_string() }
+    }
+}
+
+impl From<[u8; 4]> for UnitId {
+    fn from(bytes: [u8; 4]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl From<EscapeSequenceParam> for UnitId {
+    fn from(param: EscapeSequenceParam) -> Self {
+        let s = String::from_utf8_lossy(&param);
+        let mut bytes = [0u8; 4];
+
+        // Parse hex string back to bytes
+        for (i, chunk) in s.as_bytes().chunks(2).enumerate().take(4) {
+            if chunk.len() == 2
+                && let Ok(b) = u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or("00"), 16)
+            {
+                bytes[i] = b;
+            }
+        }
+
+        Self(bytes)
+    }
+}
+
+impl From<&EscapeSequenceParam> for UnitId {
+    fn from(param: &EscapeSequenceParam) -> Self {
+        let s = String::from_utf8_lossy(param);
+        let mut bytes = [0u8; 4];
+
+        // Parse hex string back to bytes
+        for (i, chunk) in s.as_bytes().chunks(2).enumerate().take(4) {
+            if chunk.len() == 2
+                && let Ok(b) = u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or("00"), 16)
+            {
+                bytes[i] = b;
+            }
+        }
+
+        Self(bytes)
     }
 }
 
@@ -723,31 +827,10 @@ impl Encode for SecondaryDeviceAttributesResponse {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sc__r/> for terminal
 /// support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Hash, VTControl)]
+#[vtctl(dcs, intermediate = "!", finalbyte = '|')]
 pub struct TertiaryDeviceAttributesResponse {
-    pub unit_id: [u8; 4],
-}
-
-impl Encode for TertiaryDeviceAttributesResponse {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        const HEX: &[u8; 16] = b"0123456789ABCDEF";
-        let mut hex = [0u8; 8];
-        let s;
-
-        for (i, &b) in self.unit_id.iter().enumerate() {
-            hex[2 * i] = HEX[(b >> 4) as usize];
-            hex[2 * i + 1] = HEX[(b & 0x0F) as usize];
-        }
-
-        // SAFETY: we are hexlifying bytes above, so `hex`
-        // is always a valid ASCII string.
-        unsafe {
-            s = std::str::from_utf8_unchecked(&hex);
-        }
-
-        write_dcs!(buf; "!|", s)
-    }
+    pub unit_id: UnitId,
 }
 
 /// Select VT-XXX Conformance Level (`DECSCL`).
@@ -769,29 +852,11 @@ impl Encode for TertiaryDeviceAttributesResponse {
 ///
 /// See <https://terminalguide.namepad.de/seq/csi_sp_t_quote/> for
 /// terminal support specifics.
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
+#[vtctl(csi, intermediate = "\"", finalbyte = 'p')]
 pub struct SelectVTConformanceLevel {
     pub level: u16,
     pub c1_encoding: Option<u8>,
-}
-
-impl ConstEncodedLen for SelectVTConformanceLevel {
-    // CSI (2) + max u16 digits (5) + ";" (1) + max u8 digits (3) + "\"p" (2) = 13
-    const ENCODED_LEN: usize = 13;
-}
-
-impl Encode for SelectVTConformanceLevel {
-    #[inline]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        match self.c1_encoding {
-            Some(encoding) => {
-                write_csi!(buf; self.level, ";", encoding, "\"p")
-            }
-            None => {
-                write_csi!(buf; self.level, "\"p")
-            }
-        }
-    }
 }
 
 /// Request VT-xxx Conformance Level and C1 Encoding.
@@ -811,3 +876,98 @@ impl Encode for SelectVTConformanceLevel {
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, VTControl)]
 #[vtctl(dcs, intermediate = "$", finalbyte = 'q', data = "\"p")]
 pub struct RequestVTConformanceLevel;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vtio_control_base::Encode;
+
+    #[test]
+    fn test_primary_device_attributes_response_encoding() {
+        let mut response = PrimaryDeviceAttributesResponse {
+            conformance_level: ConformanceLevel::VT220,
+            capabilities: Capabilities(vec![
+                TerminalCapability::Columns132,
+                TerminalCapability::SixelGraphics,
+                TerminalCapability::Color,
+            ]),
+        };
+
+        let mut buf = Vec::new();
+        response.encode(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1b[?62;1;4;22c");
+    }
+
+    #[test]
+    fn test_secondary_device_attributes_response_encoding() {
+        let mut response = SecondaryDeviceAttributesResponse {
+            terminal_type: 65,
+            version: 6800,
+            extra: Some(1),
+        };
+
+        let mut buf = Vec::new();
+        response.encode(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1b[>65;6800;1c");
+    }
+
+    #[test]
+    fn test_secondary_device_attributes_response_encoding_no_extra() {
+        let mut response = SecondaryDeviceAttributesResponse {
+            terminal_type: 1,
+            version: 0,
+            extra: None,
+        };
+
+        let mut buf = Vec::new();
+        response.encode(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1b[>1;0c");
+    }
+
+    #[test]
+    fn test_tertiary_device_attributes_response_encoding() {
+        let mut response = TertiaryDeviceAttributesResponse {
+            unit_id: UnitId([0x7E, 0x56, 0x54, 0x45]), // "~VTE"
+        };
+
+        let mut buf = Vec::new();
+        response.encode(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1bP!|7E565445\x1b\\");
+    }
+
+    #[test]
+    fn test_select_vt_conformance_level_encoding() {
+        let mut cmd = SelectVTConformanceLevel {
+            level: 64,
+            c1_encoding: Some(1),
+        };
+
+        let mut buf = Vec::new();
+        cmd.encode(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1b[64;1\"p");
+    }
+
+    #[test]
+    fn test_select_vt_conformance_level_encoding_no_c1() {
+        let mut cmd = SelectVTConformanceLevel {
+            level: 62,
+            c1_encoding: None,
+        };
+
+        let mut buf = Vec::new();
+        cmd.encode(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1b[62\"p");
+    }
+}

@@ -923,11 +923,23 @@ fn generate_registry_entry(
     ) -> proc_macro2::TokenStream {
         let field_name = syn::Ident::new(name, struct_span);
 
-        quote! {
-            let #field_name: #ty = params
-                .get(#i)
-                .map(|p| <#ty as ::core::convert::From<&::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam>>::from(p))
-                .unwrap_or_default();
+        // Check if this is an optional type
+        if is_option_type(ty) {
+            // For Option<T>, parse as Some(value) if parameter exists, None otherwise
+            let inner_ty = extract_option_inner_type(ty).unwrap_or_else(|| ty.clone());
+            quote! {
+                let #field_name: #ty = params
+                    .get(#i)
+                    .map(|p| <#inner_ty as ::core::convert::From<&::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam>>::from(p));
+            }
+        } else {
+            // For non-optional types, use unwrap_or_default
+            quote! {
+                let #field_name: #ty = params
+                    .get(#i)
+                    .map(|p| <#ty as ::core::convert::From<&::vtio_control_derive::__internal::vtio_control_base::EscapeSequenceParam>>::from(p))
+                    .unwrap_or_default();
+            }
         }
     }
 
@@ -1019,6 +1031,26 @@ fn generate_escape_sequence_impl(
 
     // Extract variable parameters from struct fields
     let var_params = extract_var_params_from_struct(&input);
+
+    // For CSI sequences, validate that optional parameters come after required ones
+    if intro == "CSI" {
+        if let Some(ref params) = var_params {
+            let mut seen_optional = false;
+            for (name, ty) in params {
+                let is_optional = is_option_type(ty);
+                if is_optional {
+                    seen_optional = true;
+                } else if seen_optional {
+                    diagnostics.push(
+                        struct_name.span()
+                            .error(format!("required CSI parameter '{}' must come before optional parameters", name))
+                            .help("reorder fields so that all required parameters come first"),
+                    );
+                    return emit_diagnostics(diagnostics);
+                }
+            }
+        }
+    }
 
     // For DCS and OSC sequences, also extract data parameters (including const literals)
     // This must be done BEFORE removing helper attributes
@@ -1370,10 +1402,26 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     // Write regular params if NOT using DCS/OSC data params
     if dcs_data_params.is_none() || !matches!(intro, "DCS" | "OSC") {
         let start_index = const_params.len();
-        for (i, (name, _)) in var_params.iter().enumerate() {
-            write_ops.write_separator(start_index + i);
+        for (i, (name, ty)) in var_params.iter().enumerate() {
             let field_name = syn::Ident::new(name, struct_name.span());
-            write_ops.write_field(&field_name);
+            
+            // Check if this is an optional parameter
+            if is_option_type(ty) {
+                // Generate conditional write for optional parameters
+                let sep_index = start_index + i;
+                let sep = if sep_index > 0 { ";" } else { "" };
+                let write_op = quote! {
+                    if let Some(ref value) = self.#field_name {
+                        __total += ::vtenc::encode::write_str_into(buf, #sep)?;
+                        __total += ::vtenc::encode::WriteSeq::write_seq(value, buf)?;
+                    }
+                };
+                write_ops.add_raw(write_op);
+            } else {
+                // Regular required parameter
+                write_ops.write_separator(start_index + i);
+                write_ops.write_field(&field_name);
+            }
         }
     }
 
