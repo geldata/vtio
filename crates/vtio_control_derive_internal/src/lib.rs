@@ -186,9 +186,18 @@ impl ConstStrBuilder {
         self
     }
 
+    /// Add OSC number parameter (Ps in ESC ] Ps; Pt ST).
+    fn osc_number(mut self, number: Option<&str>) -> Self {
+        if let Some(num) = number {
+            self.result.push_str(num);
+            self.result.push(';');
+        }
+        self
+    }
+
     /// Add string terminator for specific sequence types.
     fn string_terminator(mut self, intro: &str) -> Self {
-        if matches!(intro, "DCS" | "PM" | "APC") {
+        if matches!(intro, "DCS" | "OSC" | "PM" | "APC") {
             self.result.push_str("\x1B\\");
         }
         self
@@ -307,6 +316,8 @@ struct EscapeSequenceAttributes {
     /// Optional data string (for DCS sequences) that appears after the
     /// final byte but before the string terminator.
     data: Option<String>,
+    /// Optional numeric parameter for OSC sequences (Ps in ESC ] Ps; Pt ST).
+    number: Option<String>,
 }
 
 /// Parse a character literal attribute and convert to u8.
@@ -524,6 +535,13 @@ fn parse_data(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<String>
     parse_string_literal(value, "data", " q", diagnostics)
 }
 
+/// Parse the number attribute.
+///
+/// Extract a string from a string literal like `number = "133"`.
+fn parse_number(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<String> {
+    parse_string_literal(value, "number", "133", diagnostics)
+}
+
 /// Parse all escape sequence attributes from the macro input.
 ///
 /// Process the punctuated list of meta items from the attribute macro,
@@ -539,6 +557,7 @@ fn parse_escape_sequence_attributes(
         intermediate: Vec::new(),
         final_byte: None,
         data: None,
+        number: None,
     };
 
     for meta in meta_list {
@@ -549,12 +568,13 @@ fn parse_escape_sequence_attributes(
                 "intermediate" => attrs.intermediate = parse_intermediate(value, diagnostics),
                 "finalbyte" => attrs.final_byte = parse_finalbyte(value, diagnostics),
                 "data" => attrs.data = parse_data(value, diagnostics),
+                "number" => attrs.number = parse_number(value, diagnostics),
                 unknown => {
                     diagnostics.push(
                         meta.span()
                             .error(format!("unknown attribute: {}", unknown))
                             .help(
-                                "valid attributes are: private, params, intermediate, finalbyte, data",
+                                "valid attributes are: private, params, intermediate, finalbyte, data, number",
                             ),
                     );
                 }
@@ -825,13 +845,19 @@ fn generate_escape_sequence_impl(
     let struct_name = &input.ident;
 
     // Validate required attributes
-    let Some(final_byte) = attrs.final_byte else {
-        diagnostics.push(error_required_attr(
-            struct_name.span(),
-            "finalbyte",
-            "'X' where X is the final byte character",
-        ));
-        return emit_diagnostics(diagnostics);
+    // For OSC, PM, and APC sequences, finalbyte is optional (they use data instead)
+    let final_byte = if matches!(intro, "OSC" | "PM" | "APC") {
+        attrs.final_byte.unwrap_or(0) // Use 0 as placeholder, won't be used
+    } else {
+        let Some(final_byte) = attrs.final_byte else {
+            diagnostics.push(error_required_attr(
+                struct_name.span(),
+                "finalbyte",
+                "'X' where X is the final byte character",
+            ));
+            return emit_diagnostics(diagnostics);
+        };
+        final_byte
     };
 
     if !diagnostics.is_empty() {
@@ -841,9 +867,9 @@ fn generate_escape_sequence_impl(
     // Extract variable parameters from struct fields
     let var_params = extract_var_params_from_struct(&input);
 
-    // For DCS sequences, also extract data parameters (including const literals)
+    // For DCS and OSC sequences, also extract data parameters (including const literals)
     // This must be done BEFORE removing helper attributes
-    let dcs_data_params = if intro == "DCS" {
+    let dcs_data_params = if intro == "DCS" || intro == "OSC" {
         extract_dcs_data_params(&input)
     } else {
         None
@@ -853,9 +879,9 @@ fn generate_escape_sequence_impl(
     let input = remove_helper_attributes(input.clone());
 
     // Check if params and var_params are both specified
-    // For DCS sequences, params are allowed with fields (params go in header, fields in data)
+    // For DCS and OSC sequences, params are allowed with fields (params go in header, fields in data)
     // For CSI sequences, params are also allowed with fields (const params followed by variable params)
-    if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" && intro != "CSI" {
+    if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" && intro != "OSC" && intro != "CSI" {
         diagnostics.push(struct_name.span().error(
             "cannot specify params attribute for structs with fields"
         ).help(
@@ -865,7 +891,8 @@ fn generate_escape_sequence_impl(
     }
 
     // Check if data attribute is used with variable sequences
-    if attrs.data.is_some() && var_params.is_some() {
+    // For OSC/PM/APC, data attribute with fields is allowed (using dcs_data_params)
+    if attrs.data.is_some() && var_params.is_some() && !matches!(intro, "OSC" | "PM" | "APC") {
         diagnostics.push(
             struct_name
                 .span()
@@ -904,6 +931,7 @@ fn generate_escape_sequence_impl(
             &attrs.intermediate,
             final_byte,
             attrs.data.as_deref(),
+            attrs.number.as_deref(),
         );
 
         let consts_impl = consts.generate_all();
@@ -943,6 +971,8 @@ fn generate_escape_sequence_impl(
             intermediate: &attrs.intermediate,
             final_byte,
             dcs_data_params: dcs_data_params.as_deref(),
+            osc_number: attrs.number.as_deref(),
+            osc_data: attrs.data.as_deref(),
             emit_struct,
         })
     }
@@ -956,15 +986,25 @@ fn generate_const_str(
     intermediate: &[u8],
     final_byte: u8,
     data: Option<&str>,
+    number: Option<&str>,
 ) -> String {
-    ConstStrBuilder::new(intro)
-        .private(private)
-        .params(params)
-        .intermediate(intermediate)
-        .final_byte(final_byte)
-        .data(data)
-        .string_terminator(intro)
-        .build()
+    if intro == "OSC" {
+        // OSC format: ESC ] number ; data ST
+        ConstStrBuilder::new(intro)
+            .osc_number(number)
+            .data(data)
+            .string_terminator(intro)
+            .build()
+    } else {
+        ConstStrBuilder::new(intro)
+            .private(private)
+            .params(params)
+            .intermediate(intermediate)
+            .final_byte(final_byte)
+            .data(data)
+            .string_terminator(intro)
+            .build()
+    }
 }
 
 /// Parameters for generating a variable sequence.
@@ -998,6 +1038,8 @@ struct VariableSequenceParams<'a> {
     intermediate: &'a [u8],
     final_byte: u8,
     dcs_data_params: Option<&'a [DcsDataParam]>,
+    osc_number: Option<&'a str>,
+    osc_data: Option<&'a str>,
     emit_struct: bool,
 }
 
@@ -1014,6 +1056,8 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         intermediate,
         final_byte,
         dcs_data_params,
+        osc_number,
+        osc_data,
         emit_struct,
     } = params;
     // Struct is already defined by the user, we just need to generate the impls
@@ -1121,7 +1165,20 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
     let mut write_ops = WriteOperationBuilder::new();
 
     write_ops.write_str(intro_str);
-    write_ops.write_private(private);
+    
+    // For OSC, write number parameter first
+    if intro == "OSC" {
+        if let Some(num) = osc_number {
+            write_ops.write_str(num);
+            write_ops.write_str(";");
+        }
+        // If OSC has static data prefix, write it now
+        if let Some(data_str) = osc_data {
+            write_ops.write_str(data_str);
+        }
+    } else {
+        write_ops.write_private(private);
+    }
 
     // Write const params (for sequences with both params and fields)
     for (i, param) in const_params.iter().enumerate() {
@@ -1130,8 +1187,8 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         write_ops.write_str(&param_str);
     }
 
-    // Write regular params if NOT using DCS data params
-    if dcs_data_params.is_none() || !matches!(intro, "DCS") {
+    // Write regular params if NOT using DCS/OSC data params
+    if dcs_data_params.is_none() || !matches!(intro, "DCS" | "OSC") {
         let start_index = const_params.len();
         for (i, (name, _)) in var_params.iter().enumerate() {
             write_ops.write_separator(start_index + i);
@@ -1140,15 +1197,34 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         }
     }
 
-    write_ops.write_intermediate_bytes(intermediate);
-    write_ops.write_char(final_byte as char);
+    // For OSC, write number before data params
+    if intro == "OSC" {
+        // OSC sequences don't use intermediate or finalbyte, they use number
+        // This will be handled by osc_number in variable sequence generation
+    } else {
+        write_ops.write_intermediate_bytes(intermediate);
+        
+        // For PM/APC, don't write finalbyte (they only have data + ST)
+        if !matches!(intro, "PM" | "APC") {
+            write_ops.write_char(final_byte as char);
+        }
+    }
 
-    // Write DCS data params (for DCS sequences with dcs_data_params)
+    // Write DCS/OSC data params (for DCS/OSC sequences with dcs_data_params)
     if let Some(data_params) = dcs_data_params
-        && matches!(intro, "DCS")
+        && matches!(intro, "DCS" | "OSC")
     {
         for (i, param) in data_params.iter().enumerate() {
-            write_ops.write_separator(i);
+            // For OSC with static data prefix, add separator before first field
+            // For DCS or OSC without static data, use normal index-based separator
+            let needs_separator = if intro == "OSC" && osc_data.is_some() {
+                true // Always add separator since static data was written
+            } else {
+                i > 0 // Normal behavior: separator after first element
+            };
+            if needs_separator {
+                write_ops.write_str(";");
+            }
             match param {
                 DcsDataParam::Field(boxed) => {
                     let (field_name, _ty) = &**boxed;
@@ -1162,8 +1238,8 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         }
     }
 
-    // Add string terminator for DCS/PM/APC variable sequences
-    if matches!(intro, "DCS" | "PM" | "APC") {
+    // Add string terminator for DCS/OSC/PM/APC variable sequences
+    if matches!(intro, "DCS" | "OSC" | "PM" | "APC") {
         write_ops.write_str("\x1B\\");
     }
 
@@ -1251,7 +1327,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 #[proc_macro_derive(
     VTControl,
     attributes(
-        csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0
+        csi, dcs, osc, esc, ss2, ss3, pm, apc, st, deckpam, deckpnm, c0, literal
     )
 )]
 pub fn derive_control(input: TokenStream) -> TokenStream {

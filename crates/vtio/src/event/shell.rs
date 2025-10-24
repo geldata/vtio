@@ -13,8 +13,7 @@
 //! These sequences are supported by modern terminal emulators including
 //! `iTerm2`, `VSCode`, `WezTerm`, and others.
 
-use std::io;
-use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_osc, write_osc};
+use vtio_control_derive::VTControl;
 
 /// A command that marks the beginning of a shell prompt.
 ///
@@ -25,12 +24,9 @@ use vtenc::{ConstEncode, ConstEncodedLen, Encode, EncodeError, format_osc, write
 ///
 /// - This should be emitted at the very start of drawing the prompt.
 /// - Must be paired with `PromptEnd` to mark where the prompt ends.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[osc(number = "133", data = "A")]
 pub struct PromptStart;
-
-impl ConstEncode for PromptStart {
-    const STR: &'static str = format_osc!("133;A");
-}
 
 /// A command that marks the end of a shell prompt and the beginning of user
 /// input.
@@ -43,12 +39,9 @@ impl ConstEncode for PromptStart {
 ///
 /// - This should be emitted right before accepting user input.
 /// - Should follow a `PromptStart` sequence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[osc(number = "133", data = "B")]
 pub struct PromptEnd;
-
-impl ConstEncode for PromptEnd {
-    const STR: &'static str = format_osc!("133;B");
-}
 
 /// A command that marks the start of command execution and output.
 ///
@@ -61,66 +54,49 @@ impl ConstEncode for PromptEnd {
 /// - This should be emitted right before executing a command.
 /// - Should follow a `PromptEnd` sequence.
 /// - Must be paired with `CommandEnd` to mark where output ends.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[osc(number = "133", data = "C")]
 pub struct CommandStart;
 
-impl ConstEncode for CommandStart {
-    const STR: &'static str = format_osc!("133;C");
-}
-
-/// A command that marks the end of command output.
+/// A command that marks the end of command output without an exit code.
 ///
-/// This sequence (OSC 133;D) indicates where the command output ends. It
-/// can optionally include the command's exit code. Terminal emulators can
-/// use this to track command execution status and enable features like
-/// showing success/failure indicators.
+/// This sequence (OSC 133;D) indicates where the command output ends.
+/// Terminal emulators can use this to track command execution boundaries.
 ///
 /// # Notes
 ///
 /// - This should be emitted after a command finishes execution.
 /// - Should follow a `CommandStart` sequence.
-/// - The exit code parameter is optional.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CommandEnd {
-    exit_code: Option<i32>,
+/// - Use `CommandEndWithCode` to include the exit code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[osc(number = "133", data = "D")]
+pub struct CommandEnd;
+
+/// A command that marks the end of command output with an exit code.
+///
+/// This sequence (OSC 133;D;exit_code) indicates where the command output
+/// ends and includes the command's exit code. Terminal emulators can use
+/// this to track command execution status and enable features like showing
+/// success/failure indicators.
+///
+/// # Notes
+///
+/// - This should be emitted after a command finishes execution.
+/// - Should follow a `CommandStart` sequence.
+/// - The exit code is included in the sequence.
+///
+/// # Example
+///
+/// ```ignore
+/// // Report successful command completion
+/// let end = CommandEndWithCode::new(0);
+///
+/// // Report command failure
+/// let end = CommandEndWithCode::new(1);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
+#[osc(number = "133", data = "D")]
+pub struct CommandEndWithCode {
+    pub exit_code: i32,
 }
 
-impl CommandEnd {
-    /// Create a command end marker without an exit code.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self { exit_code: None }
-    }
-
-    /// Create a command end marker with an exit code.
-    ///
-    /// # Arguments
-    ///
-    /// * `code` - The exit code of the command (typically 0 for success).
-    #[must_use]
-    pub const fn with_exit_code(code: i32) -> Self {
-        Self {
-            exit_code: Some(code),
-        }
-    }
-}
-
-impl Default for CommandEnd {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ConstEncodedLen for CommandEnd {
-    const ENCODED_LEN: usize = 32; // "\x1b]133;D;-2147483648\x1b\\"
-}
-
-impl Encode for CommandEnd {
-    fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
-        if let Some(code) = self.exit_code {
-            write_osc!(buf; "133;D;", code)
-        } else {
-            write_osc!(buf; "133;D")
-        }
-    }
-}
