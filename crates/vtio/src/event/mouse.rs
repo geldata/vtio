@@ -3,7 +3,7 @@
 //! See <https://terminalguide.namepad.de/mouse/> for details.
 
 use vtenc::{IntoSeq, WriteSeq, const_composite};
-use vtio_control_base::{DynamicFinalByte, EscapeSequenceParam};
+use vtio_control_base::{FinalByte, EscapeSequenceParam};
 use vtio_control_derive::{terminal_mode, VTControl};
 
 use crate::event::keyboard::KeyModifiers;
@@ -343,7 +343,7 @@ pub struct MouseEvent {
     pub coords: Coordinates,
 }
 
-impl DynamicFinalByte for MouseEvent {
+impl FinalByte for MouseEvent {
     fn final_byte(&self) -> u8 {
         self.kind.final_byte()
     }

@@ -19,7 +19,7 @@ pub use vtenc::{
 /// this trait to determine which final byte to use during encoding.
 ///
 /// For parsing, all specified final bytes are registered and recognized.
-pub trait DynamicFinalByte {
+pub trait FinalByte {
     /// Return the final byte to use for encoding this sequence.
     fn final_byte(&self) -> u8;
 }
