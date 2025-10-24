@@ -23,10 +23,7 @@ use vtenc::{IntoSeq, WriteSeq};
 ///
 /// See <https://terminalguide.namepad.de/mode/p6/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "6")]
-pub struct RelativeCursorOriginMode {
-    pub enabled: bool,
-}
+terminal_mode!(RelativeCursorOriginMode, private = '?', params = ["6"]);
 
 /// Cursor Blinking (`ATT610_BLINK`).
 ///
@@ -41,10 +38,7 @@ pub struct RelativeCursorOriginMode {
 ///
 /// See <https://terminalguide.namepad.de/mode/p12/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "12")]
-pub struct CursorBlinking {
-    pub enabled: bool,
-}
+terminal_mode!(CursorBlinking, private = '?', params = ["12"]);
 
 /// Cursor Visibility Mode (`DECTCEM`).
 ///
@@ -54,10 +48,7 @@ pub struct CursorBlinking {
 ///
 /// See <https://terminalguide.namepad.de/mode/p25/> for
 /// terminal support specifics.
-#[terminal_mode(private = '?', params = "25")]
-pub struct CursorVisibility {
-    pub enabled: bool,
-}
+terminal_mode!(CursorVisibility, private = '?', params = ["25"]);
 
 /// Save cursor (`DECSC`).
 ///

@@ -10,6 +10,7 @@ readme = "README.md"
 parser = ["dep:linkme", "dep:vtio_control_registry"]
 
 [dependencies]
+paste = "1.0"
 smallvec = { version = "1.15.0", features = ["const_new", "const_generics"] }
 linkme = { version = "0.3", optional = true }
 

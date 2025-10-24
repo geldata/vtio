@@ -1642,131 +1642,95 @@ fn generate_esc_sequence_impl(
 
 
 
-/// Attribute macro for terminal mode control structures.
-///
-/// Generates three structs for controlling terminal modes:
-/// - `Enable{Name}` - Sets the mode (CSI code h)
-/// - `Disable{Name}` - Resets the mode (CSI code l)
-/// - `Request{Name}` - Requests the mode state (CSI code $p)
-///
-/// The base struct should have an `enabled: bool` field and will be used
-/// for mode state responses (CSI code;value$y).
-///
-/// # Example
-///
-/// ```ignore
-/// #[terminal_mode(private = '?', params = "6")]
-/// pub struct RelativeCursorOriginMode {
-///     pub enabled: bool,
-/// }
-/// ```
-///
-/// Expands to four structs with appropriate CSI encodings.
-///
-/// # Attributes
-///
-/// - `private` (optional): Character literal for private marker byte (e.g., '?')
-/// - `params` (required): String literal for the mode parameters (e.g., "6", "1037")
-#[proc_macro_attribute]
-pub fn terminal_mode(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
-    let meta_list = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
 
-    let mut diagnostics = Vec::new();
-
-    // Parse attributes
+/// Helper procedural macro for terminal_mode declarative macro.
+///
+/// This macro generates the four terminal mode control structs with proper
+/// VTControl derives and CSI attributes. It's called by the declarative
+/// terminal_mode! macro after struct names have been constructed with paste.
+///
+/// Syntax:
+///   __terminal_mode_impl!(EnableName, DisableName, RequestName, BaseName, private_char, [params]);
+///   or
+///   __terminal_mode_impl!(EnableName, DisableName, RequestName, BaseName, , [params]);
+#[proc_macro]
+pub fn __terminal_mode_impl(input: TokenStream) -> TokenStream {
+    let input2: proc_macro2::TokenStream = input.into();
+    let mut tokens = input2.into_iter().peekable();
+    
+    // Parse: enable_name, disable_name, request_name, base_name, private, [params]
+    let mut idents = Vec::new();
     let mut private_char: Option<char> = None;
-    let mut params_str: Option<String> = None;
-
-    for meta in meta_list {
-        if let Some((key, value)) = parse_name_value_attr(&meta, &mut diagnostics) {
-            match key.as_str() {
-                "private" => {
-                    if let Some(byte) = parse_char_as_byte(value, "private", "?", &mut diagnostics)
-                    {
-                        private_char = Some(byte as char);
-                    }
-                }
-                "params" => {
-                    params_str = parse_string_literal(value, "params", "6", &mut diagnostics);
-                }
-                _ => {
-                    diagnostics.push(
-                        meta.span()
-                            .error("unknown attribute")
-                            .help("supported attributes: private, params"),
-                    );
+    let mut params_list = Vec::new();
+    
+    let mut in_array = false;
+    
+    while let Some(token) = tokens.next() {
+        match token {
+            proc_macro2::TokenTree::Ident(id) => {
+                if !in_array {
+                    idents.push(id);
                 }
             }
-        } else if !matches!(meta, Meta::NameValue(_)) {
-            diagnostics.push(
-                meta.span()
-                    .error("expected name-value attribute")
-                    .help("example: private = '?', params = \"6\""),
-            );
+            proc_macro2::TokenTree::Literal(lit) => {
+                if in_array {
+                    params_list.push(lit);
+                } else {
+                    // This is the private char
+                    let s = lit.to_string();
+                    if s.starts_with('\'') && s.len() == 3 {
+                        private_char = Some(s.chars().nth(1).unwrap());
+                    }
+                }
+            }
+            proc_macro2::TokenTree::Punct(p) if p.as_char() == ',' => {}
+            proc_macro2::TokenTree::Group(g) if g.delimiter() == proc_macro2::Delimiter::Bracket => {
+                for token in g.stream() {
+                    if let proc_macro2::TokenTree::Literal(lit) = token {
+                        params_list.push(lit);
+                    }
+                }
+            }
+            _ => {}
         }
     }
-
-    // Validate required attributes
-    let params = match params_str {
-        Some(p) => p,
-        None => {
-            diagnostics.push(error_required_attr(
-                input.span(),
-                "params",
-                "\"6\" (or other mode parameter)",
-            ));
-            String::new()
-        }
-    };
-
-    if !diagnostics.is_empty() {
-        return TokenStream::from(emit_diagnostics(&mut diagnostics));
+    
+    if idents.len() < 4 {
+        panic!("Expected 4 struct names");
     }
-
-    // Extract struct metadata
-    let base_name = &input.ident;
-    let vis = &input.vis;
-    let attrs = &input.attrs;
-
-    // Build param array for CSI attributes
-    let params_array = quote! { [#params] };
-
+    
+    let enable_name = &idents[0];
+    let disable_name = &idents[1];
+    let request_name = &idents[2];
+    let base_name = &idents[3];
+    
     // Build private attribute
     let private_attr = if let Some(ch) = private_char {
         quote! { private = #ch, }
     } else {
         quote! {}
     };
-
-    // Generate the three control structs
-    let enable_name = Ident::new(&format!("Enable{}", base_name), base_name.span());
-    let disable_name = Ident::new(&format!("Disable{}", base_name), base_name.span());
-    let request_name = Ident::new(&format!("Request{}", base_name), base_name.span());
-
+    
     let expanded = quote! {
-        #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
-        #[csi(#private_attr params = #params_array, finalbyte = 'h')]
-        #vis struct #enable_name;
+        #[csi(#private_attr params = [#(#params_list),*], finalbyte = 'h')]
+        pub struct #enable_name;
 
-        #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
-        #[csi(#private_attr params = #params_array, finalbyte = 'l')]
-        #vis struct #disable_name;
+        #[csi(#private_attr params = [#(#params_list),*], finalbyte = 'l')]
+        pub struct #disable_name;
 
-        #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
-        #[csi(#private_attr params = #params_array, intermediate = "$", finalbyte = 'p')]
-        #vis struct #request_name;
+        #[csi(#private_attr params = [#(#params_list),*], intermediate = "$", finalbyte = 'p')]
+        pub struct #request_name;
 
-        #(#attrs)*
         #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, ::vtio_control_derive::VTControl)]
         #[csi(#private_attr intermediate = "$", finalbyte = 'y')]
-        #vis struct #base_name {
+        pub struct #base_name {
             pub enabled: bool,
         }
     };
-
+    
     TokenStream::from(expanded)
 }
+
