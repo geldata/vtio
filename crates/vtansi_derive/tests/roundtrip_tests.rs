@@ -1,8 +1,8 @@
 //! Roundtrip tests verifying FromAnsi and ToAnsi work together correctly.
 
+use vtansi_derive::{FromAnsi, ToAnsi};
 use vtenc::encode::AnsiEncode;
 use vtenc::parse::TryFromAnsi;
-use vtansi_derive::{FromAnsi, ToAnsi};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromAnsi, ToAnsi)]
 #[repr(u8)]
@@ -244,12 +244,7 @@ impl TryFrom<u32> for SparseEnum {
 
 #[test]
 fn test_sparse_enum_roundtrip() {
-    let values = [
-        SparseEnum::A,
-        SparseEnum::B,
-        SparseEnum::C,
-        SparseEnum::D,
-    ];
+    let values = [SparseEnum::A, SparseEnum::B, SparseEnum::C, SparseEnum::D];
 
     for value in &values {
         let encoded = value.encode_ansi().unwrap();

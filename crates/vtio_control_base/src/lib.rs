@@ -2,12 +2,12 @@ mod bytevec;
 mod esc;
 
 pub use crate::esc::{
-    EscapeSequenceIntermediates, EscapeSequenceIntroducer, EscapeSequenceParam,
-    EscapeSequenceParams, EscapeSequence,
+    EscapeSequence, EscapeSequenceIntermediates, EscapeSequenceIntroducer, EscapeSequenceParam,
+    EscapeSequenceParams,
 };
 
 pub use vtenc::{
-    StaticAnsiEncode, StaticEncodedLen, AnsiEncode, EncodeError, ToAnsi, const_composite,
+    AnsiEncode, EncodeError, StaticAnsiEncode, StaticEncodedLen, ToAnsi, const_composite,
     write_apc, write_bytes_into, write_csi, write_dcs, write_esc, write_escst, write_int,
     write_str_into,
 };

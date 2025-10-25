@@ -1,8 +1,8 @@
 //! Window control commands.
 
-use vtio_control_derive::VTControl;
-use vtio_control_base::EscapeSequenceParam;
 use vtenc::ToAnsi;
+use vtio_control_base::EscapeSequenceParam;
+use vtio_control_derive::VTControl;
 
 /// Title stack target.
 ///
@@ -660,7 +660,7 @@ pub struct ScreenSizeReport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtio_control_base::{StaticAnsiEncode, AnsiEncode};
+    use vtio_control_base::{AnsiEncode, StaticAnsiEncode};
 
     #[test]
     fn test_set_title_and_icon_name() {
@@ -669,10 +669,7 @@ mod tests {
         };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
-        assert_eq!(
-            String::from_utf8(buf).unwrap(),
-            "\x1b]0;Test Title\x1b\\"
-        );
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]0;Test Title\x1b\\");
     }
 
     #[test]
@@ -682,10 +679,7 @@ mod tests {
         };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
-        assert_eq!(
-            String::from_utf8(buf).unwrap(),
-            "\x1b]2;Window Title\x1b\\"
-        );
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]2;Window Title\x1b\\");
     }
 
     #[test]
@@ -914,8 +908,7 @@ mod tests {
         };
         let mut buf = Vec::new();
         report.encode_ansi_into(&mut buf).unwrap();
-        assert_eq!(
-String::from_utf8(buf).unwrap(), "\x1b[5;1080;1920t");
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[5;1080;1920t");
     }
 
     #[test]
@@ -931,7 +924,10 @@ String::from_utf8(buf).unwrap(), "\x1b[5;1080;1920t");
 
     #[test]
     fn test_size_report() {
-        let report = SizeReport { rows: 30, cols: 120 };
+        let report = SizeReport {
+            rows: 30,
+            cols: 120,
+        };
         let mut buf = Vec::new();
         report.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[8;30;120t");

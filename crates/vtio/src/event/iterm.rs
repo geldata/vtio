@@ -19,7 +19,7 @@
 
 use std::borrow::Cow;
 
-use vtenc::{EncodeError, ToAnsi, AnsiEncode};
+use vtenc::{AnsiEncode, EncodeError, ToAnsi};
 use vtio_control_base::EscapeSequenceParam;
 use vtio_control_derive::VTControl;
 
@@ -577,7 +577,10 @@ struct AnnotationMessageSeq<'a> {
 }
 
 impl AnsiEncode for AnnotationMessageSeq<'_> {
-    fn encode_ansi_into<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
         let mut total = 0;
         if let Some(len) = self.length {
             total += AnsiEncode::encode_ansi_into(&len, buf)?;
@@ -604,7 +607,10 @@ impl AnnotationCoords {
 }
 
 impl AnsiEncode for AnnotationCoords {
-    fn encode_ansi_into<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
         let mut total = 0;
         total += AnsiEncode::encode_ansi_into(&self.x, buf)?;
         total += AnsiEncode::encode_ansi_into(&"|", buf)?;

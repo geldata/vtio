@@ -6,8 +6,8 @@
 //! metadata from syntax tree nodes.
 
 use syn::{
-    parse::{Parse, ParseStream},
     DeriveInput, Field, LitStr, Token, Variant,
+    parse::{Parse, ParseStream},
 };
 
 /// Custom keywords for vtansi attributes.
@@ -52,9 +52,15 @@ impl Parse for StructFormat {
 /// `#[vtansi(...)]` attribute on a type definition.
 pub enum TypeMeta {
     /// `#[vtansi(format = "key=value")]` - specify struct encoding format.
-    Format { kw: kw::format, format: StructFormat },
+    Format {
+        kw: kw::format,
+        format: StructFormat,
+    },
     /// `#[vtansi(delimiter = ";")]` - specify field delimiter for structs.
-    Delimiter { kw: kw::delimiter, delimiter: LitStr },
+    Delimiter {
+        kw: kw::delimiter,
+        delimiter: LitStr,
+    },
 }
 
 impl Parse for TypeMeta {

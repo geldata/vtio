@@ -23,7 +23,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields};
 
-use crate::helpers::{non_enum_error, HasTypeProperties};
+use crate::helpers::{HasTypeProperties, non_enum_error};
 
 use super::struct_to_ansi;
 
@@ -80,13 +80,7 @@ fn generate_enum_impl(ast: &DeriveInput) -> syn::Result<TokenStream> {
 
     let expanded = if let Some(repr_type) = type_properties.repr_type {
         // Generate implementation using the primitive representation
-        generate_repr_impl(
-            name,
-            &impl_generics,
-            &ty_generics,
-            where_clause,
-            &repr_type,
-        )
+        generate_repr_impl(name, &impl_generics, &ty_generics, where_clause, &repr_type)
     } else {
         // Generate implementation using AsRef<str>
         generate_string_impl(name, &impl_generics, &ty_generics, where_clause)

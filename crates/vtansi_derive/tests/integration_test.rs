@@ -1,7 +1,7 @@
 //! Integration tests demonstrating real-world usage patterns.
 
-use vtenc::parse::{ParseError, TryFromAnsi};
 use vtansi_derive::FromAnsi;
+use vtenc::parse::{ParseError, TryFromAnsi};
 
 // Test that the macro works with various integer sizes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromAnsi)]
@@ -26,10 +26,7 @@ impl TryFrom<usize> for UsizeEnum {
 #[test]
 fn test_usize_repr() {
     assert_eq!(UsizeEnum::try_from_ansi(b"0").unwrap(), UsizeEnum::First);
-    assert_eq!(
-        UsizeEnum::try_from_ansi(b"1").unwrap(),
-        UsizeEnum::Second
-    );
+    assert_eq!(UsizeEnum::try_from_ansi(b"1").unwrap(), UsizeEnum::Second);
 }
 
 // Test multiple enums in the same module
@@ -81,10 +78,7 @@ fn test_multiple_enums() {
         AnsiAttribute::try_from_ansi(b"0").unwrap(),
         AnsiAttribute::Reset
     );
-    assert_eq!(
-        AnsiColor::try_from_ansi(b"31").unwrap(),
-        AnsiColor::Red
-    );
+    assert_eq!(AnsiColor::try_from_ansi(b"31").unwrap(), AnsiColor::Red);
 }
 
 // Test string-based enum with multiple valid representations
@@ -176,10 +170,7 @@ fn test_sparse_discriminants() {
     assert_eq!(SparseEnum::try_from_ansi(b"1").unwrap(), SparseEnum::A);
     assert_eq!(SparseEnum::try_from_ansi(b"10").unwrap(), SparseEnum::B);
     assert_eq!(SparseEnum::try_from_ansi(b"100").unwrap(), SparseEnum::C);
-    assert_eq!(
-        SparseEnum::try_from_ansi(b"1000").unwrap(),
-        SparseEnum::D
-    );
+    assert_eq!(SparseEnum::try_from_ansi(b"1000").unwrap(), SparseEnum::D);
 
     // Values between discriminants should fail
     assert!(SparseEnum::try_from_ansi(b"5").is_err());
@@ -215,10 +206,7 @@ fn test_signed_enum() {
         SignedEnum::try_from_ansi(b"-100").unwrap(),
         SignedEnum::NegativeHundred
     );
-    assert_eq!(
-        SignedEnum::try_from_ansi(b"0").unwrap(),
-        SignedEnum::Zero
-    );
+    assert_eq!(SignedEnum::try_from_ansi(b"0").unwrap(), SignedEnum::Zero);
     assert_eq!(
         SignedEnum::try_from_ansi(b"100").unwrap(),
         SignedEnum::PositiveHundred

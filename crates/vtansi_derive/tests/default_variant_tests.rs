@@ -1,7 +1,7 @@
 //! Tests for the #[vtansi(default)] attribute functionality.
 
-use vtenc::parse::{ParseError, TryFromAnsi};
 use vtansi_derive::FromAnsi;
+use vtenc::parse::{ParseError, TryFromAnsi};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromAnsi)]
 #[repr(u8)]
@@ -306,12 +306,8 @@ impl TryFrom<&str> for MultipleAliasesWithDefault {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
-            "active" | "on" | "enabled" | "true" => {
-                Ok(MultipleAliasesWithDefault::Active)
-            }
-            "inactive" | "off" | "disabled" | "false" => {
-                Ok(MultipleAliasesWithDefault::Inactive)
-            }
+            "active" | "on" | "enabled" | "true" => Ok(MultipleAliasesWithDefault::Active),
+            "inactive" | "off" | "disabled" | "false" => Ok(MultipleAliasesWithDefault::Inactive),
             _ => Err(format!("unknown state: {}", s)),
         }
     }

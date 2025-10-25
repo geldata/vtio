@@ -128,14 +128,14 @@ pub fn parse_delimited_values<'a>(
     expected_count: usize,
 ) -> Result<Vec<&'a str>, ParseError> {
     let parts: Vec<&str> = s.split(delimiter).collect();
-    
+
     if parts.len() != expected_count {
         return Err(ParseError::InvalidValue(format!(
             "expected {expected_count} fields, got {}",
             parts.len()
         )));
     }
-    
+
     Ok(parts)
 }
 
@@ -162,9 +162,7 @@ pub fn parse_keyvalue_pairs<'a>(
             let key = parts.next().unwrap_or("").trim();
             let value = parts
                 .next()
-                .ok_or_else(|| {
-                    ParseError::InvalidValue(format!("invalid key=value pair: {pair}"))
-                })?
+                .ok_or_else(|| ParseError::InvalidValue(format!("invalid key=value pair: {pair}")))?
                 .trim();
             Ok((key, value))
         })

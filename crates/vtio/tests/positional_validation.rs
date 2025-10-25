@@ -61,10 +61,7 @@ mod valid_cases {
         let mut buf = Vec::new();
         let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
-        assert_eq!(
-            String::from_utf8(buf).unwrap(),
-            "\x1b]999;MULTI;1;2\x1b\\"
-        );
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]999;MULTI;1;2\x1b\\");
     }
 
     #[test]
@@ -77,10 +74,7 @@ mod valid_cases {
         let mut buf = Vec::new();
         let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
-        assert_eq!(
-            String::from_utf8(buf).unwrap(),
-            "\x1b]999;MULTI;1\x1b\\"
-        );
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]999;MULTI;1\x1b\\");
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, VTControl)]
@@ -101,9 +95,6 @@ mod valid_cases {
         let mut buf = Vec::new();
         let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
-        assert_eq!(
-            String::from_utf8(buf).unwrap(),
-            "\x1b]888;ALL_OPT\x1b\\"
-        );
+        assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]888;ALL_OPT\x1b\\");
     }
 }

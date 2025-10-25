@@ -23,9 +23,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields};
 
-use crate::helpers::{
-    find_default_variant, non_enum_error, DefaultVariant, HasTypeProperties,
-};
+use crate::helpers::{DefaultVariant, HasTypeProperties, find_default_variant, non_enum_error};
 
 use super::struct_from_ansi;
 

@@ -1,7 +1,7 @@
 //! Tests for the ToAnsi derive macro.
 
-use vtenc::encode::AnsiEncode;
 use vtansi_derive::ToAnsi;
+use vtenc::encode::AnsiEncode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToAnsi)]
 #[repr(u8)]
@@ -156,14 +156,8 @@ impl AsRef<str> for CaseSensitiveEnum {
 
 #[test]
 fn test_case_sensitivity() {
-    assert_eq!(
-        CaseSensitiveEnum::Lower.encode_ansi().unwrap(),
-        b"lower"
-    );
-    assert_eq!(
-        CaseSensitiveEnum::Upper.encode_ansi().unwrap(),
-        b"UPPER"
-    );
+    assert_eq!(CaseSensitiveEnum::Lower.encode_ansi().unwrap(), b"lower");
+    assert_eq!(CaseSensitiveEnum::Upper.encode_ansi().unwrap(), b"UPPER");
 }
 
 #[test]
@@ -184,10 +178,7 @@ fn test_unicode_string_enum() {
     }
 
     assert_eq!(UnicodeEnum::Hello.encode_ansi().unwrap(), b"hello");
-    assert_eq!(
-        UnicodeEnum::World.encode_ansi().unwrap(),
-        "世界".as_bytes()
-    );
+    assert_eq!(UnicodeEnum::World.encode_ansi().unwrap(), "世界".as_bytes());
 }
 
 #[test]
@@ -227,15 +218,9 @@ enum SignedEnum {
 
 #[test]
 fn test_signed_enum() {
-    assert_eq!(
-        SignedEnum::NegativeHundred.encode_ansi().unwrap(),
-        b"-100"
-    );
+    assert_eq!(SignedEnum::NegativeHundred.encode_ansi().unwrap(), b"-100");
     assert_eq!(SignedEnum::Zero.encode_ansi().unwrap(), b"0");
-    assert_eq!(
-        SignedEnum::PositiveHundred.encode_ansi().unwrap(),
-        b"100"
-    );
+    assert_eq!(SignedEnum::PositiveHundred.encode_ansi().unwrap(), b"100");
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToAnsi)]

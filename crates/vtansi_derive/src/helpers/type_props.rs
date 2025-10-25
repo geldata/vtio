@@ -45,13 +45,13 @@ pub struct TypeProperties {
     /// contains the primitive type identifier. This determines whether the
     /// enum uses integer-based or string-based conversion.
     pub repr_type: Option<Ident>,
-    
+
     /// The struct encoding format from `#[vtansi(format = "...")]`.
     ///
     /// For structs, this determines whether fields are encoded as
     /// `key=value` pairs or as values only. Defaults to `KeyValue`.
     pub format: StructFormat,
-    
+
     /// The field delimiter from `#[vtansi(delimiter = "...")]`.
     ///
     /// For structs, this determines what separator is used between fields.
@@ -72,7 +72,7 @@ impl Default for TypeProperties {
 impl HasTypeProperties for DeriveInput {
     fn get_type_properties(&self) -> syn::Result<TypeProperties> {
         let repr_type = extract_repr_type(self);
-        
+
         // Default format depends on struct type
         let default_format = match &self.data {
             Data::Struct(data) => match &data.fields {
@@ -81,13 +81,13 @@ impl HasTypeProperties for DeriveInput {
             },
             _ => StructFormat::KeyValue,
         };
-        
+
         let mut format = default_format;
         let mut delimiter = LitStr::new(";", proc_macro2::Span::call_site());
-        
+
         let mut format_kw = None;
         let mut delimiter_kw = None;
-        
+
         for meta in self.get_type_metadata()? {
             match meta {
                 TypeMeta::Format { kw, format: fmt } => {
@@ -99,11 +99,14 @@ impl HasTypeProperties for DeriveInput {
                         err.combine(syn::Error::new_spanned(fst_kw, "first one here"));
                         return Err(err);
                     }
-                    
+
                     format_kw = Some(kw);
                     format = fmt;
                 }
-                TypeMeta::Delimiter { kw, delimiter: delim } => {
+                TypeMeta::Delimiter {
+                    kw,
+                    delimiter: delim,
+                } => {
                     if let Some(fst_kw) = delimiter_kw {
                         let mut err = syn::Error::new_spanned(
                             kw,
@@ -112,7 +115,7 @@ impl HasTypeProperties for DeriveInput {
                         err.combine(syn::Error::new_spanned(fst_kw, "first one here"));
                         return Err(err);
                     }
-                    
+
                     delimiter_kw = Some(kw);
                     delimiter = delim;
                 }

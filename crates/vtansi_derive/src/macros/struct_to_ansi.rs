@@ -16,7 +16,7 @@ use quote::quote;
 use syn::{Data, DeriveInput, Fields};
 
 use crate::helpers::{
-    metadata::StructFormat, non_struct_error, HasFieldProperties, HasTypeProperties,
+    HasFieldProperties, HasTypeProperties, metadata::StructFormat, non_struct_error,
 };
 
 /// Generate the implementation of `ToAnsi` for a struct.

@@ -4,7 +4,7 @@ use std::fmt::{self, Display, Write};
 use std::hash::{Hash, Hasher};
 
 use bitflags::bitflags;
-use vtenc::{StaticAnsiEncode, AnsiEncode, EncodeError, format_csi, format_esc, write_csi};
+use vtenc::{AnsiEncode, EncodeError, StaticAnsiEncode, format_csi, format_esc, write_csi};
 
 use crate::TerseDisplay;
 use vtio_control_derive::terminal_mode;
@@ -172,7 +172,10 @@ bitflags! {
 }
 
 impl AnsiEncode for KeyboardEnhancementFlags {
-    fn encode_ansi_into<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.0.bits(), "u")
     }
 }
@@ -191,7 +194,10 @@ impl AnsiEncode for KeyboardEnhancementFlags {
 pub struct PushKeyboardEnhancementFlags(pub KeyboardEnhancementFlags);
 
 impl AnsiEncode for PushKeyboardEnhancementFlags {
-    fn encode_ansi_into<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
         write_csi!(buf; ">", self.0.bits(), "u")
     }
 }
@@ -239,7 +245,10 @@ impl StaticAnsiEncode for ResetApplicationKeypadMode {
 
 impl AnsiEncode for KeyEvent {
     #[allow(clippy::too_many_lines)]
-    fn encode_ansi_into<W: std::io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        buf: &mut W,
+    ) -> Result<usize, EncodeError> {
         use std::io::Write as _;
         use vtenc::encode::CountingWriter;
         // Only generate on key press (ignore repeats/releases)

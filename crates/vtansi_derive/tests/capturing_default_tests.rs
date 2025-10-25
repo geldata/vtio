@@ -1,7 +1,7 @@
 //! Tests for capturing default variants with #[vtansi(default)].
 
-use vtenc::parse::TryFromAnsi;
 use vtansi_derive::FromAnsi;
+use vtenc::parse::TryFromAnsi;
 
 #[derive(Debug, Clone, PartialEq, Eq, FromAnsi)]
 #[repr(u8)]
@@ -139,10 +139,7 @@ impl TryFrom<u16> for StatusCode {
 
 #[test]
 fn test_u16_capturing_default() {
-    assert_eq!(
-        StatusCode::try_from_ansi(b"200").unwrap(),
-        StatusCode::Ok
-    );
+    assert_eq!(StatusCode::try_from_ansi(b"200").unwrap(), StatusCode::Ok);
     assert_eq!(
         StatusCode::try_from_ansi(b"404").unwrap(),
         StatusCode::NotFound

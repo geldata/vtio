@@ -8,7 +8,7 @@
 use std::default::Default;
 use syn::Field;
 
-use super::metadata::{kw, FieldExt, FieldMeta};
+use super::metadata::{FieldExt, FieldMeta, kw};
 
 /// Trait for extracting vtansi field properties from AST nodes.
 ///

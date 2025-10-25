@@ -26,14 +26,11 @@ impl<const N: usize> From<NonEmptyBytes<N>> for SmallVec<[u8; N]> {
 }
 
 impl<const N: usize> NonEmptyBytes<N> {
-    pub const fn from_u8(byte: u8) -> Self
-    {
+    pub const fn from_u8(byte: u8) -> Self {
         let mut arr = [0u8; N];
         arr[0] = byte;
         // SAFETY: 1 <= N
-        unsafe {
-            Self(SmallVec::<[u8; N]>::from_const_with_len_unchecked(arr, 1))
-        }
+        unsafe { Self(SmallVec::<[u8; N]>::from_const_with_len_unchecked(arr, 1)) }
     }
 
     pub fn try_from_slice(s: &[u8]) -> Result<Self, EmptyError> {
@@ -45,7 +42,9 @@ impl<const N: usize> NonEmptyBytes<N> {
 
     pub const unsafe fn from_const_with_len_unchecked(value: [u8; N], len: usize) -> Self {
         unsafe {
-            Self(SmallVec::<[u8; N]>::from_const_with_len_unchecked(value, len))
+            Self(SmallVec::<[u8; N]>::from_const_with_len_unchecked(
+                value, len,
+            ))
         }
     }
 

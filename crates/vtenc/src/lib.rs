@@ -8,11 +8,11 @@ pub mod parse;
 pub use encode::write_bytes_into;
 pub use encode::write_int;
 pub use encode::write_str_into;
-pub use encode::{encode_delimited_values, encode_keyvalue_pairs};
 pub use encode::{AnsiEncode, EncodeError, StaticAnsiEncode, StaticEncodedLen, ToAnsi};
+pub use encode::{encode_delimited_values, encode_keyvalue_pairs};
 
-pub use parse::{parse_delimited_values, parse_keyvalue_pairs};
 pub use parse::{FromAnsi, ParseError, TryFromAnsi};
+pub use parse::{parse_delimited_values, parse_keyvalue_pairs};
 
 #[cfg(feature = "derive")]
 pub use vtansi_derive::{FromAnsi, ToAnsi};

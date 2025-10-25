@@ -1,7 +1,7 @@
 //! Tests for the FromAnsi derive macro.
 
-use vtenc::parse::{ParseError, TryFromAnsi};
 use vtansi_derive::FromAnsi;
+use vtenc::parse::{ParseError, TryFromAnsi};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromAnsi)]
 #[repr(u8)]
@@ -111,10 +111,7 @@ fn test_str_enum() {
         TextStyle::try_from_ansi(b"plain").unwrap(),
         TextStyle::Plain
     );
-    assert_eq!(
-        TextStyle::try_from_ansi(b"bold").unwrap(),
-        TextStyle::Bold
-    );
+    assert_eq!(TextStyle::try_from_ansi(b"bold").unwrap(), TextStyle::Bold);
     assert_eq!(
         TextStyle::try_from_ansi(b"italic").unwrap(),
         TextStyle::Italic
@@ -187,7 +184,7 @@ fn test_whitespace_handling() {
     // Whitespace should cause parse error for numbers
     let result = Color::try_from_ansi(b" 0");
     assert!(result.is_err());
-    
+
     let result = Color::try_from_ansi(b"0 ");
     assert!(result.is_err());
 }
@@ -257,7 +254,7 @@ fn test_case_sensitivity() {
         CaseSensitiveEnum::try_from_ansi(b"UPPER").unwrap(),
         CaseSensitiveEnum::Upper
     );
-    
+
     // Wrong case should fail
     assert!(CaseSensitiveEnum::try_from_ansi(b"LOWER").is_err());
     assert!(CaseSensitiveEnum::try_from_ansi(b"upper").is_err());

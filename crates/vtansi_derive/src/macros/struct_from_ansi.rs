@@ -6,7 +6,7 @@
 //!
 //! 1. **Key-Value format** (default for named fields) - fields are parsed as
 //!    `key=value` pairs separated by a delimiter. Fields can appear in any
-//!    order.
+//!    order. Fields with `Option<T>` type are automatically optional.
 //! 2. **Value format** (default for tuple structs) - fields are parsed as
 //!    values in declaration order, separated by a delimiter.
 //!
@@ -18,7 +18,8 @@ use quote::quote;
 use syn::{Data, DeriveInput, Fields};
 
 use crate::helpers::{
-    metadata::StructFormat, non_struct_error, HasFieldProperties, HasTypeProperties,
+    HasFieldProperties, HasTypeProperties, extract_option_inner_type, metadata::StructFormat,
+    non_struct_error,
 };
 
 /// Generate the implementation of `TryFromAnsi` for a struct.
@@ -123,7 +124,8 @@ pub fn generate_struct_impl(ast: &DeriveInput) -> syn::Result<TokenStream> {
 ///
 /// This function creates a `TryFromAnsi` implementation that parses the
 /// input as `key=value` pairs separated by the delimiter. Fields can appear
-/// in any order.
+/// in any order. Fields with `Option<T>` type are optional and will be
+/// `None` if not present.
 fn generate_keyvalue_impl(
     name: &syn::Ident,
     impl_generics: &syn::ImplGenerics,
@@ -133,33 +135,81 @@ fn generate_keyvalue_impl(
     field_types: &[&syn::Type],
     delimiter: &str,
 ) -> TokenStream {
-    let field_declarations = field_names.iter().zip(field_types.iter()).map(|(name, ty)| {
-        quote! {
-            let mut #name: ::core::option::Option<#ty> = ::core::option::Option::None;
-        }
-    });
-
-    let field_assignments = field_names.iter().zip(field_types.iter()).map(|(name, ty)| {
-        let name_str = name.to_string();
-        quote! {
-            #name_str => {
-                #name = ::core::option::Option::Some(
-                    <#ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(value.as_bytes())?
-                );
+    // Detect which fields are Option types and extract inner types
+    let field_info: Vec<_> = field_types
+        .iter()
+        .map(|ty| {
+            if let Some(inner_ty) = extract_option_inner_type(ty) {
+                (true, inner_ty)
+            } else {
+                (false, *ty)
             }
-        }
-    });
+        })
+        .collect();
 
-    let field_unwrapping = field_names.iter().map(|name| {
-        let name_str = name.to_string();
-        quote! {
-            let #name = #name.ok_or_else(|| {
-                ::vtenc::parse::ParseError::InvalidValue(
-                    ::std::format!("missing field: {}", #name_str)
-                )
-            })?;
-        }
-    });
+    let field_declarations = field_names
+        .iter()
+        .zip(field_types.iter())
+        .zip(field_info.iter())
+        .map(|((name, ty), (is_option, _))| {
+            if *is_option {
+                // For Option fields, initialize as None
+                quote! {
+                    let mut #name: #ty = ::core::option::Option::None;
+                }
+            } else {
+                // For required fields, wrap in Option for tracking presence
+                quote! {
+                    let mut #name: ::core::option::Option<#ty> = ::core::option::Option::None;
+                }
+            }
+        });
+
+    let field_assignments = field_names
+        .iter()
+        .zip(field_info.iter())
+        .map(|(name, (is_option, inner_ty))| {
+            let name_str = name.to_string();
+            if *is_option {
+                // For Option fields, parse the inner type T and wrap in Some
+                quote! {
+                    #name_str => {
+                        #name = ::core::option::Option::Some(
+                            <#inner_ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(value.as_bytes())?
+                        );
+                    }
+                }
+            } else {
+                quote! {
+                    #name_str => {
+                        #name = ::core::option::Option::Some(
+                            <#inner_ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(value.as_bytes())?
+                        );
+                    }
+                }
+            }
+        });
+
+    let field_unwrapping =
+        field_names
+            .iter()
+            .zip(field_info.iter())
+            .filter_map(|(name, (is_option, _))| {
+                if *is_option {
+                    // Option fields don't need unwrapping - they're already optional
+                    None
+                } else {
+                    // Required fields must be present
+                    let name_str = name.to_string();
+                    Some(quote! {
+                        let #name = #name.ok_or_else(|| {
+                            ::vtenc::parse::ParseError::InvalidValue(
+                                ::std::format!("missing field: {}", #name_str)
+                            )
+                        })?;
+                    })
+                }
+            });
 
     let field_construction = field_names.iter().map(|name| {
         quote! { #name }
@@ -220,11 +270,8 @@ fn generate_named_value_impl(
 ) -> TokenStream {
     let field_count = field_names.len();
 
-    let field_parsing = field_names
-        .iter()
-        .zip(field_types.iter())
-        .enumerate()
-        .map(|(idx, (name, ty))| {
+    let field_parsing = field_names.iter().zip(field_types.iter()).enumerate().map(
+        |(idx, (name, ty))| {
             quote! {
                 let #name = if #idx < parts.len() {
                     <#ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(
@@ -238,7 +285,8 @@ fn generate_named_value_impl(
                     );
                 };
             }
-        });
+        },
+    );
 
     let field_construction = field_names.iter().map(|name| {
         quote! { #name }

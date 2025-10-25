@@ -8,7 +8,7 @@
 use std::default::Default;
 use syn::Variant;
 
-use super::metadata::{kw, VariantExt, VariantMeta};
+use super::metadata::{VariantExt, VariantMeta, kw};
 
 /// Trait for extracting vtansi variant properties from AST nodes.
 ///

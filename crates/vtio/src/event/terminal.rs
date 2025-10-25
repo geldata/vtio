@@ -1,6 +1,6 @@
 //! Buffer control/information messages.
 
-use vtenc::{ToAnsi, AnsiEncode};
+use vtenc::{AnsiEncode, ToAnsi};
 
 use vtio_control_base::EscapeSequenceParam;
 use vtio_control_derive::{VTControl, terminal_mode};

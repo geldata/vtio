@@ -53,8 +53,7 @@ pub fn extract_repr_type(input: &DeriveInput) -> Option<Ident> {
         let type_str = meta.to_string();
         if matches!(
             type_str.as_str(),
-            "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64"
-                | "usize" | "isize"
+            "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "isize"
         ) {
             Some(meta)
         } else {

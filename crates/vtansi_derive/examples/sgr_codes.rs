@@ -130,8 +130,11 @@ fn main() {
     let colors = [b"31", b"32", b"33", b"34"];
     for color_bytes in &colors {
         match SgrColor::try_from_ansi(*color_bytes) {
-            Ok(color) => println!("Parsed color code {:?} -> {:?}",
-                std::str::from_utf8(*color_bytes).unwrap(), color),
+            Ok(color) => println!(
+                "Parsed color code {:?} -> {:?}",
+                std::str::from_utf8(*color_bytes).unwrap(),
+                color
+            ),
             Err(e) => println!("Failed to parse: {}", e),
         }
     }
@@ -142,8 +145,11 @@ fn main() {
     let decorations = [b"0", b"1", b"3", b"4", b"9"];
     for dec_bytes in &decorations {
         match TextDecoration::try_from_ansi(*dec_bytes) {
-            Ok(dec) => println!("Parsed decoration code {:?} -> {:?}",
-                std::str::from_utf8(*dec_bytes).unwrap(), dec),
+            Ok(dec) => println!(
+                "Parsed decoration code {:?} -> {:?}",
+                std::str::from_utf8(*dec_bytes).unwrap(),
+                dec
+            ),
             Err(e) => println!("Failed to parse: {}", e),
         }
     }
@@ -151,17 +157,14 @@ fn main() {
     println!("\n=== Cursor Styles ===\n");
 
     // Parse cursor styles (both numeric and string representations)
-    let styles: &[&[u8]] = &[
-        b"0",
-        b"default",
-        b"1",
-        b"blinking-block",
-        b"steady-bar",
-    ];
+    let styles: &[&[u8]] = &[b"0", b"default", b"1", b"blinking-block", b"steady-bar"];
     for style_bytes in styles {
         match CursorStyle::try_from_ansi(style_bytes) {
-            Ok(style) => println!("Parsed cursor style {:?} -> {:?}",
-                std::str::from_utf8(style_bytes).unwrap(), style),
+            Ok(style) => println!(
+                "Parsed cursor style {:?} -> {:?}",
+                std::str::from_utf8(style_bytes).unwrap(),
+                style
+            ),
             Err(e) => println!("Failed to parse: {}", e),
         }
     }
@@ -259,7 +262,11 @@ fn main() {
         original_dec,
         std::str::from_utf8(&encoded).unwrap(),
         decoded,
-        if original_dec == decoded { "✓" } else { "✗" }
+        if original_dec == decoded {
+            "✓"
+        } else {
+            "✗"
+        }
     );
 
     let original_cursor = CursorStyle::BlinkingBlock;

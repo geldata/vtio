@@ -88,6 +88,23 @@
 //! // Encodes as: "name=foo,value=42"
 //! ```
 //!
+//! ## Optional Fields (key=value format only)
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! struct Settings {
+//!     width: u32,
+//!     height: u32,
+//!     title: Option<String>,  // Optional field
+//! }
+//! // Parses: "width=800;height=600" (title is None)
+//! // Parses: "width=800;height=600;title=MyApp" (title is Some("MyApp"))
+//! ```
+//!
+//! Fields with `Option<T>` type are automatically optional in key=value format.
+//! Missing optional fields will be set to `None` instead of causing a parse
+//! error.
+//!
 //! ## Skipping Fields
 //!
 //! ```ignore
@@ -205,8 +222,8 @@ fn debug_print_generated(ast: &DeriveInput, toks: &TokenStream2) {
 pub fn derive_from_ansi(input: TokenStream) -> TokenStream {
     let ast = syn::parse_macro_input!(input as DeriveInput);
 
-    let toks = macros::from_ansi::from_ansi_inner(&ast)
-        .unwrap_or_else(|err| err.to_compile_error());
+    let toks =
+        macros::from_ansi::from_ansi_inner(&ast).unwrap_or_else(|err| err.to_compile_error());
     debug_print_generated(&ast, &toks);
     toks.into()
 }
@@ -259,8 +276,7 @@ pub fn derive_from_ansi(input: TokenStream) -> TokenStream {
 pub fn derive_to_ansi(input: TokenStream) -> TokenStream {
     let ast = syn::parse_macro_input!(input as DeriveInput);
 
-    let toks = macros::to_ansi::to_ansi_inner(&ast)
-        .unwrap_or_else(|err| err.to_compile_error());
+    let toks = macros::to_ansi::to_ansi_inner(&ast).unwrap_or_else(|err| err.to_compile_error());
     debug_print_generated(&ast, &toks);
     toks.into()
 }

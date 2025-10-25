@@ -5,7 +5,9 @@ fn main() {
     let mut buf = Vec::new();
 
     // Test CommandEnd with exit code
-    let mut cmd = CommandEnd { exit_code: Some(42) };
+    let mut cmd = CommandEnd {
+        exit_code: Some(42),
+    };
     cmd.encode_ansi_into(&mut buf).unwrap();
     let result = String::from_utf8(buf.clone()).unwrap();
     println!("CommandEnd with exit_code: {:?}", result);

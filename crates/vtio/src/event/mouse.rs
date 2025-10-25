@@ -2,9 +2,9 @@
 //!
 //! See <https://terminalguide.namepad.de/mouse/> for details.
 
-use vtenc::{ToAnsi, AnsiEncode, const_composite};
-use vtio_control_base::{FinalByte, EscapeSequenceParam};
-use vtio_control_derive::{terminal_mode, VTControl};
+use vtenc::{AnsiEncode, ToAnsi, const_composite};
+use vtio_control_base::{EscapeSequenceParam, FinalByte};
+use vtio_control_derive::{VTControl, terminal_mode};
 
 use crate::event::keyboard::KeyModifiers;
 
@@ -277,7 +277,7 @@ impl AnsiEncode for CoordinatesSeq {
         &self,
         buf: &mut W,
     ) -> Result<usize, vtenc::EncodeError> {
-        use vtenc::encode::{write_str_into, AnsiEncode};
+        use vtenc::encode::{AnsiEncode, write_str_into};
         let mut total = 0;
         total += AnsiEncode::encode_ansi_into(&self.column, buf)?;
         total += write_str_into(buf, ";")?;

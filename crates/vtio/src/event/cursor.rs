@@ -1,9 +1,9 @@
 //! Cursor movement and control commands.
 
 use bitflags::bitflags;
-use vtio_control_derive::{terminal_mode, VTControl};
+use vtenc::{AnsiEncode, ToAnsi};
 use vtio_control_base::EscapeSequenceParam;
-use vtenc::{ToAnsi, AnsiEncode};
+use vtio_control_derive::{VTControl, terminal_mode};
 
 terminal_mode!(
     /// Cursor Origin Mode (`DECOM`).

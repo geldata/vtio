@@ -1,9 +1,9 @@
 //! Comprehensive integration test demonstrating both FromAnsi and ToAnsi
 //! working together in realistic scenarios.
 
+use vtansi_derive::{FromAnsi, ToAnsi};
 use vtenc::encode::AnsiEncode;
 use vtenc::parse::TryFromAnsi;
-use vtansi_derive::{FromAnsi, ToAnsi};
 
 /// ANSI SGR (Select Graphic Rendition) attributes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromAnsi, ToAnsi)]
@@ -146,20 +146,14 @@ fn test_multiple_parse_styles() {
         BellType::try_from_ansi(b"audible").unwrap(),
         BellType::Audible
     );
-    assert_eq!(
-        BellType::try_from_ansi(b"beep").unwrap(),
-        BellType::Audible
-    );
+    assert_eq!(BellType::try_from_ansi(b"beep").unwrap(), BellType::Audible);
     assert_eq!(
         BellType::try_from_ansi(b"sound").unwrap(),
         BellType::Audible
     );
 
     // But encoding always produces canonical form
-    assert_eq!(
-        BellType::Audible.encode_ansi().unwrap(),
-        b"audible"
-    );
+    assert_eq!(BellType::Audible.encode_ansi().unwrap(), b"audible");
 }
 
 #[test]
@@ -170,7 +164,9 @@ fn test_sequence_building() {
     // Add SGR attributes
     SgrAttribute::Bold.encode_ansi_into(&mut sequence).unwrap();
     sequence.push(b';');
-    SgrAttribute::Italic.encode_ansi_into(&mut sequence).unwrap();
+    SgrAttribute::Italic
+        .encode_ansi_into(&mut sequence)
+        .unwrap();
     sequence.push(b';');
     SgrAttribute::Underline
         .encode_ansi_into(&mut sequence)
@@ -195,11 +191,7 @@ fn test_sequence_building() {
 #[test]
 fn test_cursor_shape_u32() {
     // Test that u32 repr works correctly
-    let shapes = [
-        CursorShape::Block,
-        CursorShape::Underline,
-        CursorShape::Bar,
-    ];
+    let shapes = [CursorShape::Block, CursorShape::Underline, CursorShape::Bar];
 
     for shape in &shapes {
         let encoded = shape.encode_ansi().unwrap();
@@ -281,15 +273,11 @@ fn test_encode_to_fixed_buffer() {
     // Test encoding to a fixed-size buffer
     let mut buf = [0u8; 10];
 
-    let n = SgrAttribute::Bold
-        .encode_ansi_into_slice(&mut buf)
-        .unwrap();
+    let n = SgrAttribute::Bold.encode_ansi_into_slice(&mut buf).unwrap();
     assert_eq!(n, 1);
     assert_eq!(&buf[..n], b"1");
 
-    let n = BellType::Visual
-        .encode_ansi_into_slice(&mut buf)
-        .unwrap();
+    let n = BellType::Visual.encode_ansi_into_slice(&mut buf).unwrap();
     assert_eq!(n, 6);
     assert_eq!(&buf[..n], b"visual");
 

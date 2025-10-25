@@ -3,8 +3,8 @@
 //! This example shows how to use both unit and capturing default variants
 //! to handle unrecognized values gracefully.
 
-use vtenc::parse::TryFromAnsi;
 use vtenc::FromAnsi;
+use vtenc::parse::TryFromAnsi;
 
 /// ANSI SGR attribute with unit default variant.
 ///
@@ -220,8 +220,7 @@ fn main() {
 
     // Parse unknown commands - captured as Custom
     println!("\nUnknown commands (captured):");
-    let unknown_commands: &[&[u8]] =
-        &[b"echo", b"set option=value", b"custom-command"];
+    let unknown_commands: &[&[u8]] = &[b"echo", b"set option=value", b"custom-command"];
     for cmd_bytes in unknown_commands {
         let cmd = Command::try_from_ansi(cmd_bytes).unwrap();
         if let Command::Custom(ref s) = cmd {

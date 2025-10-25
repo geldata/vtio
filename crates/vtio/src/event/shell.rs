@@ -110,8 +110,8 @@ pub struct CommandEnd {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtio_control_base::StaticAnsiEncode;
     use vtio_control_base::AnsiEncode;
+    use vtio_control_base::StaticAnsiEncode;
 
     #[test]
     fn test_prompt_start() {
@@ -139,9 +139,7 @@ mod tests {
 
     #[test]
     fn test_command_end_with_exit_code_zero() {
-        let cmd = CommandEnd {
-            exit_code: Some(0),
-        };
+        let cmd = CommandEnd { exit_code: Some(0) };
         let mut buf = Vec::new();
         let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
@@ -150,9 +148,7 @@ mod tests {
 
     #[test]
     fn test_command_end_with_exit_code_nonzero() {
-        let cmd = CommandEnd {
-            exit_code: Some(1),
-        };
+        let cmd = CommandEnd { exit_code: Some(1) };
         let mut buf = Vec::new();
         let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
