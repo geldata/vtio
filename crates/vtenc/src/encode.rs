@@ -313,14 +313,14 @@ impl<T: ConstEncode> ConstEncodedLen for T {
     const ENCODED_LEN: usize = Self::STR.len();
 }
 
-impl<T: ConstEncode> Encode for T {
+impl<T: ConstEncode> AnsiEncode2 for T {
     #[inline]
     fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_str_into(buf, Self::STR)
     }
 }
 
-pub trait Encode {
+pub trait AnsiEncode2 {
     /// Encode this value into the provided buffer.
     ///
     /// # Errors
@@ -356,7 +356,7 @@ macro_rules! const_composite {
             const ENCODED_LEN: usize = 0 $(+ <$command>::ENCODED_LEN)*;
         }
 
-        impl $crate::encode::Encode for $name {
+        impl $crate::encode::AnsiEncode2 for $name {
             #[inline]
             fn encode<W: std::io::Write>(
                 &mut self,
@@ -386,7 +386,7 @@ mod tests {
 
     struct TestCmd(&'static str);
 
-    impl Encode for TestCmd {
+    impl AnsiEncode2 for TestCmd {
         fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
             write_str_into(buf, self.0)
         }

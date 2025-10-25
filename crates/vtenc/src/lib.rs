@@ -6,7 +6,7 @@ pub mod encode;
 pub use encode::write_bytes_into;
 pub use encode::write_int;
 pub use encode::write_str_into;
-pub use encode::{ConstEncode, ConstEncodedLen, Encode, EncodeError, ToAnsi, AnsiEncode};
+pub use encode::{ConstEncode, ConstEncodedLen, AnsiEncode2, EncodeError, ToAnsi, AnsiEncode};
 
 /// Concatenate string literals while prepending a ANSI control sequence
 /// introducer (`"\x1b["`).

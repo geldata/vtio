@@ -1,4 +1,4 @@
-use vtenc::Encode;
+use vtenc::AnsiEncode2;
 use vtio::event::window::SetSize;
 
 /// Encode a terminal resize sequence (CSI 8;rows;cols t) into a buffer.

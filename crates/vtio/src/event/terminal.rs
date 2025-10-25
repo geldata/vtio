@@ -880,7 +880,7 @@ pub struct RequestVTConformanceLevel;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtio_control_base::Encode;
+    use vtio_control_base::AnsiEncode2;
 
     #[test]
     fn test_primary_device_attributes_response_encoding() {

@@ -4,7 +4,7 @@ use std::fmt::{self, Display, Write};
 use std::hash::{Hash, Hasher};
 
 use bitflags::bitflags;
-use vtenc::{ConstEncode, Encode, EncodeError, format_csi, format_esc, write_csi};
+use vtenc::{ConstEncode, AnsiEncode2, EncodeError, format_csi, format_esc, write_csi};
 
 use crate::TerseDisplay;
 use vtio_control_derive::terminal_mode;
@@ -171,7 +171,7 @@ bitflags! {
     }
 }
 
-impl Encode for KeyboardEnhancementFlags {
+impl AnsiEncode2 for KeyboardEnhancementFlags {
     fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.0.bits(), "u")
     }
@@ -190,7 +190,7 @@ impl Encode for KeyboardEnhancementFlags {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PushKeyboardEnhancementFlags(pub KeyboardEnhancementFlags);
 
-impl Encode for PushKeyboardEnhancementFlags {
+impl AnsiEncode2 for PushKeyboardEnhancementFlags {
     fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; ">", self.0.bits(), "u")
     }
@@ -237,7 +237,7 @@ impl ConstEncode for ResetApplicationKeypadMode {
     const STR: &'static str = format_esc!(">");
 }
 
-impl Encode for KeyEvent {
+impl AnsiEncode2 for KeyEvent {
     #[allow(clippy::too_many_lines)]
     fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         use std::io::Write as _;
