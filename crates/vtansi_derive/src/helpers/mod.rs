@@ -12,6 +12,7 @@ pub use self::field_props::HasFieldProperties;
 pub use self::type_props::HasTypeProperties;
 
 use proc_macro2::Span;
+use quote::ToTokens;
 
 /// Return an error indicating that the macro can only be used on enums.
 pub fn non_enum_error() -> syn::Error {
@@ -24,6 +25,20 @@ pub fn non_struct_error() -> syn::Error {
         Span::call_site(),
         "This macro only supports structs with named fields.",
     )
+}
+
+/// Return an error for duplicate occurrences of an attribute.
+///
+/// Create an error message indicating that an attribute was specified
+/// multiple times, with the second occurrence as the primary error and the
+/// first occurrence as a note.
+pub fn occurrence_error<T: ToTokens>(fst: T, snd: T, attr: &str) -> syn::Error {
+    let mut e = syn::Error::new_spanned(
+        snd,
+        format!("Found multiple occurrences of vtansi({})", attr),
+    );
+    e.combine(syn::Error::new_spanned(fst, "first one here"));
+    e
 }
 
 /// Extract the inner type `T` from `Option<T>`.

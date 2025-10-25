@@ -9,6 +9,7 @@ use std::default::Default;
 use syn::{Data, DeriveInput, Fields, Ident, LitStr};
 
 use super::metadata::{DeriveInputExt, StructFormat, TypeMeta};
+use super::occurrence_error;
 use super::repr_type::extract_repr_type;
 
 /// Trait for extracting vtansi type properties from AST nodes.
@@ -92,12 +93,7 @@ impl HasTypeProperties for DeriveInput {
             match meta {
                 TypeMeta::Format { kw, format: fmt } => {
                     if let Some(fst_kw) = format_kw {
-                        let mut err = syn::Error::new_spanned(
-                            kw,
-                            "Found multiple occurrences of vtansi(format)",
-                        );
-                        err.combine(syn::Error::new_spanned(fst_kw, "first one here"));
-                        return Err(err);
+                        return Err(occurrence_error(fst_kw, kw, "format"));
                     }
 
                     format_kw = Some(kw);
@@ -108,12 +104,7 @@ impl HasTypeProperties for DeriveInput {
                     delimiter: delim,
                 } => {
                     if let Some(fst_kw) = delimiter_kw {
-                        let mut err = syn::Error::new_spanned(
-                            kw,
-                            "Found multiple occurrences of vtansi(delimiter)",
-                        );
-                        err.combine(syn::Error::new_spanned(fst_kw, "first one here"));
-                        return Err(err);
+                        return Err(occurrence_error(fst_kw, kw, "delimiter"));
                     }
 
                     delimiter_kw = Some(kw);

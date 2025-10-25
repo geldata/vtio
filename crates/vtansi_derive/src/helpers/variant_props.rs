@@ -9,6 +9,7 @@ use std::default::Default;
 use syn::Variant;
 
 use super::metadata::{VariantExt, VariantMeta, kw};
+use super::occurrence_error;
 
 /// Trait for extracting vtansi variant properties from AST nodes.
 ///
@@ -57,12 +58,7 @@ impl HasVariantProperties for Variant {
             match meta {
                 VariantMeta::Default { kw } => {
                     if let Some(fst_kw) = default_kw {
-                        let mut err = syn::Error::new_spanned(
-                            kw,
-                            "Found multiple occurrences of vtansi(default)",
-                        );
-                        err.combine(syn::Error::new_spanned(fst_kw, "first one here"));
-                        return Err(err);
+                        return Err(occurrence_error(fst_kw, kw, "default"));
                     }
 
                     default_kw = Some(kw);

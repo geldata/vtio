@@ -74,7 +74,10 @@ fn main() {
     };
     let encoded = point3d_without_z.encode_ansi().unwrap();
     println!("Point3D without z: {:?}", point3d_without_z);
-    println!("Encoded: {:?} (trailing None omitted)", String::from_utf8_lossy(&encoded));
+    println!(
+        "Encoded: {:?} (trailing None omitted)",
+        String::from_utf8_lossy(&encoded)
+    );
     println!();
 
     // Parsing with optional fields
@@ -120,7 +123,10 @@ fn main() {
     };
     let encoded = point4d_second_some.encode_ansi().unwrap();
     println!("Point4D (z=None, w=Some): {:?}", point4d_second_some);
-    println!("Encoded: {:?} (empty for middle None)", String::from_utf8_lossy(&encoded));
+    println!(
+        "Encoded: {:?} (empty for middle None)",
+        String::from_utf8_lossy(&encoded)
+    );
 
     let point4d_both_some = Point4D {
         x: 1,

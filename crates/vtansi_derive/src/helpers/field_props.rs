@@ -9,6 +9,7 @@ use std::default::Default;
 use syn::Field;
 
 use super::metadata::{FieldExt, FieldMeta, kw};
+use super::occurrence_error;
 
 /// Trait for extracting vtansi field properties from AST nodes.
 ///
@@ -55,12 +56,7 @@ impl HasFieldProperties for Field {
             match meta {
                 FieldMeta::Skip { kw } => {
                     if let Some(fst_kw) = skip_kw {
-                        let mut err = syn::Error::new_spanned(
-                            kw,
-                            "Found multiple occurrences of vtansi(skip)",
-                        );
-                        err.combine(syn::Error::new_spanned(fst_kw, "first one here"));
-                        return Err(err);
+                        return Err(occurrence_error(fst_kw, kw, "skip"));
                     }
 
                     skip_kw = Some(kw);

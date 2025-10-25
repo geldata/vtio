@@ -441,10 +441,7 @@ pub fn encode_delimited_values(parts: &[String], delimiter: &str) -> String {
 /// ```
 #[inline]
 #[must_use]
-pub fn encode_delimited_values_with_optional(
-    parts: &[Option<String>],
-    delimiter: &str,
-) -> String {
+pub fn encode_delimited_values_with_optional(parts: &[Option<String>], delimiter: &str) -> String {
     // Find the last Some value
     let last_some_idx = parts
         .iter()

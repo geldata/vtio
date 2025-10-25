@@ -189,7 +189,7 @@ fn generate_tuple_value_impl(
     let field_encodings = (0..field_count).map(|idx| {
         let field_idx = syn::Index::from(idx);
         let (is_option, _) = &field_info[idx];
-        
+
         if *is_option {
             // For Option fields, check if Some or None
             quote! {
@@ -260,32 +260,34 @@ fn generate_named_value_impl(
         })
         .collect();
 
-    let field_encodings = field_names.iter().zip(field_info.iter()).map(|(name, (is_option, _))| {
-        if *is_option {
-            // For Option fields, check if Some or None
-            quote! {
-                match &self.#name {
-                    ::core::option::Option::Some(value) => {
-                        ::core::option::Option::Some(
-                            ::std::string::String::from_utf8(
-                                <_ as ::vtenc::encode::AnsiEncode>::encode_ansi(value).unwrap()
-                            ).unwrap()
-                        )
-                    },
-                    ::core::option::Option::None => ::core::option::Option::None,
+    let field_encodings = field_names.iter().zip(field_info.iter()).map(
+        |(name, (is_option, _))| {
+            if *is_option {
+                // For Option fields, check if Some or None
+                quote! {
+                    match &self.#name {
+                        ::core::option::Option::Some(value) => {
+                            ::core::option::Option::Some(
+                                ::std::string::String::from_utf8(
+                                    <_ as ::vtenc::encode::AnsiEncode>::encode_ansi(value).unwrap()
+                                ).unwrap()
+                            )
+                        },
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    }
+                }
+            } else {
+                // For non-Option fields, always wrap in Some
+                quote! {
+                    ::core::option::Option::Some(
+                        ::std::string::String::from_utf8(
+                            <_ as ::vtenc::encode::AnsiEncode>::encode_ansi(&self.#name).unwrap()
+                        ).unwrap()
+                    )
                 }
             }
-        } else {
-            // For non-Option fields, always wrap in Some
-            quote! {
-                ::core::option::Option::Some(
-                    ::std::string::String::from_utf8(
-                        <_ as ::vtenc::encode::AnsiEncode>::encode_ansi(&self.#name).unwrap()
-                    ).unwrap()
-                )
-            }
-        }
-    });
+        },
+    );
 
     let delimiter_lit = syn::LitStr::new(delimiter, proc_macro2::Span::call_site());
 

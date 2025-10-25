@@ -367,7 +367,7 @@ fn generate_named_value_impl(
 
                 // Create iterator over fields - no allocation
                 let mut __iter = s.split(#delimiter_lit);
-                
+
                 // Parse each field in order
                 #(#field_parsing)*
 
