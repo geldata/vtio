@@ -1,3 +1,70 @@
+//! Encoding and decoding utilities for ANSI control sequences.
+//!
+//! This module provides traits and utilities for converting between typed
+//! Rust values and ANSI byte sequences.
+//!
+//! # Encoding
+//!
+//! The [`AnsiEncode`] trait is the primary interface for encoding values into
+//! ANSI sequences. Types can implement this trait directly, or implement
+//! [`ToAnsi`] for a more ergonomic conversion.
+//!
+//! For types that always encode to a constant string, implement
+//! [`StaticAnsiEncode`] which provides automatic implementations of the other
+//! encoding traits.
+//!
+//! # Decoding (Parsing)
+//!
+//! The decoding trait system supports both fixed-length and variable-length
+//! parsing:
+//!
+//! ## Fixed-Length Parsing
+//!
+//! For types that require exactly N bytes to parse, implement
+//! [`TryFromAnsiBytes<N>`]:
+//!
+//! ```ignore
+//! struct RgbColor { r: u8, g: u8, b: u8 }
+//!
+//! impl TryFromAnsiBytes<3> for RgbColor {
+//!     fn try_from_ansi_bytes(bytes: &[u8; 3]) -> Result<Self, ParseError> {
+//!         Ok(RgbColor { r: bytes[0], g: bytes[1], b: bytes[2] })
+//!     }
+//! }
+//!
+//! // Bridge to slice-based parsing using the macro:
+//! impl_try_from_ansi_bridge!(RgbColor, 3);
+//! ```
+//!
+//! ## Variable-Length Parsing
+//!
+//! For types that accept variable-length input, implement [`TryFromAnsi`]
+//! directly:
+//!
+//! ```ignore
+//! impl<'a> TryFromAnsi<'a> for MyType {
+//!     fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError> {
+//!         // Parse bytes of any length
+//!         Ok(MyType { /* ... */ })
+//!     }
+//! }
+//! ```
+//!
+//! ## Infallible Parsing
+//!
+//! For types that can always be parsed successfully, implement [`FromAnsi`]
+//! or [`FromAnsiBytes<N>`] instead of their fallible counterparts.
+//!
+//! # Utility Functions
+//!
+//! This module provides several utility functions for common parsing patterns:
+//!
+//! - [`parse_single_byte`]: Parse exactly one byte
+//! - [`parse_utf8_str`]: Validate and parse UTF-8
+//! - [`parse_int`]: Parse ASCII digits into an integer
+//! - [`split_on_byte`]: Split a byte slice on a delimiter
+//! - [`try_from_ansi_array`]: Bridge helper for fixed-length parsers
+
 use core::fmt;
 use std::io::{self, Write};
 
@@ -143,27 +210,161 @@ impl<T: ToAnsi> AnsiEncode for T {
     }
 }
 
+/// Parse a value from an ANSI byte slice infallibly.
+///
+/// This trait is for types that can always be successfully parsed from
+/// a byte slice, such as types with default values or types that accept
+/// any input.
 pub trait FromAnsi<'a>: Sized {
+    /// Parse a value from an ANSI byte slice.
     fn from_ansi(bytes: &'a [u8]) -> Self;
 }
 
+/// Parse a value from an ANSI byte slice with error handling.
+///
+/// This is the primary trait for parsing ANSI sequences. Types with
+/// fixed-length requirements should implement `TryFromAnsiBytes` instead,
+/// which can be bridged to this trait using helper methods.
 pub trait TryFromAnsi<'a>: Sized {
+    /// Parse a value from an ANSI byte slice.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if the byte slice is invalid for this type.
     fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError>;
 }
 
-pub trait TryFromAnsiBytes<'a, const N: usize>: Sized {
-    fn try_from_ansi_bytes(bytes: &'a [u8; N]) -> Result<Self, ParseError>;
+/// Parse a value from a fixed-length ANSI byte array.
+///
+/// This trait is for types that require exactly N bytes to parse.
+/// Use the `try_from_ansi_array` helper function to bridge this trait
+/// to `TryFromAnsi`.
+pub trait TryFromAnsiBytes<const N: usize>: Sized {
+    /// Parse a value from a fixed-length ANSI byte array.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if the byte array is invalid for this type.
+    fn try_from_ansi_bytes(bytes: &[u8; N]) -> Result<Self, ParseError>;
 }
 
-impl<'a, T, const N: usize> TryFromAnsi<'a> for T
+/// Parse a value from a fixed-length ANSI byte array infallibly.
+///
+/// This trait is for types that can always be successfully parsed from
+/// a fixed-length byte array.
+pub trait FromAnsiBytes<const N: usize>: Sized {
+    /// Parse a value from a fixed-length ANSI byte array.
+    fn from_ansi_bytes(bytes: &[u8; N]) -> Self;
+}
+
+/// Bridge helper: parse from a slice using a fixed-length array parser.
+///
+/// This function validates that the slice has the correct length and
+/// converts it to an array before calling `try_from_ansi_bytes`.
+#[inline]
+pub fn try_from_ansi_array<T, const N: usize>(bytes: &[u8]) -> Result<T, ParseError>
 where
-    T: TryFromAnsiBytes<'a, N>,
+    T: TryFromAnsiBytes<N>,
 {
-    #[inline]
-    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError> {
-        let arr: &[u8; N] = bytes.try_into().map_err(|_| ParseError::WrongLen { expected: N, got: bytes.len() })?;
-        T::try_from_ansi_bytes(arr)
+    let arr: &[u8; N] = bytes.try_into().map_err(|_| ParseError::WrongLen {
+        expected: N,
+        got: bytes.len(),
+    })?;
+    T::try_from_ansi_bytes(arr)
+}
+
+/// Parse a single byte from an ANSI sequence.
+///
+/// # Errors
+///
+/// Return an error if the slice is empty or contains more than one byte.
+#[inline]
+pub fn parse_single_byte(bytes: &[u8]) -> Result<u8, ParseError> {
+    match bytes {
+        [] => Err(ParseError::Empty),
+        [byte] => Ok(*byte),
+        _ => Err(ParseError::WrongLen {
+            expected: 1,
+            got: bytes.len(),
+        }),
     }
+}
+
+/// Parse a UTF-8 string from an ANSI sequence.
+///
+/// # Errors
+///
+/// Return an error if the bytes are not valid UTF-8.
+#[inline]
+pub fn parse_utf8_str(bytes: &[u8]) -> Result<&str, ParseError> {
+    std::str::from_utf8(bytes).map_err(|_| ParseError::InvalidUtf8)
+}
+
+/// Parse an integer from ASCII digits in an ANSI sequence.
+///
+/// This function parses decimal ASCII digits (0-9) into an integer.
+///
+/// # Errors
+///
+/// Return an error if the slice is empty, contains non-digit bytes,
+/// or the value overflows the target type.
+#[inline]
+pub fn parse_int<T>(bytes: &[u8]) -> Result<T, ParseError>
+where
+    T: Default + core::ops::Mul<Output = T> + core::ops::Add<Output = T> + From<u8> + PartialOrd + Copy,
+{
+    if bytes.is_empty() {
+        return Err(ParseError::Empty);
+    }
+
+    let mut result = T::default();
+    let ten = T::from(10);
+
+    for (pos, &byte) in bytes.iter().enumerate() {
+        if !byte.is_ascii_digit() {
+            return Err(ParseError::InvalidByte { pos, byte });
+        }
+        let digit = T::from(byte - b'0');
+        result = result * ten + digit;
+    }
+
+    Ok(result)
+}
+
+/// Split an ANSI sequence on a delimiter byte.
+///
+/// This is useful for parsing parameter lists separated by semicolons or colons.
+#[inline]
+pub fn split_on_byte(bytes: &[u8], delimiter: u8) -> impl Iterator<Item = &[u8]> {
+    bytes.split(move |&b| b == delimiter)
+}
+
+/// Macro to implement `TryFromAnsi` for a type that implements `TryFromAnsiBytes`.
+///
+/// This macro generates a bridge implementation that validates the slice length
+/// and delegates to the array-based parser.
+///
+/// # Example
+///
+/// ```ignore
+/// impl TryFromAnsiBytes<3> for RgbColor {
+///     fn try_from_ansi_bytes(bytes: &[u8; 3]) -> Result<Self, ParseError> {
+///         Ok(RgbColor { r: bytes[0], g: bytes[1], b: bytes[2] })
+///     }
+/// }
+///
+/// impl_try_from_ansi_bridge!(RgbColor, 3);
+/// ```
+#[macro_export]
+macro_rules! impl_try_from_ansi_bridge {
+    ($type:ty, $len:expr) => {
+        impl<'a> $crate::encode::TryFromAnsi<'a> for $type {
+            #[inline]
+            fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, $crate::encode::ParseError> {
+                $crate::encode::try_from_ansi_array::<$type, $len>(bytes)
+            }
+        }
+    };
 }
 
 impl ToAnsi for () {
@@ -273,11 +474,41 @@ impl AnsiEncode for &mut bool {
     }
 }
 
-#[derive(Debug)]
+/// Error type for ANSI parsing operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
+    /// The input has the wrong length.
     WrongLen { expected: usize, got: usize },
+    /// The input contains an invalid value.
     InvalidValue(&'static str),
+    /// The input contains an invalid byte at the specified position.
+    InvalidByte { pos: usize, byte: u8 },
+    /// The input is empty but a value was expected.
+    Empty,
+    /// The input contains an invalid UTF-8 sequence.
+    InvalidUtf8,
+    /// A custom error message.
+    Custom(String),
 }
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::WrongLen { expected, got } => {
+                write!(f, "wrong length: expected {expected}, got {got}")
+            }
+            ParseError::InvalidValue(msg) => write!(f, "invalid value: {msg}"),
+            ParseError::InvalidByte { pos, byte } => {
+                write!(f, "invalid byte {byte:#04x} at position {pos}")
+            }
+            ParseError::Empty => write!(f, "empty input"),
+            ParseError::InvalidUtf8 => write!(f, "invalid UTF-8 sequence"),
+            ParseError::Custom(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl std::error::Error for ParseError {}
 
 #[derive(Debug)]
 pub enum EncodeError {
@@ -441,5 +672,204 @@ mod tests {
         let len = TestCmd("Hello").encode_ansi_into_slice(&mut buf).unwrap();
         assert_eq!(len, 5);
         assert_eq!(&buf[..len], b"Hello");
+    }
+
+    // Example: Fixed-length parser for a 3-byte color code
+    #[derive(Debug, PartialEq, Eq)]
+    struct RgbColor {
+        r: u8,
+        g: u8,
+        b: u8,
+    }
+
+    impl TryFromAnsiBytes<3> for RgbColor {
+        fn try_from_ansi_bytes(bytes: &[u8; 3]) -> Result<Self, ParseError> {
+            Ok(RgbColor {
+                r: bytes[0],
+                g: bytes[1],
+                b: bytes[2],
+            })
+        }
+    }
+
+    impl_try_from_ansi_bridge!(RgbColor, 3);
+
+    #[test]
+    fn test_try_from_ansi_bytes() {
+        let color = RgbColor::try_from_ansi(&[255, 128, 64]).unwrap();
+        assert_eq!(color, RgbColor { r: 255, g: 128, b: 64 });
+
+        // Wrong length should fail
+        let result = RgbColor::try_from_ansi(&[255, 128]);
+        assert!(matches!(result, Err(ParseError::WrongLen { expected: 3, got: 2 })));
+    }
+
+    // Example: Variable-length parser
+    #[derive(Debug, PartialEq, Eq)]
+    struct AnsiString(String);
+
+    impl<'a> TryFromAnsi<'a> for AnsiString {
+        fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError> {
+            let s = std::str::from_utf8(bytes)
+                .map_err(|_| ParseError::InvalidUtf8)?;
+            Ok(AnsiString(s.to_string()))
+        }
+    }
+
+    #[test]
+    fn test_try_from_ansi_variable() {
+        let s = AnsiString::try_from_ansi(b"hello").unwrap();
+        assert_eq!(s.0, "hello");
+
+        let s2 = AnsiString::try_from_ansi(b"longer string").unwrap();
+        assert_eq!(s2.0, "longer string");
+
+        // Invalid UTF-8 should fail
+        let result = AnsiString::try_from_ansi(&[0xFF, 0xFE]);
+        assert!(matches!(result, Err(ParseError::InvalidUtf8)));
+    }
+
+    #[test]
+    fn test_parse_error_display() {
+        let err = ParseError::WrongLen { expected: 5, got: 3 };
+        assert_eq!(err.to_string(), "wrong length: expected 5, got 3");
+
+        let err = ParseError::InvalidValue("not a number");
+        assert_eq!(err.to_string(), "invalid value: not a number");
+
+        let err = ParseError::InvalidByte { pos: 2, byte: 0xFF };
+        assert_eq!(err.to_string(), "invalid byte 0xff at position 2");
+    }
+
+    // Example: Using the macro for multiple types
+    #[derive(Debug, PartialEq, Eq)]
+    struct TwoBytes(u8, u8);
+
+    impl TryFromAnsiBytes<2> for TwoBytes {
+        fn try_from_ansi_bytes(bytes: &[u8; 2]) -> Result<Self, ParseError> {
+            Ok(TwoBytes(bytes[0], bytes[1]))
+        }
+    }
+
+    impl_try_from_ansi_bridge!(TwoBytes, 2);
+
+    #[test]
+    fn test_macro_bridge() {
+        let tb = TwoBytes::try_from_ansi(&[10, 20]).unwrap();
+        assert_eq!(tb, TwoBytes(10, 20));
+
+        let result = TwoBytes::try_from_ansi(&[10]);
+        assert!(matches!(result, Err(ParseError::WrongLen { expected: 2, got: 1 })));
+    }
+
+    #[test]
+    fn test_parse_single_byte() {
+        assert_eq!(parse_single_byte(&[42]).unwrap(), 42);
+        assert!(matches!(parse_single_byte(&[]), Err(ParseError::Empty)));
+        assert!(matches!(
+            parse_single_byte(&[1, 2]),
+            Err(ParseError::WrongLen { expected: 1, got: 2 })
+        ));
+    }
+
+    #[test]
+    fn test_parse_utf8_str() {
+        assert_eq!(parse_utf8_str(b"hello").unwrap(), "hello");
+        assert!(matches!(parse_utf8_str(&[0xFF, 0xFE]), Err(ParseError::InvalidUtf8)));
+    }
+
+    #[test]
+    fn test_parse_int() {
+        assert_eq!(parse_int::<u32>(b"123").unwrap(), 123);
+        assert_eq!(parse_int::<u32>(b"0").unwrap(), 0);
+        assert_eq!(parse_int::<u16>(b"65535").unwrap(), 65535);
+        
+        assert!(matches!(parse_int::<u32>(b""), Err(ParseError::Empty)));
+        assert!(matches!(
+            parse_int::<u32>(b"12a34"),
+            Err(ParseError::InvalidByte { pos: 2, byte: b'a' })
+        ));
+    }
+
+    #[test]
+    fn test_split_on_byte() {
+        let parts: Vec<&[u8]> = split_on_byte(b"1;2;3", b';').collect();
+        assert_eq!(parts, vec![b"1", b"2", b"3"]);
+
+        let parts: Vec<&[u8]> = split_on_byte(b"100:200:300", b':').collect();
+        assert_eq!(parts, vec![b"100", b"200", b"300"]);
+
+        let parts: Vec<&[u8]> = split_on_byte(b"single", b';').collect();
+        assert_eq!(parts, vec![b"single"]);
+    }
+
+    // Example: Complex real-world use case - parsing CSI parameters
+    // CSI sequences like "ESC[38;5;196m" have semicolon-separated parameters
+    #[derive(Debug, PartialEq, Eq)]
+    enum ColorMode {
+        Indexed(u8),
+        Rgb(u8, u8, u8),
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct SetForegroundColor {
+        mode: ColorMode,
+    }
+
+    impl<'a> TryFromAnsi<'a> for SetForegroundColor {
+        fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError> {
+            let parts: Vec<&[u8]> = split_on_byte(bytes, b';').collect();
+            
+            match parts.as_slice() {
+                // Format: 38;5;N (indexed color)
+                [b"38", b"5", index] => {
+                    let idx = parse_int::<u8>(index)?;
+                    Ok(SetForegroundColor {
+                        mode: ColorMode::Indexed(idx),
+                    })
+                }
+                // Format: 38;2;R;G;B (RGB color)
+                [b"38", b"2", r, g, b] => {
+                    let red = parse_int::<u8>(r)?;
+                    let green = parse_int::<u8>(g)?;
+                    let blue = parse_int::<u8>(b)?;
+                    Ok(SetForegroundColor {
+                        mode: ColorMode::Rgb(red, green, blue),
+                    })
+                }
+                _ => Err(ParseError::InvalidValue("invalid color sequence")),
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_csi_color_indexed() {
+        let color = SetForegroundColor::try_from_ansi(b"38;5;196").unwrap();
+        assert_eq!(
+            color,
+            SetForegroundColor {
+                mode: ColorMode::Indexed(196)
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_csi_color_rgb() {
+        let color = SetForegroundColor::try_from_ansi(b"38;2;255;128;64").unwrap();
+        assert_eq!(
+            color,
+            SetForegroundColor {
+                mode: ColorMode::Rgb(255, 128, 64)
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_csi_color_invalid() {
+        let result = SetForegroundColor::try_from_ansi(b"38;9;100");
+        assert!(matches!(result, Err(ParseError::InvalidValue(_))));
+
+        let result = SetForegroundColor::try_from_ansi(b"38;2;255");
+        assert!(matches!(result, Err(ParseError::InvalidValue(_))));
     }
 }
