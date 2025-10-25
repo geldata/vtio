@@ -124,11 +124,10 @@ fn generate_keyvalue_impl(
     field_names: &[syn::Ident],
     delimiter: &str,
 ) -> TokenStream {
-    let field_encodings = field_names.iter().map(|name| {
+    let field_pairs = field_names.iter().map(|name| {
         let name_str = name.to_string();
         quote! {
-            ::std::format!(
-                "{}={}",
+            (
                 #name_str,
                 <_ as ::vtenc::encode::ToAnsi>::to_ansi(&self.#name).to_string()
             )
@@ -143,10 +142,10 @@ fn generate_keyvalue_impl(
         impl #impl_generics ::vtenc::encode::ToAnsi for #name #ty_generics #where_clause {
             #[inline]
             fn to_ansi(&self) -> impl ::vtenc::encode::AnsiEncode {
-                let parts: ::std::vec::Vec<::std::string::String> = ::std::vec![
-                    #(#field_encodings),*
+                let pairs: ::std::vec::Vec<(&str, ::std::string::String)> = ::std::vec![
+                    #(#field_pairs),*
                 ];
-                parts.join(#delimiter_lit)
+                ::vtenc::encode_keyvalue_pairs(&pairs, #delimiter_lit)
             }
         }
     }
@@ -182,7 +181,7 @@ fn generate_tuple_value_impl(
                 let parts: ::std::vec::Vec<::std::string::String> = ::std::vec![
                     #(#field_encodings),*
                 ];
-                parts.join(#delimiter_lit)
+                ::vtenc::encode_delimited_values(&parts, #delimiter_lit)
             }
         }
     }
@@ -217,7 +216,7 @@ fn generate_named_value_impl(
                 let parts: ::std::vec::Vec<::std::string::String> = ::std::vec![
                     #(#field_encodings),*
                 ];
-                parts.join(#delimiter_lit)
+                ::vtenc::encode_delimited_values(&parts, #delimiter_lit)
             }
         }
     }

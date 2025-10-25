@@ -179,21 +179,9 @@ fn generate_keyvalue_impl(
                 // Initialize all fields as None
                 #(#field_declarations)*
 
-                // Split by delimiter and parse each key=value pair
-                for pair in s.split(#delimiter_lit) {
-                    let pair = pair.trim();
-                    if pair.is_empty() {
-                        continue;
-                    }
-
-                    let mut parts = pair.splitn(2, '=');
-                    let key = parts.next().unwrap_or("").trim();
-                    let value = parts.next().ok_or_else(|| {
-                        ::vtenc::parse::ParseError::InvalidValue(
-                            ::std::format!("invalid key=value pair: {}", pair)
-                        )
-                    })?.trim();
-
+                // Parse key=value pairs using helper function
+                for pair_result in ::vtenc::parse_keyvalue_pairs(s, #delimiter_lit) {
+                    let (key, value) = pair_result?;
                     match key {
                         #(#field_assignments)*
                         _ => {
@@ -267,16 +255,8 @@ fn generate_named_value_impl(
                 // Parse as UTF-8 string
                 let s = <&str as ::vtenc::parse::TryFromAnsi>::try_from_ansi(bytes)?;
 
-                // Split by delimiter
-                let parts: ::std::vec::Vec<&str> = s.split(#delimiter_lit).collect();
-
-                if parts.len() != #field_count {
-                    return ::core::result::Result::Err(
-                        ::vtenc::parse::ParseError::InvalidValue(
-                            ::std::format!("expected {} fields, got {}", #field_count, parts.len())
-                        )
-                    );
-                }
+                // Parse delimited values using helper function
+                let parts = ::vtenc::parse_delimited_values(s, #delimiter_lit, #field_count)?;
 
                 // Parse each field in order
                 #(#field_parsing)*
@@ -337,16 +317,8 @@ fn generate_tuple_value_impl(
                 // Parse as UTF-8 string
                 let s = <&str as ::vtenc::parse::TryFromAnsi>::try_from_ansi(bytes)?;
 
-                // Split by delimiter
-                let parts: ::std::vec::Vec<&str> = s.split(#delimiter_lit).collect();
-
-                if parts.len() != #field_count {
-                    return ::core::result::Result::Err(
-                        ::vtenc::parse::ParseError::InvalidValue(
-                            ::std::format!("expected {} fields, got {}", #field_count, parts.len())
-                        )
-                    );
-                }
+                // Parse delimited values using helper function
+                let parts = ::vtenc::parse_delimited_values(s, #delimiter_lit, #field_count)?;
 
                 // Parse each field in order
                 #(#field_parsing)*

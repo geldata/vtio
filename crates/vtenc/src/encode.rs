@@ -400,3 +400,45 @@ macro_rules! const_composite {
         }
     };
 }
+
+/// Helper function for encoding struct fields as delimited values.
+///
+/// This function joins the encoded values of struct fields with the specified
+/// delimiter. It's used by derived `ToAnsi` implementations for structs with
+/// value format.
+///
+/// # Examples
+///
+/// ```ignore
+/// let parts = vec!["100".to_string(), "200".to_string()];
+/// let result = encode_delimited_values(&parts, ";");
+/// assert_eq!(result, "100;200");
+/// ```
+#[inline]
+#[must_use]
+pub fn encode_delimited_values(parts: &[String], delimiter: &str) -> String {
+    parts.join(delimiter)
+}
+
+/// Helper function for encoding struct fields as key=value pairs.
+///
+/// This function creates a string with `key=value` pairs separated by the
+/// specified delimiter. It's used by derived `ToAnsi` implementations for
+/// structs with key=value format.
+///
+/// # Examples
+///
+/// ```ignore
+/// let pairs = vec![("width", "800"), ("height", "600")];
+/// let result = encode_keyvalue_pairs(&pairs, ";");
+/// assert_eq!(result, "width=800;height=600");
+/// ```
+#[inline]
+#[must_use]
+pub fn encode_keyvalue_pairs(pairs: &[(&str, String)], delimiter: &str) -> String {
+    pairs
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join(delimiter)
+}

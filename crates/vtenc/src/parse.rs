@@ -112,3 +112,60 @@ macro_rules! impl_try_from_ansi_numeric {
 impl_try_from_ansi_numeric! {
     u8, i8, u16, i16, u32, i32, u64, i64, usize, isize
 }
+
+/// Helper function for parsing delimited values in positional order.
+///
+/// This function splits the input string by the delimiter and returns a
+/// vector of trimmed string slices. It's used by derived `FromAnsi`
+/// implementations for structs with value format.
+///
+/// # Errors
+///
+/// Return an error if the number of parts doesn't match the expected count.
+pub fn parse_delimited_values<'a>(
+    s: &'a str,
+    delimiter: &str,
+    expected_count: usize,
+) -> Result<Vec<&'a str>, ParseError> {
+    let parts: Vec<&str> = s.split(delimiter).collect();
+    
+    if parts.len() != expected_count {
+        return Err(ParseError::InvalidValue(format!(
+            "expected {expected_count} fields, got {}",
+            parts.len()
+        )));
+    }
+    
+    Ok(parts)
+}
+
+/// Helper function for parsing key=value pairs from a delimited string.
+///
+/// This function returns an iterator that yields parsed `key=value` pairs.
+/// It's used by derived `FromAnsi` implementations for structs with key=value
+/// format.
+///
+/// # Examples
+///
+/// ```ignore
+/// let pairs: Result<Vec<_>, _> = parse_keyvalue_pairs("a=1;b=2", ";").collect();
+/// ```
+pub fn parse_keyvalue_pairs<'a>(
+    s: &'a str,
+    delimiter: &'a str,
+) -> impl Iterator<Item = Result<(&'a str, &'a str), ParseError>> + 'a {
+    s.split(delimiter)
+        .map(str::trim)
+        .filter(|pair| !pair.is_empty())
+        .map(|pair| {
+            let mut parts = pair.splitn(2, '=');
+            let key = parts.next().unwrap_or("").trim();
+            let value = parts
+                .next()
+                .ok_or_else(|| {
+                    ParseError::InvalidValue(format!("invalid key=value pair: {pair}"))
+                })?
+                .trim();
+            Ok((key, value))
+        })
+}
