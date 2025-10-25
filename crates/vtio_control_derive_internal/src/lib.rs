@@ -64,7 +64,6 @@ fn is_option_type(ty: &syn::Type) -> bool {
 /// Extract the inner type from Option<T>.
 ///
 /// Returns the inner type T if the type is Option<T>, otherwise returns the type itself.
-#[allow(dead_code)]
 fn extract_option_inner_type(ty: &syn::Type) -> Option<syn::Type> {
     if let syn::Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {

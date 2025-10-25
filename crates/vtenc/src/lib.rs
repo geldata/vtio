@@ -3,10 +3,16 @@
 #![warn(clippy::pedantic)]
 
 pub mod encode;
+pub mod parse;
+
 pub use encode::write_bytes_into;
 pub use encode::write_int;
 pub use encode::write_str_into;
-pub use encode::{StaticAnsiEncode, StaticEncodedLen, AnsiEncode, EncodeError, ToAnsi};
+pub use encode::{AnsiEncode, EncodeError, StaticAnsiEncode, StaticEncodedLen, ToAnsi};
+
+pub use parse::{FromAnsi, ParseError, TryFromAnsi};
+
+// Note: fixed_length_ansi macro is automatically available at crate root via #[macro_export]
 
 /// Concatenate string literals while prepending a ANSI control sequence
 /// introducer (`"\x1b["`).

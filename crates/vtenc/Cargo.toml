@@ -9,6 +9,7 @@ readme = "README.md"
 bench = false
 
 [dependencies]
+atoi_simd = "0.16.1"
 constcat = "0.6.1"
 itoa = "1.0"
 
