@@ -1,7 +1,11 @@
 //! Implementation of the `ToAnsi` derive macro.
 //!
-//! This module generates implementations of the `ToAnsi` trait for enums. It
-//! supports two encoding strategies:
+//! This module generates implementations of the `ToAnsi` trait for both enums
+//! and structs.
+//!
+//! # Enum Support
+//!
+//! For enums, it supports two encoding strategies:
 //!
 //! 1. **Primitive representation** - for enums with `#[repr(u8)]` and similar
 //!    attributes, encoding as integer values
@@ -10,32 +14,63 @@
 //!
 //! The generated implementations are optimized with `#[inline]` attributes
 //! for better performance.
+//!
+//! # Struct Support
+//!
+//! For structs, see the `struct_to_ansi` module.
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput};
+use syn::{Data, DeriveInput, Fields};
 
 use crate::helpers::{non_enum_error, HasTypeProperties};
+
+use super::struct_to_ansi;
+
+/// Generate the implementation of `ToAnsi` for an enum or struct.
+///
+/// This function dispatches to the appropriate generator based on whether the
+/// input is an enum or a struct.
+///
+/// # Errors
+///
+/// Return an error if:
+/// - The input is neither an enum nor a struct with named fields
+/// - The attributes cannot be parsed
+/// - The configuration is invalid
+pub fn to_ansi_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
+    match &ast.data {
+        Data::Enum(_) => generate_enum_impl(ast),
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(_) | Fields::Unnamed(_) => struct_to_ansi::generate_struct_impl(ast),
+            Fields::Unit => Err(syn::Error::new_spanned(
+                ast,
+                "ToAnsi cannot be derived for unit structs",
+            )),
+        },
+        Data::Union(_) => Err(syn::Error::new_spanned(
+            ast,
+            "ToAnsi cannot be derived for unions",
+        )),
+    }
+}
 
 /// Generate the implementation of `ToAnsi` for an enum.
 ///
 /// This function orchestrates the code generation process by:
-/// 1. Validating that the input is an enum
-/// 2. Extracting type-level properties (e.g., repr type)
-/// 3. Delegating to the appropriate generation function based on the repr
+/// 1. Extracting type-level properties (e.g., repr type)
+/// 2. Delegating to the appropriate generation function based on the repr
 ///    type
 ///
 /// # Errors
 ///
 /// Return an error if:
-/// - The input is not an enum
 /// - The attributes cannot be parsed
-pub fn to_ansi_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
+fn generate_enum_impl(ast: &DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
     let generics = &ast.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // Check if this is an enum
     let Data::Enum(_) = &ast.data else {
         return Err(non_enum_error());
     };

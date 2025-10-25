@@ -1,24 +1,108 @@
 //! Derive macros for `FromAnsi` and `ToAnsi` traits.
 //!
 //! This crate provides derive macros for the `FromAnsi` and `ToAnsi` traits
-//! from the `vtenc` crate. These can be used on enums that either have a
-//! primitive integer representation or implement conversion traits for
-//! strings.
+//! from the `vtenc` crate. These can be used on enums and structs for
+//! parsing and encoding ANSI escape sequence parameters.
 //!
 //! # Features
 //!
 //! - **Automatic trait derivation** - simply add `#[derive(FromAnsi)]` or
-//!   `#[derive(ToAnsi)]` to your enum
-//! - **Multiple parsing strategies** - supports both integer-based (via
-//!   `#[repr(...)]`) and string-based parsing
+//!   `#[derive(ToAnsi)]` to your enum or struct
+//! - **Multiple parsing strategies** - supports integer-based (via
+//!   `#[repr(...)]`), string-based, and structured field parsing
 //! - **Default variants** - optionally specify a fallback variant for
-//!   unrecognized values
+//!   unrecognized enum values
+//! - **Flexible struct formats** - encode/decode structs as `key=value` pairs
+//!   or as positional values
+//! - **Customizable delimiters** - configure field separators for structs
 //! - **Zero runtime overhead** - all code is generated at compile time with
 //!   `#[inline]` optimizations
 //!
+//! # Enum Support
+//!
+//! For enums, the macros support both primitive representations and
+//! string-based conversions:
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! #[repr(u8)]
+//! enum Color {
+//!     Red = 0,
+//!     Green = 1,
+//!     Blue = 2,
+//! }
+//! ```
+//!
+//! # Struct Support
+//!
+//! For structs with named or unnamed (tuple) fields, the macros support two
+//! formats:
+//!
+//! ## Key-Value Format (default)
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! struct Settings {
+//!     width: u32,
+//!     height: u32,
+//! }
+//! // Encodes as: "width=800;height=600"
+//! ```
+//!
+//! Note: Key-value format is only available for named fields, not tuple
+//! structs.
+//!
+//! ## Value Format
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! #[vtansi(format = "value")]
+//! struct Point {
+//!     x: i32,
+//!     y: i32,
+//! }
+//! // Encodes as: "100;200"
+//! ```
+//!
+//! ## Tuple Structs (automatic value format)
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! struct Point(i32, i32);
+//! // Automatically uses value format
+//! // Encodes as: "100;200"
+//! ```
+//!
+//! Tuple structs automatically default to `value` format and cannot use
+//! `key=value` format.
+//!
+//! ## Custom Delimiter
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! #[vtansi(delimiter = ",")]
+//! struct Config {
+//!     name: String,
+//!     value: u32,
+//! }
+//! // Encodes as: "name=foo,value=42"
+//! ```
+//!
+//! ## Skipping Fields
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! struct Data {
+//!     id: u32,
+//!     #[vtansi(skip)]
+//!     internal: String,
+//! }
+//! // Only 'id' is encoded/decoded
+//! ```
+//!
 //! # Debug Support
 //!
-//! Set the `VTANSI_DEBUG` environment variable to `1` or to a specific enum
+//! Set the `VTANSI_DEBUG` environment variable to `1` or to a specific type
 //! name to print the generated code during compilation.
 
 #![recursion_limit = "128"]
@@ -49,9 +133,18 @@ fn debug_print_generated(ast: &DeriveInput, toks: &TokenStream2) {
 
 /// Derive macro for `FromAnsi` trait.
 ///
-/// This macro can be applied to enums that either:
+/// This macro can be applied to:
+///
+/// ## Enums
+///
+/// Enums that either:
 /// 1. Have a primitive integer representation (e.g., `#[repr(u8)]`)
 /// 2. Implement `std::convert::TryFrom<&str>`
+///
+/// ## Structs
+///
+/// Structs with named or unnamed (tuple) fields where each field implements
+/// `TryFromAnsi`. Tuple structs automatically use `value` format.
 ///
 /// # Attributes
 ///
@@ -120,9 +213,18 @@ pub fn derive_from_ansi(input: TokenStream) -> TokenStream {
 
 /// Derive macro for `ToAnsi` trait.
 ///
-/// This macro can be applied to enums that either:
+/// This macro can be applied to:
+///
+/// ## Enums
+///
+/// Enums that either:
 /// 1. Have a primitive integer representation (e.g., `#[repr(u8)]`)
-/// 2. Implement `std::convert::Into<&'static str>` or `AsRef<str>`
+/// 2. Implement `AsRef<str>`
+///
+/// ## Structs
+///
+/// Structs with named or unnamed (tuple) fields where each field implements
+/// `ToAnsi`. Tuple structs automatically use `value` format.
 ///
 /// # Examples
 ///

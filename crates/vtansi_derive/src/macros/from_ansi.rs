@@ -1,7 +1,11 @@
 //! Implementation of the `FromAnsi` derive macro.
 //!
-//! This module generates implementations of the `TryFromAnsi` trait for
-//! enums. It supports two parsing strategies:
+//! This module generates implementations of the `TryFromAnsi` trait for both
+//! enums and structs.
+//!
+//! # Enum Support
+//!
+//! For enums, it supports two parsing strategies:
 //!
 //! 1. **Primitive representation** - for enums with `#[repr(u8)]` and similar
 //!    attributes, parsing from integer values
@@ -10,36 +14,67 @@
 //!
 //! Both strategies support optional default variants that can either return a
 //! constant value or capture the unparsed input when parsing fails.
+//!
+//! # Struct Support
+//!
+//! For structs, see the `struct_from_ansi` module.
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput};
+use syn::{Data, DeriveInput, Fields};
 
 use crate::helpers::{
     find_default_variant, non_enum_error, DefaultVariant, HasTypeProperties,
 };
 
+use super::struct_from_ansi;
+
+/// Generate the implementation of `TryFromAnsi` for an enum or struct.
+///
+/// This function dispatches to the appropriate generator based on whether the
+/// input is an enum or a struct.
+///
+/// # Errors
+///
+/// Return an error if:
+/// - The input is neither an enum nor a struct with named fields
+/// - The attributes cannot be parsed
+/// - The configuration is invalid
+pub fn from_ansi_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
+    match &ast.data {
+        Data::Enum(_) => generate_enum_impl(ast),
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(_) | Fields::Unnamed(_) => struct_from_ansi::generate_struct_impl(ast),
+            Fields::Unit => Err(syn::Error::new_spanned(
+                ast,
+                "FromAnsi cannot be derived for unit structs",
+            )),
+        },
+        Data::Union(_) => Err(syn::Error::new_spanned(
+            ast,
+            "FromAnsi cannot be derived for unions",
+        )),
+    }
+}
+
 /// Generate the implementation of `TryFromAnsi` for an enum.
 ///
 /// This function orchestrates the code generation process by:
-/// 1. Validating that the input is an enum
-/// 2. Extracting type-level properties (e.g., repr type)
-/// 3. Finding the default variant, if any
-/// 4. Delegating to the appropriate generation function based on the repr
+/// 1. Extracting type-level properties (e.g., repr type)
+/// 2. Finding the default variant, if any
+/// 3. Delegating to the appropriate generation function based on the repr
 ///    type
 ///
 /// # Errors
 ///
 /// Return an error if:
-/// - The input is not an enum
 /// - The attributes cannot be parsed
 /// - The default variant is invalid
-pub fn from_ansi_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
+fn generate_enum_impl(ast: &DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
     let generics = &ast.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // Check if this is an enum
     let Data::Enum(enum_data) = &ast.data else {
         return Err(non_enum_error());
     };
