@@ -143,6 +143,29 @@ impl<T: ToAnsi> AnsiEncode for T {
     }
 }
 
+pub trait FromAnsi<'a>: Sized {
+    fn from_ansi(bytes: &'a [u8]) -> Self;
+}
+
+pub trait TryFromAnsi<'a>: Sized {
+    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError>;
+}
+
+pub trait TryFromAnsiBytes<'a, const N: usize>: Sized {
+    fn try_from_ansi_bytes(bytes: &'a [u8; N]) -> Result<Self, ParseError>;
+}
+
+impl<'a, T, const N: usize> TryFromAnsi<'a> for T
+where
+    T: TryFromAnsiBytes<'a, N>,
+{
+    #[inline]
+    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError> {
+        let arr: &[u8; N] = bytes.try_into().map_err(|_| ParseError::WrongLen { expected: N, got: bytes.len() })?;
+        T::try_from_ansi_bytes(arr)
+    }
+}
+
 impl ToAnsi for () {
     fn to_ansi(&self) -> impl AnsiEncode {
         ""
@@ -251,6 +274,12 @@ impl AnsiEncode for &mut bool {
 }
 
 #[derive(Debug)]
+pub enum ParseError {
+    WrongLen { expected: usize, got: usize },
+    InvalidValue(&'static str),
+}
+
+#[derive(Debug)]
 pub enum EncodeError {
     BufferOverflow(usize),
     IOError(std::io::Error),
@@ -341,6 +370,8 @@ impl<T: StaticAnsiEncode> ToAnsi for T {
         Self::STR
     }
 }
+
+
 
 /// Define a composite const encodeable that combines multiple encodeables.
 #[macro_export]
