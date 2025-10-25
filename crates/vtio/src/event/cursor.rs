@@ -1366,7 +1366,7 @@ mod tests {
         );
 
         let mut buf = Vec::new();
-        let len = report.encode(&mut buf).unwrap();
+        let len = report.encode_ansi_into(&mut buf).unwrap();
 
         // Expected format: ESC P 1 $ u Pr; Pc; Pp; Srend; Satt; Sflag; Pgl; Pgr; Scss; Sdesig ESC \
         // ESC = 0x1B, P = 0x50, 1 = 0x31 (param), $ = 0x24, u = 0x75, \ = 0x5C
@@ -1416,7 +1416,7 @@ mod tests {
         let mut report = TabStopReport::new(TabStops::new(vec![9, 17, 25, 33, 41, 49, 57, 65, 73]));
 
         let mut buf = Vec::new();
-        let len = report.encode(&mut buf).unwrap();
+        let len = report.encode_ansi_into(&mut buf).unwrap();
 
         // Expected format: ESC P 2 $ u <data> ESC \
         // ESC = 0x1B, P = 0x50, 2 = 0x32 (param), $ = 0x24, u = 0x75, \ = 0x5C

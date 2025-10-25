@@ -1739,7 +1739,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
         impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::AnsiEncode2 for #struct_name #ty_generics #where_clause {
             #[inline]
-            fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
+            fn encode_ansi_into<W: ::std::io::Write + ?::std::marker::Sized>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
                 let mut __total = 0usize;
                 #(#all_write_ops)*
                 Ok(__total)
@@ -2239,7 +2239,7 @@ fn generate_esc_sequence_impl(
             }
 
             impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::AnsiEncode2 for #struct_name #ty_generics #where_clause {
-                fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
+                fn encode_ansi_into<W: ::std::io::Write + ?::std::marker::Sized>(&mut self, buf: &mut W) -> Result<usize, ::vtio_control_derive::__internal::vtio_control_base::EncodeError> {
                     ::vtio_control_derive::__internal::vtio_control_base::write_esc!(buf; #intermediate_str, #(self.#field_idents),*)
                 }
             }

@@ -132,7 +132,7 @@ mod tests {
     fn test_command_end_without_exit_code() {
         let mut cmd = CommandEnd { exit_code: None };
         let mut buf = Vec::new();
-        let result = cmd.encode(&mut buf);
+        let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D\x1b\\");
     }
@@ -143,7 +143,7 @@ mod tests {
             exit_code: Some(0),
         };
         let mut buf = Vec::new();
-        let result = cmd.encode(&mut buf);
+        let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D;0\x1b\\");
     }
@@ -154,7 +154,7 @@ mod tests {
             exit_code: Some(1),
         };
         let mut buf = Vec::new();
-        let result = cmd.encode(&mut buf);
+        let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D;1\x1b\\");
     }
@@ -165,7 +165,7 @@ mod tests {
             exit_code: Some(127),
         };
         let mut buf = Vec::new();
-        let result = cmd.encode(&mut buf);
+        let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]133;D;127\x1b\\");
     }

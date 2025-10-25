@@ -172,7 +172,7 @@ bitflags! {
 }
 
 impl AnsiEncode2 for KeyboardEnhancementFlags {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; "?", self.0.bits(), "u")
     }
 }
@@ -191,7 +191,7 @@ impl AnsiEncode2 for KeyboardEnhancementFlags {
 pub struct PushKeyboardEnhancementFlags(pub KeyboardEnhancementFlags);
 
 impl AnsiEncode2 for PushKeyboardEnhancementFlags {
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_csi!(buf; ">", self.0.bits(), "u")
     }
 }
@@ -239,7 +239,7 @@ impl StaticAnsiEncode for ResetApplicationKeypadMode {
 
 impl AnsiEncode2 for KeyEvent {
     #[allow(clippy::too_many_lines)]
-    fn encode<W: std::io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         use std::io::Write as _;
         use vtenc::encode::CountingWriter;
         // Only generate on key press (ignore repeats/releases)
@@ -1602,7 +1602,7 @@ mod tests {
     fn test_encode_key_event_char() {
         let mut event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"a");
     }
 
@@ -1610,7 +1610,7 @@ mod tests {
     fn test_encode_key_event_ctrl_char() {
         let mut event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], &[0x03]); // Ctrl-C
     }
 
@@ -1618,7 +1618,7 @@ mod tests {
     fn test_encode_key_event_enter() {
         let mut event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\r");
     }
 
@@ -1626,7 +1626,7 @@ mod tests {
     fn test_encode_key_event_arrow() {
         let mut event = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[A");
     }
 
@@ -1634,7 +1634,7 @@ mod tests {
     fn test_encode_key_event_arrow_with_modifiers() {
         let mut event = KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[1;2A");
     }
 
@@ -1642,7 +1642,7 @@ mod tests {
     fn test_encode_key_event_f1() {
         let mut event = KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1bOP");
     }
 
@@ -1756,7 +1756,7 @@ mod tests {
     fn test_encode_key_event_f5() {
         let mut event = KeyEvent::new(KeyCode::F(5), KeyModifiers::NONE);
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[15~");
     }
 }

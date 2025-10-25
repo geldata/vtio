@@ -894,7 +894,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        response.encode(&mut buf).unwrap();
+        response.encode_ansi_into(&mut buf).unwrap();
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1b[?62;1;4;22c");
@@ -909,7 +909,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        response.encode(&mut buf).unwrap();
+        response.encode_ansi_into(&mut buf).unwrap();
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1b[>65;6800;1c");
@@ -924,7 +924,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        response.encode(&mut buf).unwrap();
+        response.encode_ansi_into(&mut buf).unwrap();
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1b[>1;0c");
@@ -937,7 +937,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        response.encode(&mut buf).unwrap();
+        response.encode_ansi_into(&mut buf).unwrap();
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1bP!|7E565445\x1b\\");
@@ -951,7 +951,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        cmd.encode(&mut buf).unwrap();
+        cmd.encode_ansi_into(&mut buf).unwrap();
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1b[64;1\"p");
@@ -965,7 +965,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        cmd.encode(&mut buf).unwrap();
+        cmd.encode_ansi_into(&mut buf).unwrap();
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1b[62\"p");

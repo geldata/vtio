@@ -575,7 +575,7 @@ mod tests {
             Coordinates::new(0, 0),
         );
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<0;1;1M");
     }
 
@@ -587,7 +587,7 @@ mod tests {
             Coordinates::new(0, 0),
         );
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<0;1;1m");
     }
 
@@ -599,7 +599,7 @@ mod tests {
             Coordinates::new(0, 0),
         );
         let mut buf = [0u8; 64];
-        let len = event.encode(&mut &mut buf[..]).unwrap();
+        let len = event.encode_ansi_into(&mut &mut buf[..]).unwrap();
         assert_eq!(&buf[..len], b"\x1b[<64;1;1M");
     }
 }

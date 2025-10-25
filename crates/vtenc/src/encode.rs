@@ -315,7 +315,7 @@ impl<T: StaticAnsiEncode> StaticEncodedLen for T {
 
 impl<T: StaticAnsiEncode> AnsiEncode2 for T {
     #[inline]
-    fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+    fn encode_ansi_into<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_str_into(buf, Self::STR)
     }
 }
@@ -326,7 +326,7 @@ pub trait AnsiEncode2 {
     /// # Errors
     ///
     /// Return an error if the buffer is too small to hold the encoded value.
-    fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError>;
+    fn encode_ansi_into<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError>;
 
     /// Encode this value directly into a byte slice.
     ///
@@ -335,7 +335,7 @@ pub trait AnsiEncode2 {
     /// Return an error if the buffer is too small to hold the encoded value.
     #[inline]
     fn encode_into_slice(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        self.encode(&mut &mut buf[..])
+        self.encode_ansi_into(&mut &mut buf[..])
     }
 }
 
@@ -358,7 +358,7 @@ macro_rules! const_composite {
 
         impl $crate::encode::AnsiEncode2 for $name {
             #[inline]
-            fn encode<W: std::io::Write>(
+            fn encode_ansi_into<W: ::std::io::Write + ?::std::marker::Sized>(
                 &mut self,
                 buf: &mut W
             ) -> Result<usize, $crate::encode::EncodeError> {
@@ -367,7 +367,7 @@ macro_rules! const_composite {
                 let mut offset = 0;
 
                 $(
-                    offset += $command.encode(&mut &mut stack_buf[offset..])?;
+                    offset += $command.encode_ansi_into(&mut &mut stack_buf[offset..])?;
                 )*
 
                 buf.write_all(&stack_buf[..offset])
@@ -387,7 +387,7 @@ mod tests {
     struct TestCmd(&'static str);
 
     impl AnsiEncode2 for TestCmd {
-        fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
+        fn encode_ansi_into<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
             write_str_into(buf, self.0)
         }
     }
@@ -397,7 +397,7 @@ mod tests {
         use bytes::BytesMut;
 
         let mut buf = BytesMut::with_capacity(64).writer();
-        TestCmd("Test").encode(&mut buf).unwrap();
+        TestCmd("Test").encode_ansi_into(&mut buf).unwrap();
         assert_eq!(&buf.get_ref().as_ref(), b"Test");
     }
 
