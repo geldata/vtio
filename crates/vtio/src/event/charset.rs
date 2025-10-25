@@ -370,28 +370,28 @@ mod tests {
     #[test]
     fn test_variable_esc_sequences() {
         let mut buf = Vec::new();
-        let mut msg = DesignateG0 {
+        let msg = DesignateG0 {
             charset: CharsetCode::Ascii,
         };
         msg.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(buf, b"\x1B(B");
 
         let mut buf = Vec::new();
-        let mut msg = DesignateG1 {
+        let msg = DesignateG1 {
             charset: CharsetCode::DecSpecialGraphic,
         };
         msg.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(buf, b"\x1B)0");
 
         let mut buf = Vec::new();
-        let mut msg = DesignateG0 {
+        let msg = DesignateG0 {
             charset: CharsetCode::DecSuppGraphic,
         };
         msg.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(buf, b"\x1B(%5");
 
         let mut buf = Vec::new();
-        let mut msg = DesignateG2_96 {
+        let msg = DesignateG2_96 {
             charset: CharsetCode::Latin1Supplemental,
         };
         msg.encode_ansi_into(&mut buf).unwrap();

@@ -290,7 +290,7 @@ impl From<EscapeSequenceParam> for Coordinates {
     fn from(param: EscapeSequenceParam) -> Self {
         // Coordinates are encoded as separate params, but we receive
         // them as a single param here. Extract first value only.
-        let col = param.first() as u16;
+        let col = u16::from(param.first());
         Self {
             column: col.saturating_sub(1),
             row: 0, // Will be set from second param
@@ -446,7 +446,7 @@ impl ToAnsi for MouseEventKind {
 
 impl From<EscapeSequenceParam> for MouseEventKind {
     fn from(param: EscapeSequenceParam) -> Self {
-        let code = param.first() as u16;
+        let code = u16::from(param.first());
         // Parse SGR button code (mask out modifier bits)
         let base_code = code & !0x1C; // Remove shift (4), alt (8), ctrl (16) bits
         let is_drag = (code & 32) != 0;
@@ -569,7 +569,7 @@ mod tests {
 
     #[test]
     fn test_encode_mouse_event_down() {
-        let mut event = MouseEvent::new(
+        let event = MouseEvent::new(
             MouseEventKind::Down(MouseButton::Left),
             KeyModifiers::NONE,
             Coordinates::new(0, 0),
@@ -581,7 +581,7 @@ mod tests {
 
     #[test]
     fn test_encode_mouse_event_up() {
-        let mut event = MouseEvent::new(
+        let event = MouseEvent::new(
             MouseEventKind::Up(MouseButton::Left),
             KeyModifiers::NONE,
             Coordinates::new(0, 0),
@@ -593,7 +593,7 @@ mod tests {
 
     #[test]
     fn test_encode_mouse_event_scroll() {
-        let mut event = MouseEvent::new(
+        let event = MouseEvent::new(
             MouseEventKind::ScrollUp,
             KeyModifiers::NONE,
             Coordinates::new(0, 0),

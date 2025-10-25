@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_command_end_without_exit_code() {
-        let mut cmd = CommandEnd { exit_code: None };
+        let cmd = CommandEnd { exit_code: None };
         let mut buf = Vec::new();
         let result = cmd.encode_ansi_into(&mut buf);
         assert!(result.is_ok());
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_command_end_with_exit_code_zero() {
-        let mut cmd = CommandEnd {
+        let cmd = CommandEnd {
             exit_code: Some(0),
         };
         let mut buf = Vec::new();
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_command_end_with_exit_code_nonzero() {
-        let mut cmd = CommandEnd {
+        let cmd = CommandEnd {
             exit_code: Some(1),
         };
         let mut buf = Vec::new();
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_command_end_with_large_exit_code() {
-        let mut cmd = CommandEnd {
+        let cmd = CommandEnd {
             exit_code: Some(127),
         };
         let mut buf = Vec::new();

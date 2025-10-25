@@ -1352,7 +1352,7 @@ mod tests {
         // - Character set designations: ASCII in G0/G1, DEC Supplemental in G2/G3
         //
         // Expected output: DCS 1 $ u 10;20;1;@;@;@;0;2;@;BB%5%5 ST
-        let mut report = CursorInformationReport::from_parts(
+        let report = CursorInformationReport::from_parts(
             10,                          // Pr (row)
             20,                          // Pc (column)
             1,                           // Pp (page)
@@ -1413,7 +1413,7 @@ mod tests {
         // - Tab stops at columns 9, 17, 25, 33, 41, 49, 57, 65, 73
         //
         // Expected output: DCS 2 $ u 9/17/25/33/41/49/57/65/73 ST
-        let mut report = TabStopReport::new(TabStops::new(vec![9, 17, 25, 33, 41, 49, 57, 65, 73]));
+        let report = TabStopReport::new(TabStops::new(vec![9, 17, 25, 33, 41, 49, 57, 65, 73]));
 
         let mut buf = Vec::new();
         let len = report.encode_ansi_into(&mut buf).unwrap();

@@ -664,7 +664,7 @@ mod tests {
 
     #[test]
     fn test_set_title_and_icon_name() {
-        let mut cmd = SetTitleAndIconName {
+        let cmd = SetTitleAndIconName {
             title: "Test Title",
         };
         let mut buf = Vec::new();
@@ -677,7 +677,7 @@ mod tests {
 
     #[test]
     fn test_set_title() {
-        let mut cmd = SetTitle {
+        let cmd = SetTitle {
             title: "Window Title",
         };
         let mut buf = Vec::new();
@@ -690,7 +690,7 @@ mod tests {
 
     #[test]
     fn test_set_icon_name() {
-        let mut cmd = SetIconName { name: "Icon" };
+        let cmd = SetIconName { name: "Icon" };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b]1;Icon\x1b\\");
@@ -708,7 +708,7 @@ mod tests {
 
     #[test]
     fn test_push_title_without_which() {
-        let mut cmd = PushTitle { which: None };
+        let cmd = PushTitle { which: None };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[22t");
@@ -716,7 +716,7 @@ mod tests {
 
     #[test]
     fn test_push_title_with_which() {
-        let mut cmd = PushTitle {
+        let cmd = PushTitle {
             which: Some(TitleStackTarget::WindowTitle),
         };
         let mut buf = Vec::new();
@@ -726,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_pop_title_without_which() {
-        let mut cmd = PopTitle { which: None };
+        let cmd = PopTitle { which: None };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[23t");
@@ -734,7 +734,7 @@ mod tests {
 
     #[test]
     fn test_pop_title_with_which() {
-        let mut cmd = PopTitle {
+        let cmd = PopTitle {
             which: Some(TitleStackTarget::IconName),
         };
         let mut buf = Vec::new();
@@ -769,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_set_window_position() {
-        let mut cmd = SetWindowPosition { x: 100, y: 200 };
+        let cmd = SetWindowPosition { x: 100, y: 200 };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[3;100;200t");
@@ -777,7 +777,7 @@ mod tests {
 
     #[test]
     fn test_set_window_size_pixels() {
-        let mut cmd = SetWindowSizePixels {
+        let cmd = SetWindowSizePixels {
             height: 600,
             width: 800,
         };
@@ -788,7 +788,7 @@ mod tests {
 
     #[test]
     fn test_set_size() {
-        let mut cmd = SetSize { rows: 24, cols: 80 };
+        let cmd = SetSize { rows: 24, cols: 80 };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[8;24;80t");
@@ -796,7 +796,7 @@ mod tests {
 
     #[test]
     fn test_maximize_window() {
-        let mut cmd = MaximizeWindow {
+        let cmd = MaximizeWindow {
             mode: MaximizeMode::Maximize,
         };
         let mut buf = Vec::new();
@@ -806,7 +806,7 @@ mod tests {
 
     #[test]
     fn test_maximize_window_alt() {
-        let mut cmd = MaximizeWindowAlt {
+        let cmd = MaximizeWindowAlt {
             mode: MaximizeMode::MaximizeVertically,
         };
         let mut buf = Vec::new();
@@ -821,7 +821,7 @@ mod tests {
 
     #[test]
     fn test_report_window_position_without_mode() {
-        let mut cmd = ReportWindowPosition { mode: None };
+        let cmd = ReportWindowPosition { mode: None };
         let mut buf = Vec::new();
         cmd.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[13t");
@@ -829,7 +829,7 @@ mod tests {
 
     #[test]
     fn test_report_window_position_with_mode() {
-        let mut cmd = ReportWindowPosition {
+        let cmd = ReportWindowPosition {
             mode: Some(PositionCoordinateSystem::AccessibleDesktop),
         };
         let mut buf = Vec::new();
@@ -839,7 +839,7 @@ mod tests {
 
     #[test]
     fn test_report_window_size_pixels() {
-        let mut cmd = ReportWindowSizePixels {
+        let cmd = ReportWindowSizePixels {
             mode: Some(SizeSelector::Window),
         };
         let mut buf = Vec::new();
@@ -869,7 +869,7 @@ mod tests {
 
     #[test]
     fn test_window_state_report_not_iconified() {
-        let mut report = WindowStateReport {
+        let report = WindowStateReport {
             state: WindowState::NotIconified,
         };
         let mut buf = Vec::new();
@@ -879,7 +879,7 @@ mod tests {
 
     #[test]
     fn test_window_state_report_iconified() {
-        let mut report = WindowStateReport {
+        let report = WindowStateReport {
             state: WindowState::Iconified,
         };
         let mut buf = Vec::new();
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_window_position_report() {
-        let mut report = WindowPositionReport { x: 50, y: 100 };
+        let report = WindowPositionReport { x: 50, y: 100 };
         let mut buf = Vec::new();
         report.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[3;50;100t");
@@ -897,7 +897,7 @@ mod tests {
 
     #[test]
     fn test_window_size_pixels_report() {
-        let mut report = WindowSizePixelsReport {
+        let report = WindowSizePixelsReport {
             height: 768,
             width: 1024,
         };
@@ -908,7 +908,7 @@ mod tests {
 
     #[test]
     fn test_screen_size_pixels_report() {
-        let mut report = ScreenSizePixelsReport {
+        let report = ScreenSizePixelsReport {
             height: 1080,
             width: 1920,
         };
@@ -920,7 +920,7 @@ String::from_utf8(buf).unwrap(), "\x1b[5;1080;1920t");
 
     #[test]
     fn test_cell_size_pixels_report() {
-        let mut report = CellSizePixelsReport {
+        let report = CellSizePixelsReport {
             height: 16,
             width: 8,
         };
@@ -931,7 +931,7 @@ String::from_utf8(buf).unwrap(), "\x1b[5;1080;1920t");
 
     #[test]
     fn test_size_report() {
-        let mut report = SizeReport { rows: 30, cols: 120 };
+        let report = SizeReport { rows: 30, cols: 120 };
         let mut buf = Vec::new();
         report.encode_ansi_into(&mut buf).unwrap();
         assert_eq!(String::from_utf8(buf).unwrap(), "\x1b[8;30;120t");
@@ -939,7 +939,7 @@ String::from_utf8(buf).unwrap(), "\x1b[5;1080;1920t");
 
     #[test]
     fn test_screen_size_report() {
-        let mut report = ScreenSizeReport {
+        let report = ScreenSizeReport {
             rows: 40,
             cols: 160,
         };

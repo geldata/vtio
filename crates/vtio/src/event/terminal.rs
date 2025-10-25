@@ -884,7 +884,7 @@ mod tests {
 
     #[test]
     fn test_primary_device_attributes_response_encoding() {
-        let mut response = PrimaryDeviceAttributesResponse {
+        let response = PrimaryDeviceAttributesResponse {
             conformance_level: ConformanceLevel::VT220,
             capabilities: Capabilities(vec![
                 TerminalCapability::Columns132,
@@ -902,7 +902,7 @@ mod tests {
 
     #[test]
     fn test_secondary_device_attributes_response_encoding() {
-        let mut response = SecondaryDeviceAttributesResponse {
+        let response = SecondaryDeviceAttributesResponse {
             terminal_type: 65,
             version: 6800,
             extra: Some(1),
@@ -917,7 +917,7 @@ mod tests {
 
     #[test]
     fn test_secondary_device_attributes_response_encoding_no_extra() {
-        let mut response = SecondaryDeviceAttributesResponse {
+        let response = SecondaryDeviceAttributesResponse {
             terminal_type: 1,
             version: 0,
             extra: None,
@@ -932,7 +932,7 @@ mod tests {
 
     #[test]
     fn test_tertiary_device_attributes_response_encoding() {
-        let mut response = TertiaryDeviceAttributesResponse {
+        let response = TertiaryDeviceAttributesResponse {
             unit_id: UnitId([0x7E, 0x56, 0x54, 0x45]), // "~VTE"
         };
 
@@ -945,7 +945,7 @@ mod tests {
 
     #[test]
     fn test_select_vt_conformance_level_encoding() {
-        let mut cmd = SelectVTConformanceLevel {
+        let cmd = SelectVTConformanceLevel {
             level: 64,
             c1_encoding: Some(1),
         };
@@ -959,7 +959,7 @@ mod tests {
 
     #[test]
     fn test_select_vt_conformance_level_encoding_no_c1() {
-        let mut cmd = SelectVTConformanceLevel {
+        let cmd = SelectVTConformanceLevel {
             level: 62,
             c1_encoding: None,
         };
