@@ -12,6 +12,13 @@ use syn::{
     punctuated::Punctuated, spanned::Spanned,
 };
 
+mod helpers;
+
+use helpers::{
+    extract_option_inner_type_cloned, field_ident, filter_intermediate_bytes,
+    is_option_type, is_unit_type, type_to_string,
+};
+
 /// Emit diagnostics as TokenStream and return early.
 ///
 /// Helper to reduce repetition when emitting diagnostic errors.
@@ -37,57 +44,6 @@ fn error_required_attr(span: proc_macro2::Span, attr_name: &str, example: &str) 
 fn error_unsupported_attr(span: proc_macro2::Span, valid_attrs: &str) -> Diagnostic {
     span.error("unsupported attribute")
         .help(format!("valid attributes are: {}", valid_attrs))
-}
-
-/// Get type string representation from a syn::Type.
-///
-/// Helper to avoid repeating the quote + to_string + trim pattern.
-fn type_to_string(ty: &syn::Type) -> String {
-    quote!(#ty).to_string().replace(" ", "")
-}
-
-/// Check if a type is a unit type `()`.
-///
-/// Helper to reduce repetition when filtering unit type fields.
-fn is_unit_type(ty: &syn::Type) -> bool {
-    type_to_string(ty) == "()"
-}
-
-/// Check if a type is Option<T>.
-///
-/// Helper to detect optional fields for conditional encoding.
-fn is_option_type(ty: &syn::Type) -> bool {
-    let ty_str = type_to_string(ty);
-    ty_str.starts_with("Option<") || ty_str.starts_with("std::option::Option<")
-}
-
-/// Extract the inner type from Option<T>.
-///
-/// Returns the inner type T if the type is Option<T>, otherwise returns the type itself.
-fn extract_option_inner_type(ty: &syn::Type) -> Option<syn::Type> {
-    if let syn::Type::Path(type_path) = ty
-        && let Some(segment) = type_path.path.segments.last()
-        && segment.ident == "Option"
-        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-    {
-        return Some(inner_ty.clone());
-    }
-    None
-}
-
-/// Filter intermediate bytes to exclude zero padding.
-///
-/// Helper to reduce repetition when processing intermediate byte sequences.
-fn filter_intermediate_bytes(intermediate: &[u8]) -> impl Iterator<Item = &u8> {
-    intermediate.iter().filter(|&&b| b != 0)
-}
-
-/// Extract field identifier from a syn::Field.
-///
-/// Helper to reduce repetition when extracting field names.
-fn field_ident(field: &syn::Field) -> &syn::Ident {
-    field.ident.as_ref().expect("field must have an identifier")
 }
 
 /// Builder for generating write operation token streams.
@@ -580,7 +536,7 @@ fn extract_positional_params(
 
                 if is_optional {
                     seen_optional = true;
-                    let inner_ty = extract_option_inner_type(ty).unwrap_or_else(|| ty.clone());
+                    let inner_ty = extract_option_inner_type_cloned(ty);
                     params.push(PositionalParam::Optional(name, inner_ty));
                 } else {
                     if seen_optional {
@@ -1018,7 +974,7 @@ fn generate_registry_entry(
         // Check if this is an optional type
         if is_option_type(ty) {
             // For Option<T>, parse as Some(value) if parameter exists, None otherwise
-            let inner_ty = extract_option_inner_type(ty).unwrap_or_else(|| ty.clone());
+            let inner_ty = extract_option_inner_type_cloned(ty);
             quote! {
                 let #field_name: #ty = params
                     .get(#param_index)
