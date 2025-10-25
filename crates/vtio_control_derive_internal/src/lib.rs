@@ -65,16 +65,13 @@ fn is_option_type(ty: &syn::Type) -> bool {
 ///
 /// Returns the inner type T if the type is Option<T>, otherwise returns the type itself.
 fn extract_option_inner_type(ty: &syn::Type) -> Option<syn::Type> {
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Option" {
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        return Some(inner_ty.clone());
-                    }
-                }
-            }
-        }
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Option"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        return Some(inner_ty.clone());
     }
     None
 }
@@ -501,25 +498,21 @@ enum PositionalParam {
 /// encoded as a separate parameter.
 fn get_paramidx_attr(field: &syn::Field) -> Option<usize> {
     for attr in &field.attrs {
-        if attr.path().is_ident("vtctl") {
-            if let Ok(list) = attr.meta.require_list() {
-                if let Ok(meta_list) = list.parse_args_with(
-                    Punctuated::<Meta, Token![,]>::parse_terminated
-                ) {
-                    for meta in meta_list {
-                        if let Meta::NameValue(nv) = meta {
-                            if nv.path.is_ident("paramidx") {
-                                if let Expr::Lit(ExprLit {
-                                    lit: Lit::Int(int_lit), ..
-                                }) = &nv.value
-                                {
-                                    if let Ok(idx) = int_lit.base10_parse::<usize>() {
-                                        return Some(idx);
-                                    }
-                                }
-                            }
-                        }
-                    }
+        if attr.path().is_ident("vtctl")
+            && let Ok(list) = attr.meta.require_list()
+            && let Ok(meta_list) =
+                list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+        {
+            for meta in meta_list {
+                if let Meta::NameValue(nv) = meta
+                    && nv.path.is_ident("paramidx")
+                    && let Expr::Lit(ExprLit {
+                        lit: Lit::Int(int_lit),
+                        ..
+                    }) = &nv.value
+                    && let Ok(idx) = int_lit.base10_parse::<usize>()
+                {
+                    return Some(idx);
                 }
             }
         }
@@ -543,12 +536,11 @@ fn remove_helper_attributes(mut input: ItemStruct) -> ItemStruct {
 /// Check if a field has the `#[vtctl(positional)]` attribute.
 fn is_positional_field(field: &syn::Field) -> bool {
     field.attrs.iter().any(|attr| {
-        if attr.path().is_ident("vtctl") {
-            if let Ok(list) = attr.meta.require_list() {
-                if let Ok(nested) = list.parse_args::<syn::Ident>() {
-                    return nested == "positional";
-                }
-            }
+        if attr.path().is_ident("vtctl")
+            && let Ok(list) = attr.meta.require_list()
+            && let Ok(nested) = list.parse_args::<syn::Ident>()
+        {
+            return nested == "positional";
         }
         false
     })
@@ -577,7 +569,8 @@ fn extract_positional_params(
 
                 if is_unit_type(ty) {
                     diagnostics.push(
-                        field.span()
+                        field
+                            .span()
                             .error("positional parameter cannot be unit type"),
                     );
                     continue;
@@ -592,8 +585,11 @@ fn extract_positional_params(
                 } else {
                     if seen_optional {
                         diagnostics.push(
-                            field.span()
-                                .error("required positional parameter must come before optional ones")
+                            field
+                                .span()
+                                .error(
+                                    "required positional parameter must come before optional ones",
+                                )
                                 .help("reorder fields so that all required positionals come first"),
                         );
                     }
@@ -623,9 +619,9 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
 
                     // Check for #[vtctl(literal = "value")] attribute
                     for attr in &field.attrs {
-                        if attr.path().is_ident("vtctl") {
-                            if let Ok(list) = attr.meta.require_list() {
-                                if let Ok(nested) = list.parse_args_with(
+                        if attr.path().is_ident("vtctl")
+                            && let Ok(list) = attr.meta.require_list()
+                                && let Ok(nested) = list.parse_args_with(
                                     syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated
                                 ) {
                                     for meta in nested {
@@ -634,15 +630,12 @@ fn extract_dcs_data_params(input: &ItemStruct) -> Option<Vec<DcsDataParam>> {
                                             value: syn::Expr::Lit(syn::ExprLit {
                                                 lit: syn::Lit::Str(ref lit_str), ..
                                             }), ..
-                                        }) = meta {
-                                            if path.is_ident("literal") {
+                                        }) = meta
+                                            && path.is_ident("literal") {
                                                 return Some(DcsDataParam::Literal(lit_str.value()));
                                             }
-                                        }
                                     }
                                 }
-                            }
-                        }
                     }
 
                     // Regular field - check if it's a unit type (these are for const markers)
@@ -740,12 +733,12 @@ fn parse_finalbytes(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Vec<u8> 
     }
 
     // Check if it's a binary OR expression
-    if let Expr::Binary(bin) = value {
-        if matches!(bin.op, syn::BinOp::BitOr(_)) {
-            let mut bytes = Vec::new();
-            collect_chars(value, &mut bytes, diagnostics);
-            return bytes;
-        }
+    if let Expr::Binary(bin) = value
+        && matches!(bin.op, syn::BinOp::BitOr(_))
+    {
+        let mut bytes = Vec::new();
+        collect_chars(value, &mut bytes, diagnostics);
+        return bytes;
     }
 
     // Single character literal
@@ -773,7 +766,11 @@ fn parse_number(value: &Expr, diagnostics: &mut Vec<Diagnostic>) -> Option<Strin
 /// Parse a separator string attribute.
 ///
 /// Extract a separator string from an attribute like `data_sep = "="`.
-fn parse_separator(value: &Expr, attr_name: &str, diagnostics: &mut Vec<Diagnostic>) -> Option<String> {
+fn parse_separator(
+    value: &Expr,
+    attr_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<String> {
     parse_string_literal(value, attr_name, "=", diagnostics)
 }
 
@@ -822,7 +819,9 @@ fn parse_escape_sequence_attributes(
             diagnostics.push(
                 meta.span()
                     .error("expected name-value pairs in attribute")
-                    .help("example: #[vtctl(csi, private = '?', params = [\"6\"], finalbyte = 'h')]"),
+                    .help(
+                        "example: #[vtctl(csi, private = '?', params = [\"6\"], finalbyte = 'h')]",
+                    ),
             );
         }
     }
@@ -1128,27 +1127,31 @@ fn generate_escape_sequence_impl(
 
     // Extract paramidx attributes for each field
     let field_paramidx: Vec<Option<usize>> = if let syn::Fields::Named(ref fields) = input.fields {
-        fields.named.iter().map(|f| get_paramidx_attr(f)).collect()
+        fields.named.iter().map(get_paramidx_attr).collect()
     } else {
         Vec::new()
     };
 
     // For CSI sequences, validate that optional parameters come after required ones
-    if intro == "CSI" {
-        if let Some(ref params) = var_params {
-            let mut seen_optional = false;
-            for (name, ty) in params {
-                let is_optional = is_option_type(ty);
-                if is_optional {
-                    seen_optional = true;
-                } else if seen_optional {
-                    diagnostics.push(
-                        struct_name.span()
-                            .error(format!("required CSI parameter '{}' must come before optional parameters", name))
-                            .help("reorder fields so that all required parameters come first"),
-                    );
-                    return emit_diagnostics(diagnostics);
-                }
+    if intro == "CSI"
+        && let Some(ref params) = var_params
+    {
+        let mut seen_optional = false;
+        for (name, ty) in params {
+            let is_optional = is_option_type(ty);
+            if is_optional {
+                seen_optional = true;
+            } else if seen_optional {
+                diagnostics.push(
+                    struct_name
+                        .span()
+                        .error(format!(
+                            "required CSI parameter '{}' must come before optional parameters",
+                            name
+                        ))
+                        .help("reorder fields so that all required parameters come first"),
+                );
+                return emit_diagnostics(diagnostics);
             }
         }
     }
@@ -1174,7 +1177,12 @@ fn generate_escape_sequence_impl(
     // Check if params and var_params are both specified
     // For DCS and OSC sequences, params are allowed with fields (params go in header, fields in data)
     // For CSI sequences, params are also allowed with fields (const params followed by variable params)
-    if !attrs.params.is_empty() && var_params.is_some() && intro != "DCS" && intro != "OSC" && intro != "CSI" {
+    if !attrs.params.is_empty()
+        && var_params.is_some()
+        && intro != "DCS"
+        && intro != "OSC"
+        && intro != "CSI"
+    {
         diagnostics.push(struct_name.span().error(
             "cannot specify params attribute for structs with fields"
         ).help(
@@ -1475,10 +1483,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
 
     // For integers, use max digits (u8=3, u16=5, u32=10, u64=20, etc.)
     // Calculate const params length
-    let const_param_len: usize = const_params
-        .iter()
-        .map(|p| p.len())
-        .sum::<usize>()
+    let const_param_len: usize = const_params.iter().map(|p| p.len()).sum::<usize>()
         + if !const_params.is_empty() {
             const_params.len() - 1
         } else {
@@ -1502,7 +1507,13 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
         0
     };
 
-    let encoded_len = intro_len + private_len + const_param_len + separator_len + total_param_len + intermediate_len + final_len;
+    let encoded_len = intro_len
+        + private_len
+        + const_param_len
+        + separator_len
+        + total_param_len
+        + intermediate_len
+        + final_len;
 
     // Generate encode implementation
     let intro_str = get_intro_str(intro);
@@ -1877,9 +1888,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                 let first_meta = nested_vec.remove(0);
                 let sequence_type = match first_meta {
                     Meta::Path(ref path) => {
-                        path.get_ident()
-                            .map(|i| i.to_string())
-                            .unwrap_or_default()
+                        path.get_ident().map(|i| i.to_string()).unwrap_or_default()
                     }
                     _ => {
                         diagnostics.push(
@@ -1912,10 +1921,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
     // Generate implementation based on attribute
     match control_attr {
         Some((ref attr_name, meta_list)) if attr_name == "csi" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "CSI",
@@ -1925,10 +1932,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "dcs" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "DCS",
@@ -1938,10 +1943,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "osc" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "OSC",
@@ -1951,10 +1954,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "ss2" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "SS2",
@@ -1964,10 +1965,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "ss3" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "SS3",
@@ -1977,10 +1976,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "pm" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "PM",
@@ -1990,10 +1987,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "apc" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "APC",
@@ -2003,10 +1998,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "st" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "ST",
@@ -2016,10 +2009,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "deckpam" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "DECKPAM",
@@ -2029,10 +2020,8 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "deckpnm" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
-                &mut diagnostics,
-            );
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
             TokenStream::from(generate_escape_sequence_impl(
                 item_struct,
                 "DECKPNM",
@@ -2042,11 +2031,14 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "esc" => {
-            let attrs = parse_escape_sequence_attributes(
-                meta_list.into_iter().collect(),
+            let attrs =
+                parse_escape_sequence_attributes(meta_list.into_iter().collect(), &mut diagnostics);
+            TokenStream::from(generate_esc_sequence_impl(
+                item_struct,
+                attrs,
                 &mut diagnostics,
-            );
-            TokenStream::from(generate_esc_sequence_impl(item_struct, attrs, &mut diagnostics, false))
+                false,
+            ))
         }
         Some((ref attr_name, meta_list)) if attr_name == "c0" => {
             let struct_name = &item_struct.ident;
@@ -2067,17 +2059,16 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
                             Ok(val) if val <= 0x1F => Some(val),
                             Ok(_) => {
                                 diagnostics.push(
-                                    lit_int
-                                        .span()
-                                        .error("C0 code must be in range 0x00-0x1F"),
+                                    lit_int.span().error("C0 code must be in range 0x00-0x1F"),
                                 );
                                 return TokenStream::from(emit_diagnostics(&mut diagnostics));
                             }
                             Err(e) => {
-                                diagnostics.push(lit_int.span().error(format!(
-                                    "invalid C0 code value: {}",
-                                    e
-                                )));
+                                diagnostics.push(
+                                    lit_int
+                                        .span()
+                                        .error(format!("invalid C0 code value: {}", e)),
+                                );
                                 return TokenStream::from(emit_diagnostics(&mut diagnostics));
                             }
                         };
@@ -2096,11 +2087,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             let code = match code {
                 Some(c) => c,
                 None => {
-                    diagnostics.push(error_required_attr(
-                        input.ident.span(),
-                        "code",
-                        "0x0E",
-                    ));
+                    diagnostics.push(error_required_attr(input.ident.span(), "code", "0x0E"));
                     return TokenStream::from(emit_diagnostics(&mut diagnostics));
                 }
             };
