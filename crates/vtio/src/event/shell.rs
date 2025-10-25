@@ -111,7 +111,7 @@ pub struct CommandEnd {
 mod tests {
     use super::*;
     use vtio_control_base::StaticAnsiEncode;
-    use vtio_control_base::AnsiEncode2;
+    use vtio_control_base::AnsiEncode;
 
     #[test]
     fn test_prompt_start() {

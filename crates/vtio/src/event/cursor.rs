@@ -1334,7 +1334,7 @@ impl From<&EscapeSequenceParam> for TabStops {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtenc::encode::AnsiEncode2;
+    use vtenc::encode::AnsiEncode;
 
     #[test]
     fn test_cursor_information_report_encoding() {

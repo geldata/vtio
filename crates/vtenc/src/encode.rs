@@ -335,29 +335,10 @@ impl<T: StaticAnsiEncode> StaticEncodedLen for T {
     const ENCODED_LEN: usize = Self::STR.len();
 }
 
-impl<T: StaticAnsiEncode> AnsiEncode2 for T {
+impl<T: StaticAnsiEncode> ToAnsi for T {
     #[inline]
-    fn encode_ansi_into<W: io::Write>(&self, buf: &mut W) -> Result<usize, EncodeError> {
-        write_str_into(buf, Self::STR)
-    }
-}
-
-pub trait AnsiEncode2 {
-    /// Encode this value into the provided buffer.
-    ///
-    /// # Errors
-    ///
-    /// Return an error if the buffer is too small to hold the encoded value.
-    fn encode_ansi_into<W: io::Write>(&self, buf: &mut W) -> Result<usize, EncodeError>;
-
-    /// Encode this value directly into a byte slice.
-    ///
-    /// # Errors
-    ///
-    /// Return an error if the buffer is too small to hold the encoded value.
-    #[inline]
-    fn encode_ansi_into_slice(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
-        self.encode_ansi_into(&mut &mut buf[..])
+    fn to_ansi(&self) -> impl AnsiEncode {
+        Self::STR
     }
 }
 
@@ -378,7 +359,7 @@ macro_rules! const_composite {
             const ENCODED_LEN: usize = 0 $(+ <$command>::ENCODED_LEN)*;
         }
 
-        impl $crate::encode::AnsiEncode2 for $name {
+        impl $crate::encode::AnsiEncode for $name {
             #[inline]
             fn encode_ansi_into<W: ::std::io::Write + ?::std::marker::Sized>(
                 &self,
@@ -408,8 +389,8 @@ mod tests {
 
     struct TestCmd(&'static str);
 
-    impl AnsiEncode2 for TestCmd {
-        fn encode_ansi_into<W: io::Write>(&self, buf: &mut W) -> Result<usize, EncodeError> {
+    impl AnsiEncode for TestCmd {
+        fn encode_ansi_into<W: io::Write + ?Sized>(&self, buf: &mut W) -> Result<usize, EncodeError> {
             write_str_into(buf, self.0)
         }
     }

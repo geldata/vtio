@@ -565,7 +565,7 @@ impl From<&EscapeSequenceParam> for KeyModifiers {
 mod tests {
     use super::*;
 
-    use vtenc::AnsiEncode2;
+    use vtenc::AnsiEncode;
 
     #[test]
     fn test_encode_mouse_event_down() {
