@@ -12,6 +12,9 @@ pub use encode::{AnsiEncode, EncodeError, StaticAnsiEncode, StaticEncodedLen, To
 
 pub use parse::{FromAnsi, ParseError, TryFromAnsi};
 
+#[cfg(feature = "derive")]
+pub use vtansi_derive::{FromAnsi, ToAnsi};
+
 // Note: fixed_length_ansi macro is automatically available at crate root via #[macro_export]
 
 /// Concatenate string literals while prepending a ANSI control sequence

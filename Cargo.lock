@@ -311,6 +311,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "vtansi_derive"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "vtenc",
+]
+
+[[package]]
 name = "vtenc"
 version = "0.0.0"
 dependencies = [
@@ -319,6 +329,7 @@ dependencies = [
  "constcat",
  "itoa",
  "rules_derive",
+ "vtansi_derive",
 ]
 
 [[package]]

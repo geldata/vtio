@@ -13,6 +13,11 @@ atoi_simd = "0.16.1"
 constcat = "0.6.1"
 itoa = "1.0"
 rules_derive = "0.2.0"
+vtansi_derive = { path = "../vtansi_derive", optional = true }
+
+[features]
+derive = ["dep:vtansi_derive"]
 
 [dev-dependencies]
 bytes = "1.0"
+vtansi_derive = { path = "../vtansi_derive" }
