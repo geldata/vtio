@@ -5,9 +5,30 @@
 //! primitive integer representation or implement conversion traits for
 //! strings.
 
+#![forbid(unsafe_code)]
+
+extern crate proc_macro;
+
+mod helpers;
+mod macros;
+
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput};
+use proc_macro2::TokenStream as TokenStream2;
+use std::env;
+use syn::DeriveInput;
+
+fn debug_print_generated(ast: &DeriveInput, toks: &TokenStream2) {
+    let debug = env::var("VTANSI_DEBUG");
+    if let Ok(s) = debug {
+        if s == "1" {
+            println!("{}", toks);
+        }
+
+        if ast.ident == s {
+            println!("{}", toks);
+        }
+    }
+}
 
 /// Derive macro for `FromAnsi` trait.
 ///
@@ -15,9 +36,17 @@ use syn::{parse_macro_input, Data, DeriveInput};
 /// 1. Have a primitive integer representation (e.g., `#[repr(u8)]`)
 /// 2. Implement `std::convert::TryFrom<&str>`
 ///
+/// # Attributes
+///
+/// - `#[vtansi(default)]` - Mark a variant as the default fallback for
+///   unrecognized values. Only one variant can be marked as default.
+///   The default variant can be:
+///   - A unit variant (returns a constant value)
+///   - A tuple variant with one field (captures the unrecognized value)
+///
 /// # Examples
 ///
-/// For enums with primitive representations:
+/// ## Unit default variant
 ///
 /// ```ignore
 /// #[derive(FromAnsi)]
@@ -26,106 +55,50 @@ use syn::{parse_macro_input, Data, DeriveInput};
 ///     Red = 0,
 ///     Green = 1,
 ///     Blue = 2,
+///     #[vtansi(default)]
+///     Unknown = 255,
 /// }
 /// ```
 ///
-/// For enums implementing `TryFrom<&str>`:
+/// ## Capturing default variant
 ///
 /// ```ignore
 /// #[derive(FromAnsi)]
-/// enum Mode {
-///     Normal,
-///     Insert,
+/// #[repr(u8)]
+/// enum StatusCode {
+///     Ok = 200,
+///     NotFound = 404,
+///     #[vtansi(default)]
+///     Unknown(u8),  // Captures unrecognized codes
+/// }
+/// ```
+///
+/// ## String-based enum with capturing default
+///
+/// ```ignore
+/// #[derive(FromAnsi)]
+/// enum Command {
+///     Quit,
+///     Save,
+///     #[vtansi(default)]
+///     Custom(String),  // Captures unrecognized commands
 /// }
 ///
-/// impl TryFrom<&str> for Mode {
+/// impl TryFrom<&str> for Command {
 ///     type Error = String;
 ///     fn try_from(s: &str) -> Result<Self, Self::Error> {
 ///         // implementation
 ///     }
 /// }
 /// ```
-#[proc_macro_derive(FromAnsi)]
+#[proc_macro_derive(FromAnsi, attributes(vtansi))]
 pub fn derive_from_ansi(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    let ast = syn::parse_macro_input!(input as DeriveInput);
 
-    let name = &input.ident;
-    let generics = &input.generics;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    // Check if this is an enum
-    let Data::Enum(_) = &input.data else {
-        return syn::Error::new_spanned(
-            &input,
-            "FromAnsi can only be derived for enums",
-        )
-        .to_compile_error()
-        .into();
-    };
-
-    // Check for repr attribute and extract the type
-    let repr_type = input.attrs.iter().find_map(|attr| {
-        if !attr.path().is_ident("repr") {
-            return None;
-        }
-        
-        // Parse the repr attribute to get the primitive type
-        let Ok(meta) = attr.parse_args::<syn::Ident>() else {
-            return None;
-        };
-        
-        let type_str = meta.to_string();
-        if matches!(
-            type_str.as_str(),
-            "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "isize"
-        ) {
-            Some(meta)
-        } else {
-            None
-        }
-    });
-
-    let expanded = if let Some(repr_type) = repr_type {
-        // Generate implementation using the primitive representation
-        quote! {
-            impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
-                fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
-                    use ::core::convert::TryFrom;
-                    
-                    // Parse as the repr type
-                    let num = <#repr_type as ::vtenc::parse::TryFromAnsi>::try_from_ansi(bytes)?;
-                    
-                    // Convert to enum using TryFrom
-                    Self::try_from(num).map_err(|_| {
-                        ::vtenc::parse::ParseError::InvalidValue(
-                            ::std::format!("invalid enum discriminant: {}", num)
-                        )
-                    })
-                }
-            }
-        }
-    } else {
-        // Generate implementation using TryFrom<&str>
-        quote! {
-            impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
-                fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
-                    use ::core::convert::TryFrom;
-                    
-                    // Parse as &str
-                    let s = <&str as ::vtenc::parse::TryFromAnsi>::try_from_ansi(bytes)?;
-                    
-                    // Convert to enum using TryFrom<&str>
-                    Self::try_from(s).map_err(|_| {
-                        ::vtenc::parse::ParseError::InvalidValue(
-                            ::std::format!("invalid enum value: {}", s)
-                        )
-                    })
-                }
-            }
-        }
-    };
-
-    TokenStream::from(expanded)
+    let toks = macros::from_ansi::from_ansi_inner(&ast)
+        .unwrap_or_else(|err| err.to_compile_error());
+    debug_print_generated(&ast, &toks);
+    toks.into()
 }
 
 /// Derive macro for `ToAnsi` trait.
@@ -165,65 +138,10 @@ pub fn derive_from_ansi(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_derive(ToAnsi)]
 pub fn derive_to_ansi(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    let ast = syn::parse_macro_input!(input as DeriveInput);
 
-    let name = &input.ident;
-    let generics = &input.generics;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    // Check if this is an enum
-    let Data::Enum(_) = &input.data else {
-        return syn::Error::new_spanned(
-            &input,
-            "ToAnsi can only be derived for enums",
-        )
-        .to_compile_error()
-        .into();
-    };
-
-    // Check for repr attribute and extract the type
-    let repr_type = input.attrs.iter().find_map(|attr| {
-        if !attr.path().is_ident("repr") {
-            return None;
-        }
-        
-        // Parse the repr attribute to get the primitive type
-        let Ok(meta) = attr.parse_args::<syn::Ident>() else {
-            return None;
-        };
-        
-        let type_str = meta.to_string();
-        if matches!(
-            type_str.as_str(),
-            "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "usize" | "isize"
-        ) {
-            Some(meta)
-        } else {
-            None
-        }
-    });
-
-    let expanded = if let Some(repr_type) = repr_type {
-        // Generate implementation using the primitive representation
-        quote! {
-            impl #impl_generics ::vtenc::encode::ToAnsi for #name #ty_generics #where_clause {
-                fn to_ansi(&self) -> impl ::vtenc::encode::AnsiEncode {
-                    // Convert enum to its repr type
-                    *self as #repr_type
-                }
-            }
-        }
-    } else {
-        // Generate implementation using AsRef<str>
-        quote! {
-            impl #impl_generics ::vtenc::encode::ToAnsi for #name #ty_generics #where_clause {
-                fn to_ansi(&self) -> impl ::vtenc::encode::AnsiEncode {
-                    // Convert to string slice using AsRef<str>
-                    <Self as ::core::convert::AsRef<str>>::as_ref(self)
-                }
-            }
-        }
-    };
-
-    TokenStream::from(expanded)
+    let toks = macros::to_ansi::to_ansi_inner(&ast)
+        .unwrap_or_else(|err| err.to_compile_error());
+    debug_print_generated(&ast, &toks);
+    toks.into()
 }

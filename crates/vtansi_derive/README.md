@@ -37,6 +37,87 @@ For enums with a `#[repr(...)]` attribute specifying a primitive integer type, t
 1. Parses the bytes as the primitive type using the existing `TryFromAnsi` implementation
 2. Converts the parsed value to the enum using `TryFrom<PrimitiveType>`
 
+##### Default Variant
+
+You can mark one variant with `#[vtansi(default)]` to handle unrecognized values. The default variant can be either:
+1. A unit variant (returns a constant value)
+2. A tuple variant with one field (captures the unrecognized value)
+
+**Unit Default Variant:**
+
+When parsing encounters a value that doesn't match any variant, it will return the default variant instead of erroring:
+
+```rust
+use vtenc::FromAnsi;
+use vtenc::parse::TryFromAnsi;
+
+#[derive(FromAnsi)]
+#[repr(u8)]
+enum Color {
+    Red = 0,
+    Green = 1,
+    Blue = 2,
+    #[vtansi(default)]
+    Unknown = 255,
+}
+
+impl TryFrom<u8> for Color {
+    type Error = ();
+    
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Color::Red),
+            1 => Ok(Color::Green),
+            2 => Ok(Color::Blue),
+            255 => Ok(Color::Unknown),
+            _ => Err(()),
+        }
+    }
+}
+
+// Valid values parse normally
+assert_eq!(Color::try_from_ansi(b"0").unwrap(), Color::Red);
+
+// Invalid values return the default
+assert_eq!(Color::try_from_ansi(b"99").unwrap(), Color::Unknown);
+```
+
+**Capturing Default Variant:**
+
+For tuple variants with one field, the unrecognized value is captured and stored in the variant. The field type must implement `From<ReprType>` for repr enums:
+
+```rust
+use vtenc::FromAnsi;
+use vtenc::parse::TryFromAnsi;
+
+#[derive(FromAnsi)]
+#[repr(u8)]
+enum StatusCode {
+    Ok = 200,
+    NotFound = 404,
+    #[vtansi(default)]
+    Unknown(u8),  // Captures unrecognized status codes
+}
+
+impl TryFrom<u8> for StatusCode {
+    type Error = ();
+    
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            200 => Ok(StatusCode::Ok),
+            404 => Ok(StatusCode::NotFound),
+            _ => Err(()),
+        }
+    }
+}
+
+// Valid values parse normally
+assert_eq!(StatusCode::try_from_ansi(b"200").unwrap(), StatusCode::Ok);
+
+// Invalid values are captured
+assert_eq!(StatusCode::try_from_ansi(b"500").unwrap(), StatusCode::Unknown(500));
+```
+
 ```rust
 use vtenc::FromAnsi;  // Re-exported from vtansi_derive
 use vtenc::parse::TryFromAnsi;
@@ -68,6 +149,46 @@ assert_eq!(Color::try_from_ansi(b"0").unwrap(), Color::Red);
 assert_eq!(Color::try_from_ansi(b"1").unwrap(), Color::Green);
 ```
 
+**Capturing Default Variant:**
+
+For tuple variants with one field, the unrecognized string is captured. The field type must implement `From<&str>` (e.g., `String`):
+
+```rust
+use vtenc::FromAnsi;
+use vtenc::parse::TryFromAnsi;
+
+#[derive(FromAnsi)]
+enum Command {
+    Quit,
+    Save,
+    Load,
+    #[vtansi(default)]
+    Custom(String),  // Captures unrecognized commands
+}
+
+impl TryFrom<&str> for Command {
+    type Error = String;
+    
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "quit" => Ok(Command::Quit),
+            "save" => Ok(Command::Save),
+            "load" => Ok(Command::Load),
+            _ => Err(format!("unknown command: {}", s)),
+        }
+    }
+}
+
+// Valid values parse normally
+assert_eq!(Command::try_from_ansi(b"quit").unwrap(), Command::Quit);
+
+// Invalid values are captured
+assert_eq!(
+    Command::try_from_ansi(b"help").unwrap(),
+    Command::Custom("help".to_string())
+);
+```
+
 Supported primitive types: `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `usize`, `isize`
 
 #### 2. Enums Implementing `TryFrom<&str>`
@@ -75,6 +196,45 @@ Supported primitive types: `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`,
 For enums without a primitive representation, the macro generates an implementation that:
 1. Parses the bytes as a UTF-8 string
 2. Converts the string to the enum using `TryFrom<&str>`
+
+##### Default Variant
+
+Similarly, string-based enums can use `#[vtansi(default)]` to handle unrecognized strings.
+
+**Unit Default Variant:**
+
+```rust
+use vtenc::FromAnsi;
+use vtenc::parse::TryFromAnsi;
+
+#[derive(FromAnsi)]
+enum TextStyle {
+    Plain,
+    Bold,
+    Italic,
+    #[vtansi(default)]
+    Unknown,
+}
+
+impl TryFrom<&str> for TextStyle {
+    type Error = String;
+    
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "plain" => Ok(TextStyle::Plain),
+            "bold" => Ok(TextStyle::Bold),
+            "italic" => Ok(TextStyle::Italic),
+            _ => Err(format!("unknown text style: {}", s)),
+        }
+    }
+}
+
+// Valid values parse normally
+assert_eq!(TextStyle::try_from_ansi(b"plain").unwrap(), TextStyle::Plain);
+
+// Invalid values return the default
+assert_eq!(TextStyle::try_from_ansi(b"underline").unwrap(), TextStyle::Unknown);
+```
 
 ```rust
 use vtenc::FromAnsi;  // Re-exported from vtansi_derive
@@ -214,7 +374,12 @@ The generated implementations return `Result<Self, ParseError>` where `ParseErro
 
 - `ParseError::InvalidNum`: The bytes could not be parsed as a number (for repr enums)
 - `ParseError::InvalidString`: The bytes are not valid UTF-8 (for string-based enums)
-- `ParseError::InvalidValue`: The parsed value does not correspond to any enum variant
+- `ParseError::InvalidValue`: The parsed value does not correspond to any enum variant (only when no default variant is specified)
+
+**Note:** 
+- If a variant is marked with `#[vtansi(default)]`, parsing will never return `ParseError::InvalidValue` - unrecognized values will be converted to the default variant instead.
+- Parse errors like `InvalidNum` and `InvalidString` will still be returned when the input cannot be parsed at all (e.g., non-numeric input for repr enums, invalid UTF-8 for string enums).
+- For capturing default variants (tuple variants), the captured value is constructed using `.into()`, so the field type must implement the appropriate `From` trait.
 
 ### ToAnsi
 
@@ -230,6 +395,11 @@ The `ToAnsi` implementations are generally infallible for well-formed enums, but
 - For enums with primitive representations: must implement `TryFrom<ReprType>` where `ReprType` is the type specified in the `#[repr(...)]` attribute
 - For enums without primitive representations: must implement `TryFrom<&str>`
 - The enum must not have any variants with fields (unit variants only)
+- At most one variant can be marked with `#[vtansi(default)]`
+- Default variants must be either unit variants or tuple variants with exactly one field
+- For capturing defaults (tuple variants):
+  - Repr enums: the field type must implement `From<ReprType>`
+  - String enums: the field type must implement `From<&str>`
 
 ### ToAnsi
 
