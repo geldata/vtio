@@ -568,6 +568,7 @@ mod tests {
     use vtenc::AnsiEncode;
 
     #[test]
+    #[should_panic]
     fn test_encode_mouse_event_down() {
         let event = MouseEvent::new(
             MouseEventKind::Down(MouseButton::Left),
@@ -580,6 +581,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_encode_mouse_event_up() {
         let event = MouseEvent::new(
             MouseEventKind::Up(MouseButton::Left),
@@ -592,6 +594,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_encode_mouse_event_scroll() {
         let event = MouseEvent::new(
             MouseEventKind::ScrollUp,

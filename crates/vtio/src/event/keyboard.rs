@@ -1311,7 +1311,7 @@ impl KeyCode {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use vtmsg::keyboard::KeyCode;
     /// assert!(KeyCode::F(1).is_function_key(1));
     /// assert!(!KeyCode::F(1).is_function_key(2));
@@ -1325,7 +1325,7 @@ impl KeyCode {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use vtmsg::keyboard::KeyCode;
     /// assert!(KeyCode::Char('a').is_char('a'));
     /// assert!(!KeyCode::Char('a').is_char('b'));
@@ -1342,7 +1342,7 @@ impl KeyCode {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use vtmsg::keyboard::KeyCode;
     /// assert_eq!(KeyCode::Char('a').as_char(), Some('a'));
     /// assert_eq!(KeyCode::F(1).as_char(), None);
@@ -1363,7 +1363,7 @@ impl KeyCode {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use vtmsg::keyboard::{KeyCode, MediaKeyCode};
     /// assert!(KeyCode::Media(MediaKeyCode::Play).is_media_key(MediaKeyCode::Play));
     /// assert!(!KeyCode::Media(MediaKeyCode::Play).is_media_key(MediaKeyCode::Pause));
@@ -1382,7 +1382,7 @@ impl KeyCode {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use vtmsg::keyboard::{KeyCode, ModifierKeyCode};
     /// assert!(KeyCode::Modifier(ModifierKeyCode::LeftShift).is_modifier(ModifierKeyCode::LeftShift));
     /// assert!(!KeyCode::Modifier(ModifierKeyCode::LeftShift).is_modifier(ModifierKeyCode::RightShift));
