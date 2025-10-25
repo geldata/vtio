@@ -108,6 +108,28 @@ pub trait AnsiEncode {
     ///
     /// Return an error if the buffer is too small to hold the value.
     fn encode_ansi_into<W: io::Write + ?Sized>(&self, sink: &mut W) -> Result<usize, EncodeError>;
+
+    /// Encode this value as an ANSI control sequence directly into a byte slice.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if the buffer is too small to hold the encoded value.
+    #[inline]
+    fn encode_ansi_into_slice(&self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+        self.encode_ansi_into(&mut &mut buf[..])
+    }
+
+    /// Encode this value as an ANSI control sequence and return the resulting bytes.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if the buffer is too small to hold the encoded value.
+    #[inline]
+    fn encode_ansi(&self) -> Result<Vec<u8>, EncodeError> {
+        let mut v: Vec<u8> = Vec::with_capacity(5);
+        self.encode_ansi_into(&mut v)?;
+        Ok(v)
+    }
 }
 
 pub trait ToAnsi {
@@ -334,7 +356,7 @@ pub trait AnsiEncode2 {
     ///
     /// Return an error if the buffer is too small to hold the encoded value.
     #[inline]
-    fn encode_into_slice(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
+    fn encode_ansi_into_slice(&mut self, buf: &mut [u8]) -> Result<usize, EncodeError> {
         self.encode_ansi_into(&mut &mut buf[..])
     }
 }
@@ -402,9 +424,9 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_into_slice() {
+    fn test_encode_ansi_into_slice() {
         let mut buf = [0u8; 64];
-        let len = TestCmd("Hello").encode_into_slice(&mut buf).unwrap();
+        let len = TestCmd("Hello").encode_ansi_into_slice(&mut buf).unwrap();
         assert_eq!(len, 5);
         assert_eq!(&buf[..len], b"Hello");
     }

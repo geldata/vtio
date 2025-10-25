@@ -37,7 +37,7 @@ use vtio::event::window::SetSize;
 /// - Single memcpy per integer (not per digit)
 #[inline(never)]
 pub fn encode_set_size(buf: &mut [u8], rows: u16, cols: u16) -> usize {
-    SetSize { rows, cols }.encode_into_slice(buf).unwrap()
+    SetSize { rows, cols }.encode_ansi_into_slice(buf).unwrap()
 }
 
 fn main() {
