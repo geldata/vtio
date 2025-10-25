@@ -110,7 +110,7 @@ pub struct CommandEnd {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtio_control_base::ConstEncode;
+    use vtio_control_base::StaticAnsiEncode;
     use vtio_control_base::AnsiEncode2;
 
     #[test]

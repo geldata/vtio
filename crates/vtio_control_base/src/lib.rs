@@ -7,7 +7,7 @@ pub use crate::esc::{
 };
 
 pub use vtenc::{
-    ConstEncode, ConstEncodedLen, AnsiEncode2, EncodeError, ToAnsi, AnsiEncode, const_composite,
+    StaticAnsiEncode, StaticEncodedLen, AnsiEncode2, EncodeError, ToAnsi, AnsiEncode, const_composite,
     write_apc, write_bytes_into, write_csi, write_dcs, write_esc, write_escst, write_int,
     write_str_into,
 };

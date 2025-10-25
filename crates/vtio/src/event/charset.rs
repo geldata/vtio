@@ -346,7 +346,7 @@ pub struct DesignateG3_96 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtenc::{ConstEncode, AnsiEncode2};
+    use vtenc::{StaticAnsiEncode, AnsiEncode2};
 
     #[test]
     fn test_c0_control_codes() {

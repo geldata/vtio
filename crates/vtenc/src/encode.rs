@@ -283,7 +283,7 @@ pub trait EncodedLen {
 ///
 /// Types implementing this trait automatically get a default implementation
 /// of [`EncodedLen::encoded_buf_len`] that returns this constant value.
-pub trait ConstEncodedLen {
+pub trait StaticEncodedLen {
     /// The maximum number of bytes needed to encode this type.
     ///
     /// This value represents an upper bound that guarantees `encode` will
@@ -291,7 +291,7 @@ pub trait ConstEncodedLen {
     const ENCODED_LEN: usize;
 }
 
-impl<T: ConstEncodedLen> EncodedLen for T {
+impl<T: StaticEncodedLen> EncodedLen for T {
     #[inline]
     fn encoded_buf_len(&self) -> usize {
         Self::ENCODED_LEN
@@ -304,16 +304,16 @@ impl<T: ConstEncodedLen> EncodedLen for T {
 /// such as terminal control sequences without parameters. Types implementing
 /// this trait automatically get `Encode`, `EncodedLen`, and `Write`
 /// implementations via blanket impls.
-pub trait ConstEncode {
+pub trait StaticAnsiEncode {
     /// The static string this type encodes to.
     const STR: &'static str;
 }
 
-impl<T: ConstEncode> ConstEncodedLen for T {
+impl<T: StaticAnsiEncode> StaticEncodedLen for T {
     const ENCODED_LEN: usize = Self::STR.len();
 }
 
-impl<T: ConstEncode> AnsiEncode2 for T {
+impl<T: StaticAnsiEncode> AnsiEncode2 for T {
     #[inline]
     fn encode<W: io::Write>(&mut self, buf: &mut W) -> Result<usize, EncodeError> {
         write_str_into(buf, Self::STR)
@@ -352,7 +352,7 @@ macro_rules! const_composite {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         $vis struct $name;
 
-        impl $crate::encode::ConstEncodedLen for $name {
+        impl $crate::encode::StaticEncodedLen for $name {
             const ENCODED_LEN: usize = 0 $(+ <$command>::ENCODED_LEN)*;
         }
 
@@ -363,7 +363,7 @@ macro_rules! const_composite {
                 buf: &mut W
             ) -> Result<usize, $crate::encode::EncodeError> {
                 // Use a stack-allocated buffer for const-length commands
-                let mut stack_buf = [0u8; <Self as $crate::encode::ConstEncodedLen>::ENCODED_LEN];
+                let mut stack_buf = [0u8; <Self as $crate::encode::StaticEncodedLen>::ENCODED_LEN];
                 let mut offset = 0;
 
                 $(

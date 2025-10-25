@@ -36,7 +36,7 @@ struct ResetAttributes;
 struct ClearHome;
 ```
 
-These automatically implement `ConstEncode` for zero-cost encoding.
+These automatically implement `StaticAnsiEncode` for zero-cost encoding.
 
 #### Variable Sequences
 
@@ -61,7 +61,7 @@ let pos = CursorPosition { row: 10, col: 20 };
 let up = CursorUp { n: 5 };
 ```
 
-These implement `ConstEncodedLen` and `Encode` for efficient encoding with
+These implement `StaticEncodedLen` and `Encode` for efficient encoding with
 parameters.
 
 #### With Custom Handler
@@ -222,8 +222,8 @@ struct CursorPosition {
 ### For Const Sequences (unit structs)
 
 1. An `EscapeSequence` trait implementation with associated constants
-2. A `ConstEncode` implementation with the static sequence string
-3. Automatic `ConstEncodedLen` and `Encode` implementations via blanket
+2. A `StaticAnsiEncode` implementation with the static sequence string
+3. Automatic `StaticEncodedLen` and `Encode` implementations via blanket
    impls
 4. A registry entry in `vtparser::ESCAPE_SEQUENCE_REGISTRY`
 
@@ -232,7 +232,7 @@ All constants are generated in a `const` context for zero-cost abstraction.
 ### For Variable Sequences (structs with fields)
 
 1. An `EscapeSequence` trait implementation with associated constants
-2. A `ConstEncodedLen` implementation with the maximum encoded length
+2. A `StaticEncodedLen` implementation with the maximum encoded length
 3. An efficient `Encode` implementation that writes field values as
    parameters
 4. A registry entry in `vtparser::ESCAPE_SEQUENCE_REGISTRY`

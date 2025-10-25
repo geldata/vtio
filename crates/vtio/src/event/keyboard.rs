@@ -4,7 +4,7 @@ use std::fmt::{self, Display, Write};
 use std::hash::{Hash, Hasher};
 
 use bitflags::bitflags;
-use vtenc::{ConstEncode, AnsiEncode2, EncodeError, format_csi, format_esc, write_csi};
+use vtenc::{StaticAnsiEncode, AnsiEncode2, EncodeError, format_csi, format_esc, write_csi};
 
 use crate::TerseDisplay;
 use vtio_control_derive::terminal_mode;
@@ -207,7 +207,7 @@ impl AnsiEncode2 for PushKeyboardEnhancementFlags {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PopKeyboardEnhancementFlags;
 
-impl ConstEncode for PopKeyboardEnhancementFlags {
+impl StaticAnsiEncode for PopKeyboardEnhancementFlags {
     const STR: &'static str = format_csi!("<1u");
 }
 
@@ -220,7 +220,7 @@ impl ConstEncode for PopKeyboardEnhancementFlags {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetApplicationKeypadMode;
 
-impl ConstEncode for SetApplicationKeypadMode {
+impl StaticAnsiEncode for SetApplicationKeypadMode {
     const STR: &'static str = format_esc!("=");
 }
 
@@ -233,7 +233,7 @@ impl ConstEncode for SetApplicationKeypadMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResetApplicationKeypadMode;
 
-impl ConstEncode for ResetApplicationKeypadMode {
+impl StaticAnsiEncode for ResetApplicationKeypadMode {
     const STR: &'static str = format_esc!(">");
 }
 

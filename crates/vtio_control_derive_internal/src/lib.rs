@@ -1250,7 +1250,7 @@ fn generate_escape_sequence_impl(
             )
         };
 
-        // Generate the const string for ConstEncode
+        // Generate the const string for StaticAnsiEncode
         let const_str = generate_const_str(
             intro,
             attrs.private,
@@ -1280,7 +1280,7 @@ fn generate_escape_sequence_impl(
                 #consts_impl
             }
 
-            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name #ty_generics #where_clause {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::StaticAnsiEncode for #struct_name #ty_generics #where_clause {
                 const STR: &'static str = #const_str;
             }
 
@@ -1733,7 +1733,7 @@ fn generate_variable_sequence(params: VariableSequenceParams<'_>) -> proc_macro2
             #consts_impl
         }
 
-        impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name #ty_generics #where_clause {
+        impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::StaticEncodedLen for #struct_name #ty_generics #where_clause {
             const ENCODED_LEN: usize = #encoded_len;
         }
 
@@ -2109,7 +2109,7 @@ pub fn derive_control(input: TokenStream) -> TokenStream {
             let const_str = format!("{}", code as char);
             let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
             let expanded = quote! {
-                impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name #ty_generics #where_clause {
+                impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::StaticAnsiEncode for #struct_name #ty_generics #where_clause {
                     const STR: &'static str = #const_str;
                 }
             };
@@ -2198,7 +2198,7 @@ fn generate_esc_sequence_impl(
         quote! {
             #struct_def
 
-            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncode for #struct_name #ty_generics #where_clause {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::StaticAnsiEncode for #struct_name #ty_generics #where_clause {
                 const STR: &'static str = #const_str;
             }
         }
@@ -2234,7 +2234,7 @@ fn generate_esc_sequence_impl(
         quote! {
             #struct_def
 
-            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::ConstEncodedLen for #struct_name #ty_generics #where_clause {
+            impl #impl_generics ::vtio_control_derive::__internal::vtio_control_base::StaticEncodedLen for #struct_name #ty_generics #where_clause {
                 const ENCODED_LEN: usize = 4; // Conservative upper bound: ESC + intermediate + 2-byte charset
             }
 

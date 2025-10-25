@@ -660,7 +660,7 @@ pub struct ScreenSizeReport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtio_control_base::{ConstEncode, AnsiEncode2};
+    use vtio_control_base::{StaticAnsiEncode, AnsiEncode2};
 
     #[test]
     fn test_set_title_and_icon_name() {
