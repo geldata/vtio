@@ -420,6 +420,51 @@ pub fn encode_delimited_values(parts: &[String], delimiter: &str) -> String {
     parts.join(delimiter)
 }
 
+/// Helper function for encoding struct fields as delimited values, omitting
+/// trailing None values.
+///
+/// This function encodes struct fields with optional trailing fields by
+/// finding the last `Some` value and encoding up to that point. Trailing
+/// `None` values are omitted from the output. It's used by derived `ToAnsi`
+/// implementations for structs with optional fields in value format.
+///
+/// # Examples
+///
+/// ```ignore
+/// let parts = vec![
+///     Some("100".to_string()),
+///     Some("200".to_string()),
+///     None,
+/// ];
+/// let result = encode_delimited_values_with_optional(&parts, ";");
+/// assert_eq!(result, "100;200");
+/// ```
+#[inline]
+#[must_use]
+pub fn encode_delimited_values_with_optional(
+    parts: &[Option<String>],
+    delimiter: &str,
+) -> String {
+    // Find the last Some value
+    let last_some_idx = parts
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(idx, opt)| opt.as_ref().map(|_| idx));
+
+    match last_some_idx {
+        Some(idx) => {
+            // Encode up to and including the last Some
+            parts[..=idx]
+                .iter()
+                .map(|opt| opt.as_ref().map_or(String::new(), std::clone::Clone::clone))
+                .collect::<Vec<_>>()
+                .join(delimiter)
+        }
+        None => String::new(),
+    }
+}
+
 /// Helper function for encoding struct fields as key=value pairs.
 ///
 /// This function creates a string with `key=value` pairs separated by the

@@ -82,6 +82,20 @@ impl Parse for TypeMeta {
     }
 }
 
+/// Wrapper for parsing multiple comma-separated TypeMeta items.
+struct TypeMetaList {
+    items: Vec<TypeMeta>,
+}
+
+impl Parse for TypeMetaList {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let items = syn::punctuated::Punctuated::<TypeMeta, Token![,]>::parse_terminated(input)?;
+        Ok(TypeMetaList {
+            items: items.into_iter().collect(),
+        })
+    }
+}
+
 /// Metadata that can be attached to enum variants.
 ///
 /// This enum represents all possible metadata items that can appear in a
@@ -190,8 +204,8 @@ impl DeriveInputExt for DeriveInput {
                 continue;
             }
 
-            let meta = attr.parse_args::<TypeMeta>()?;
-            result.push(meta);
+            let meta_list = attr.parse_args::<TypeMetaList>()?;
+            result.extend(meta_list.items);
         }
 
         Ok(result)

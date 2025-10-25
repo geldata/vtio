@@ -88,7 +88,9 @@
 //! // Encodes as: "name=foo,value=42"
 //! ```
 //!
-//! ## Optional Fields (key=value format only)
+//! ## Optional Fields
+//!
+//! ### Key-Value Format
 //!
 //! ```ignore
 //! #[derive(FromAnsi, ToAnsi)]
@@ -104,6 +106,37 @@
 //! Fields with `Option<T>` type are automatically optional in key=value format.
 //! Missing optional fields will be set to `None` instead of causing a parse
 //! error.
+//!
+//! ### Value Format
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! #[vtansi(format = "value")]
+//! struct Point3D {
+//!     x: i32,
+//!     y: i32,
+//!     z: Option<i32>,  // Optional trailing field
+//! }
+//! // Encodes: Point3D { x: 10, y: 20, z: Some(30) } -> "10;20;30"
+//! // Encodes: Point3D { x: 10, y: 20, z: None } -> "10;20"
+//! // Parses: "10;20" -> Point3D { x: 10, y: 20, z: None }
+//! // Parses: "10;20;30" -> Point3D { x: 10, y: 20, z: Some(30) }
+//! ```
+//!
+//! In value format, `Option<T>` fields must appear after all non-optional
+//! fields. Trailing `None` values are omitted during encoding. During parsing,
+//! missing trailing fields are set to `None`.
+//!
+//! Multiple optional fields are supported:
+//!
+//! ```ignore
+//! #[derive(FromAnsi, ToAnsi)]
+//! struct Coordinates(i32, i32, Option<i32>, Option<i32>);
+//! // Parses: "10;20" -> all optional fields are None
+//! // Parses: "10;20;30" -> third field is Some(30), fourth is None
+//! // Parses: "10;20;;40" -> third field is None, fourth is Some(40)
+//! // Parses: "10;20;30;40" -> both optional fields are Some
+//! ```
 //!
 //! ## Skipping Fields
 //!

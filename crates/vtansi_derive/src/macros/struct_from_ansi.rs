@@ -8,7 +8,9 @@
 //!    `key=value` pairs separated by a delimiter. Fields can appear in any
 //!    order. Fields with `Option<T>` type are automatically optional.
 //! 2. **Value format** (default for tuple structs) - fields are parsed as
-//!    values in declaration order, separated by a delimiter.
+//!    values in declaration order, separated by a delimiter. Supports optional
+//!    trailing fields with `Option<T>` type. Optional fields must appear after
+//!    all required fields.
 //!
 //! The format and delimiter can be configured using `#[vtansi(format = "...")]`
 //! and `#[vtansi(delimiter = "...")]` attributes on the struct.
@@ -259,6 +261,7 @@ fn generate_keyvalue_impl(
 ///
 /// This function creates a `TryFromAnsi` implementation that parses the
 /// input as values in field declaration order, separated by the delimiter.
+/// Supports optional trailing fields (fields with `Option<T>` type).
 fn generate_named_value_impl(
     name: &syn::Ident,
     impl_generics: &syn::ImplGenerics,
@@ -270,23 +273,82 @@ fn generate_named_value_impl(
 ) -> TokenStream {
     let field_count = field_names.len();
 
-    let field_parsing = field_names.iter().zip(field_types.iter()).enumerate().map(
-        |(idx, (name, ty))| {
-            quote! {
-                let #name = if #idx < parts.len() {
-                    <#ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(
-                        parts[#idx].trim().as_bytes()
-                    )?
-                } else {
-                    return ::core::result::Result::Err(
-                        ::vtenc::parse::ParseError::InvalidValue(
-                            ::std::format!("expected {} fields, got {}", #field_count, parts.len())
-                        )
-                    );
-                };
+    // Detect which fields are Option types and validate ordering
+    let field_info: Vec<_> = field_types
+        .iter()
+        .map(|ty| {
+            if let Some(inner_ty) = extract_option_inner_type(ty) {
+                (true, inner_ty)
+            } else {
+                (false, *ty)
             }
-        },
-    );
+        })
+        .collect();
+
+    // Find the index of the first optional field
+    let first_optional_idx = field_info.iter().position(|(is_opt, _)| *is_opt);
+
+    // Validate that all optional fields trail non-optional fields
+    if let Some(first_opt_idx) = first_optional_idx {
+        for (idx, (is_opt, _)) in field_info.iter().enumerate() {
+            if idx > first_opt_idx && !is_opt {
+                // Found a non-optional field after an optional field
+                let opt_field = &field_names[first_opt_idx];
+                let req_field = &field_names[idx];
+                return syn::Error::new_spanned(
+                    req_field,
+                    format!(
+                        "non-optional field '{}' cannot appear after optional field '{}'",
+                        req_field, opt_field
+                    ),
+                )
+                .to_compile_error();
+            }
+        }
+    }
+
+    let required_count = first_optional_idx.unwrap_or(field_count);
+
+    let field_parsing = field_names
+        .iter()
+        .zip(field_types.iter())
+        .zip(field_info.iter())
+        .enumerate()
+        .map(|(idx, ((name, ty), (is_option, inner_ty)))| {
+            if *is_option {
+                // Optional field: parse if present, otherwise None
+                quote! {
+                    let #name: #ty = match __iter.next() {
+                        ::core::option::Option::Some(__part) if !__part.trim().is_empty() => {
+                            ::core::option::Option::Some(
+                                <#inner_ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(
+                                    __part.trim().as_bytes()
+                                )?
+                            )
+                        }
+                        _ => ::core::option::Option::None,
+                    };
+                }
+            } else {
+                // Required field: must be present
+                quote! {
+                    let #name = match __iter.next() {
+                        ::core::option::Option::Some(__part) => {
+                            <#ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(
+                                __part.trim().as_bytes()
+                            )?
+                        }
+                        ::core::option::Option::None => {
+                            return ::core::result::Result::Err(
+                                ::vtenc::parse::ParseError::InvalidValue(
+                                    ::std::format!("expected at least {} fields, got {}", #required_count, #idx)
+                                )
+                            );
+                        }
+                    };
+                }
+            }
+        });
 
     let field_construction = field_names.iter().map(|name| {
         quote! { #name }
@@ -303,11 +365,20 @@ fn generate_named_value_impl(
                 // Parse as UTF-8 string
                 let s = <&str as ::vtenc::parse::TryFromAnsi>::try_from_ansi(bytes)?;
 
-                // Parse delimited values using helper function
-                let parts = ::vtenc::parse_delimited_values(s, #delimiter_lit, #field_count)?;
-
+                // Create iterator over fields - no allocation
+                let mut __iter = s.split(#delimiter_lit);
+                
                 // Parse each field in order
                 #(#field_parsing)*
+
+                // Check for too many fields
+                if __iter.next().is_some() {
+                    return ::core::result::Result::Err(
+                        ::vtenc::parse::ParseError::InvalidValue(
+                            ::std::format!("expected at most {} fields", #field_count)
+                        )
+                    );
+                }
 
                 ::core::result::Result::Ok(Self {
                     #(#field_construction),*
@@ -322,6 +393,7 @@ fn generate_named_value_impl(
 /// This function creates a `TryFromAnsi` implementation that parses the
 /// input as values in field declaration order, separated by the delimiter.
 /// Tuple struct fields are accessed by position (0, 1, 2, etc.).
+/// Supports optional trailing fields (fields with `Option<T>` type).
 fn generate_tuple_value_impl(
     name: &syn::Ident,
     impl_generics: &syn::ImplGenerics,
@@ -332,22 +404,81 @@ fn generate_tuple_value_impl(
 ) -> TokenStream {
     let field_count = field_types.len();
 
-    let field_parsing = field_types.iter().enumerate().map(|(idx, ty)| {
-        let field_name = syn::Ident::new(&format!("field_{}", idx), proc_macro2::Span::call_site());
-        quote! {
-            let #field_name = if #idx < parts.len() {
-                <#ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(
-                    parts[#idx].trim().as_bytes()
-                )?
+    // Detect which fields are Option types and validate ordering
+    let field_info: Vec<_> = field_types
+        .iter()
+        .map(|ty| {
+            if let Some(inner_ty) = extract_option_inner_type(ty) {
+                (true, inner_ty)
             } else {
-                return ::core::result::Result::Err(
-                    ::vtenc::parse::ParseError::InvalidValue(
-                        ::std::format!("expected {} fields, got {}", #field_count, parts.len())
-                    )
-                );
-            };
+                (false, *ty)
+            }
+        })
+        .collect();
+
+    // Find the index of the first optional field
+    let first_optional_idx = field_info.iter().position(|(is_opt, _)| *is_opt);
+
+    // Validate that all optional fields trail non-optional fields
+    if let Some(first_opt_idx) = first_optional_idx {
+        for (idx, (is_opt, _)) in field_info.iter().enumerate() {
+            if idx > first_opt_idx && !is_opt {
+                // Found a non-optional field after an optional field
+                return syn::Error::new_spanned(
+                    name,
+                    format!(
+                        "non-optional field at position {} cannot appear after optional field at position {}",
+                        idx, first_opt_idx
+                    ),
+                )
+                .to_compile_error();
+            }
         }
-    });
+    }
+
+    let required_count = first_optional_idx.unwrap_or(field_count);
+
+    let field_parsing = field_types
+        .iter()
+        .zip(field_info.iter())
+        .enumerate()
+        .map(|(idx, (ty, (is_option, inner_ty)))| {
+            let field_name =
+                syn::Ident::new(&format!("field_{}", idx), proc_macro2::Span::call_site());
+            if *is_option {
+                // Optional field: parse if present, otherwise None
+                quote! {
+                    let #field_name: #ty = match __iter.next() {
+                        ::core::option::Option::Some(__part) if !__part.trim().is_empty() => {
+                            ::core::option::Option::Some(
+                                <#inner_ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(
+                                    __part.trim().as_bytes()
+                                )?
+                            )
+                        }
+                        _ => ::core::option::Option::None,
+                    };
+                }
+            } else {
+                // Required field: must be present
+                quote! {
+                    let #field_name = match __iter.next() {
+                        ::core::option::Option::Some(__part) => {
+                            <#ty as ::vtenc::parse::TryFromAnsi>::try_from_ansi(
+                                __part.trim().as_bytes()
+                            )?
+                        }
+                        ::core::option::Option::None => {
+                            return ::core::result::Result::Err(
+                                ::vtenc::parse::ParseError::InvalidValue(
+                                    ::std::format!("expected at least {} fields, got {}", #required_count, #idx)
+                                )
+                            );
+                        }
+                    };
+                }
+            }
+        });
 
     let field_construction = (0..field_count).map(|idx| {
         let field_name = syn::Ident::new(&format!("field_{}", idx), proc_macro2::Span::call_site());
@@ -365,11 +496,20 @@ fn generate_tuple_value_impl(
                 // Parse as UTF-8 string
                 let s = <&str as ::vtenc::parse::TryFromAnsi>::try_from_ansi(bytes)?;
 
-                // Parse delimited values using helper function
-                let parts = ::vtenc::parse_delimited_values(s, #delimiter_lit, #field_count)?;
+                // Create iterator over fields - no allocation
+                let mut __iter = s.split(#delimiter_lit);
 
                 // Parse each field in order
                 #(#field_parsing)*
+
+                // Check for too many fields
+                if __iter.next().is_some() {
+                    return ::core::result::Result::Err(
+                        ::vtenc::parse::ParseError::InvalidValue(
+                            ::std::format!("expected at most {} fields", #field_count)
+                        )
+                    );
+                }
 
                 ::core::result::Result::Ok(Self(
                     #(#field_construction),*
