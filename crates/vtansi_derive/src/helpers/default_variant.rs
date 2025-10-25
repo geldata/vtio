@@ -1,27 +1,58 @@
 //! Logic for finding and representing default variants in enums.
+//!
+//! This module provides utilities for handling the `#[vtansi(default)]`
+//! attribute, which allows enum variants to serve as fallback values when
+//! parsing fails.
 
 use syn::{DataEnum, Fields, Ident};
 
 use super::variant_props::HasVariantProperties;
 
-/// Represents a variant marked with `#[vtansi(default)]`.
+/// Represent a variant marked with `#[vtansi(default)]`.
+///
+/// Default variants can either be unit variants (which return a constant
+/// value when parsing fails) or single-field tuple variants (which capture
+/// the unparsed value).
 pub enum DefaultVariant {
     /// A unit variant that returns a constant value.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// enum Color {
+    ///     Red,
+    ///     Green,
+    ///     #[vtansi(default)]
+    ///     Unknown,
+    /// }
+    /// ```
     Unit(Ident),
     /// A tuple variant with one field that captures the unrecognized value.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// enum Color {
+    ///     Red,
+    ///     Green,
+    ///     #[vtansi(default)]
+    ///     Custom(String),
+    /// }
+    /// ```
     Capturing(Ident),
 }
 
 /// Find the variant marked with `#[vtansi(default)]`, if any.
 ///
-/// Returns the variant identifier and whether it's a capturing variant
-/// (tuple variant with one field).
+/// This function scans all variants in the enum and identifies the one
+/// marked with the `#[vtansi(default)]` attribute. It validates that the
+/// default variant is either a unit variant or a single-field tuple
+/// variant.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Multiple variants are marked with `#[vtansi(default)]` (caught by
-///   variant properties parsing)
+/// Return an error if:
+/// - Multiple variants are marked with `#[vtansi(default)]`
 /// - The default variant is not a unit or single-field tuple variant
 pub fn find_default_variant(data: &DataEnum) -> syn::Result<Option<DefaultVariant>> {
     let mut default_variant = None;

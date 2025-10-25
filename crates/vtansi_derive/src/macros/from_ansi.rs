@@ -1,4 +1,15 @@
 //! Implementation of the `FromAnsi` derive macro.
+//!
+//! This module generates implementations of the `TryFromAnsi` trait for
+//! enums. It supports two parsing strategies:
+//!
+//! 1. **Primitive representation** - for enums with `#[repr(u8)]` and similar
+//!    attributes, parsing from integer values
+//! 2. **String-based** - for enums without repr, parsing from string values
+//!    via `TryFrom<&str>`
+//!
+//! Both strategies support optional default variants that can either return a
+//! constant value or capture the unparsed input when parsing fails.
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -10,8 +21,19 @@ use crate::helpers::{
 
 /// Generate the implementation of `TryFromAnsi` for an enum.
 ///
-/// This function handles both primitive repr enums and string-based enums,
-/// with optional default variant support for capturing unrecognized values.
+/// This function orchestrates the code generation process by:
+/// 1. Validating that the input is an enum
+/// 2. Extracting type-level properties (e.g., repr type)
+/// 3. Finding the default variant, if any
+/// 4. Delegating to the appropriate generation function based on the repr
+///    type
+///
+/// # Errors
+///
+/// Return an error if:
+/// - The input is not an enum
+/// - The attributes cannot be parsed
+/// - The default variant is invalid
 pub fn from_ansi_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
     let generics = &ast.generics;
@@ -53,6 +75,15 @@ pub fn from_ansi_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
 }
 
 /// Generate implementation for enums with primitive repr.
+///
+/// This function creates a `TryFromAnsi` implementation that:
+/// 1. Parses the input bytes as the primitive repr type
+/// 2. Attempts to convert the number to the enum using `TryFrom`
+/// 3. If a default variant is present, uses it on conversion failure
+/// 4. Otherwise, returns an error on conversion failure
+///
+/// The implementation differs based on whether a default variant is present
+/// and whether it's a unit or capturing variant.
 fn generate_repr_impl(
     name: &syn::Ident,
     impl_generics: &syn::ImplGenerics,
@@ -64,8 +95,10 @@ fn generate_repr_impl(
     match default_variant {
         Some(DefaultVariant::Unit(default_var)) => {
             quote! {
+                #[allow(clippy::use_self)]
                 #[automatically_derived]
                 impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
+                    #[inline]
                     fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
                         use ::core::convert::TryFrom;
 
@@ -81,8 +114,10 @@ fn generate_repr_impl(
         }
         Some(DefaultVariant::Capturing(default_var)) => {
             quote! {
+                #[allow(clippy::use_self)]
                 #[automatically_derived]
                 impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
+                    #[inline]
                     fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
                         use ::core::convert::TryFrom;
 
@@ -100,8 +135,10 @@ fn generate_repr_impl(
         }
         None => {
             quote! {
+                #[allow(clippy::use_self)]
                 #[automatically_derived]
                 impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
+                    #[inline]
                     fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
                         use ::core::convert::TryFrom;
 
@@ -122,6 +159,15 @@ fn generate_repr_impl(
 }
 
 /// Generate implementation for string-based enums.
+///
+/// This function creates a `TryFromAnsi` implementation that:
+/// 1. Parses the input bytes as a UTF-8 string slice
+/// 2. Attempts to convert the string to the enum using `TryFrom<&str>`
+/// 3. If a default variant is present, uses it on conversion failure
+/// 4. Otherwise, returns an error on conversion failure
+///
+/// The implementation differs based on whether a default variant is present
+/// and whether it's a unit or capturing variant.
 fn generate_string_impl(
     name: &syn::Ident,
     impl_generics: &syn::ImplGenerics,
@@ -132,8 +178,10 @@ fn generate_string_impl(
     match default_variant {
         Some(DefaultVariant::Unit(default_var)) => {
             quote! {
+                #[allow(clippy::use_self)]
                 #[automatically_derived]
                 impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
+                    #[inline]
                     fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
                         use ::core::convert::TryFrom;
 
@@ -149,8 +197,10 @@ fn generate_string_impl(
         }
         Some(DefaultVariant::Capturing(default_var)) => {
             quote! {
+                #[allow(clippy::use_self)]
                 #[automatically_derived]
                 impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
+                    #[inline]
                     fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
                         use ::core::convert::TryFrom;
 
@@ -168,8 +218,10 @@ fn generate_string_impl(
         }
         None => {
             quote! {
+                #[allow(clippy::use_self)]
                 #[automatically_derived]
                 impl #impl_generics ::vtenc::parse::TryFromAnsi<'_> for #name #ty_generics #where_clause {
+                    #[inline]
                     fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtenc::parse::ParseError> {
                         use ::core::convert::TryFrom;
 

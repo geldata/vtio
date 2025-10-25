@@ -4,7 +4,24 @@
 //! from the `vtenc` crate. These can be used on enums that either have a
 //! primitive integer representation or implement conversion traits for
 //! strings.
+//!
+//! # Features
+//!
+//! - **Automatic trait derivation** - simply add `#[derive(FromAnsi)]` or
+//!   `#[derive(ToAnsi)]` to your enum
+//! - **Multiple parsing strategies** - supports both integer-based (via
+//!   `#[repr(...)]`) and string-based parsing
+//! - **Default variants** - optionally specify a fallback variant for
+//!   unrecognized values
+//! - **Zero runtime overhead** - all code is generated at compile time with
+//!   `#[inline]` optimizations
+//!
+//! # Debug Support
+//!
+//! Set the `VTANSI_DEBUG` environment variable to `1` or to a specific enum
+//! name to print the generated code during compilation.
 
+#![recursion_limit = "128"]
 #![forbid(unsafe_code)]
 
 extern crate proc_macro;
