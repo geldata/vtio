@@ -2,6 +2,36 @@
 
 use core::fmt;
 
+/// Error type for ANSI parsing operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseError {
+    /// The input has the wrong length.
+    WrongLen { expected: usize, got: usize },
+    /// The input contains an invalid number.
+    InvalidNum(String),
+    /// The input is empty but a value was expected.
+    Empty,
+    /// The input contains an invalid string.
+    InvalidString(String),
+    /// The input contains an invalid value.
+    InvalidValue(String),
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::WrongLen { expected, got } => {
+                write!(f, "wrong length: expected {expected}, got {got}")
+            }
+            ParseError::Empty => write!(f, "empty input"),
+            ParseError::InvalidString(msg) => write!(f, "invalid string: {msg}"),
+            ParseError::InvalidNum(msg) => write!(f, "invalid number: {msg}"),
+            ParseError::InvalidValue(msg) => write!(f, "invalid value: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for ParseError {}
 /// Parse a value from an ANSI byte slice infallibly.
 ///
 /// This trait is for types that can always be successfully parsed from
@@ -82,34 +112,3 @@ macro_rules! impl_try_from_ansi_numeric {
 impl_try_from_ansi_numeric! {
     u8, i8, u16, i16, u32, i32, u64, i64, usize, isize
 }
-
-/// Error type for ANSI parsing operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParseError {
-    /// The input has the wrong length.
-    WrongLen { expected: usize, got: usize },
-    /// The input contains an invalid number.
-    InvalidNum(String),
-    /// The input is empty but a value was expected.
-    Empty,
-    /// The input contains an invalid string.
-    InvalidString(String),
-    /// The input contains an invalid value.
-    InvalidValue(String),
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ParseError::WrongLen { expected, got } => {
-                write!(f, "wrong length: expected {expected}, got {got}")
-            }
-            ParseError::Empty => write!(f, "empty input"),
-            ParseError::InvalidString(msg) => write!(f, "invalid string: {msg}"),
-            ParseError::InvalidNum(msg) => write!(f, "invalid number: {msg}"),
-            ParseError::InvalidValue(msg) => write!(f, "invalid value: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}

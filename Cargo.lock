@@ -194,6 +194,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rules_derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bed2eead09e46ff3e39016d6ec4952b3303cce00cd1ad2f358a3e1244a667bd"
+
+[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -312,6 +318,7 @@ dependencies = [
  "bytes",
  "constcat",
  "itoa",
+ "rules_derive",
 ]
 
 [[package]]
