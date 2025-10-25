@@ -21,19 +21,20 @@
 //! ## Fixed-Length Parsing
 //!
 //! For types that require exactly N bytes to parse, implement
-//! [`TryFromAnsiBytes<N>`]:
+//! [`TryFromAnsiBytes`] with an associated constant `ANSI_LEN`:
 //!
 //! ```ignore
 //! struct RgbColor { r: u8, g: u8, b: u8 }
 //!
-//! impl TryFromAnsiBytes<3> for RgbColor {
-//!     fn try_from_ansi_bytes(bytes: &[u8; 3]) -> Result<Self, ParseError> {
+//! impl TryFromAnsiBytes for RgbColor {
+//!     const ANSI_LEN: usize = 3;
+//!
+//!     fn try_from_ansi_bytes_unchecked(bytes: &[u8]) -> Result<Self, ParseError> {
 //!         Ok(RgbColor { r: bytes[0], g: bytes[1], b: bytes[2] })
 //!     }
 //! }
 //!
-//! // Bridge to slice-based parsing using the macro:
-//! impl_try_from_ansi_bridge!(RgbColor, 3);
+//! // TryFromAnsi is automatically implemented via blanket impl!
 //! ```
 //!
 //! ## Variable-Length Parsing
@@ -53,7 +54,7 @@
 //! ## Infallible Parsing
 //!
 //! For types that can always be parsed successfully, implement [`FromAnsi`]
-//! or [`FromAnsiBytes<N>`] instead of their fallible counterparts.
+//! or [`FromAnsiBytes`] instead of their fallible counterparts.
 //!
 //! # Utility Functions
 //!
@@ -63,7 +64,6 @@
 //! - [`parse_utf8_str`]: Validate and parse UTF-8
 //! - [`parse_int`]: Parse ASCII digits into an integer
 //! - [`split_on_byte`]: Split a byte slice on a delimiter
-//! - [`try_from_ansi_array`]: Bridge helper for fixed-length parsers
 
 use core::fmt;
 use std::io::{self, Write};
@@ -234,43 +234,111 @@ pub trait TryFromAnsi<'a>: Sized {
     fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError>;
 }
 
-/// Parse a value from a fixed-length ANSI byte array.
+/// Parse a value from a fixed-length ANSI byte slice.
 ///
-/// This trait is for types that require exactly N bytes to parse.
-/// Use the `try_from_ansi_array` helper function to bridge this trait
-/// to `TryFromAnsi`.
-pub trait TryFromAnsiBytes<const N: usize>: Sized {
-    /// Parse a value from a fixed-length ANSI byte array.
+/// This trait is for types that require exactly `ANSI_LEN` bytes to parse.
+/// Types implementing this trait automatically get `TryFromAnsi` via a
+/// blanket impl.
+///
+/// The length is checked automatically by the default implementation of
+/// `try_from_ansi_bytes`, so implementors should implement
+/// `try_from_ansi_bytes_unchecked` instead.
+pub trait TryFromAnsiBytes: Sized {
+    /// The exact number of bytes required to parse this type.
+    const ANSI_LEN: usize;
+
+    /// Parse a value from a fixed-length ANSI byte slice.
+    ///
+    /// The default implementation validates the length and delegates to
+    /// `try_from_ansi_bytes_unchecked`.
     ///
     /// # Errors
     ///
-    /// Return an error if the byte array is invalid for this type.
-    fn try_from_ansi_bytes(bytes: &[u8; N]) -> Result<Self, ParseError>;
+    /// Return an error if the byte slice has the wrong length or is
+    /// invalid for this type.
+    #[inline]
+    fn try_from_ansi_bytes(bytes: &[u8]) -> Result<Self, ParseError> {
+        if bytes.len() != Self::ANSI_LEN {
+            return Err(ParseError::WrongLen {
+                expected: Self::ANSI_LEN,
+                got: bytes.len(),
+            });
+        }
+        Self::try_from_ansi_bytes_unchecked(bytes)
+    }
+
+    /// Parse a value from a byte slice without length checking.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that `bytes.len() == Self::ANSI_LEN`.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if the byte slice is invalid for this type
+    /// (but not for wrong length).
+    fn try_from_ansi_bytes_unchecked(bytes: &[u8]) -> Result<Self, ParseError>;
 }
 
-/// Parse a value from a fixed-length ANSI byte array infallibly.
+/// Parse a value from a fixed-length ANSI byte slice infallibly.
 ///
 /// This trait is for types that can always be successfully parsed from
-/// a fixed-length byte array.
-pub trait FromAnsiBytes<const N: usize>: Sized {
-    /// Parse a value from a fixed-length ANSI byte array.
-    fn from_ansi_bytes(bytes: &[u8; N]) -> Self;
+/// a fixed-length byte slice.
+pub trait FromAnsiBytes: Sized {
+    /// The exact number of bytes required to parse this type.
+    const ANSI_LEN: usize;
+
+    /// Parse a value from a fixed-length ANSI byte slice.
+    ///
+    /// The default implementation validates the length and delegates to
+    /// `from_ansi_bytes_unchecked`.
+    ///
+    /// # Panics
+    ///
+    /// Panic if the byte slice has the wrong length.
+    #[must_use]
+    #[inline]
+    fn from_ansi_bytes(bytes: &[u8]) -> Self {
+        assert_eq!(
+            bytes.len(),
+            Self::ANSI_LEN,
+            "expected {} bytes, got {}",
+            Self::ANSI_LEN,
+            bytes.len()
+        );
+        Self::from_ansi_bytes_unchecked(bytes)
+    }
+
+    /// Parse a value from a byte slice without length checking.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that `bytes.len() == Self::ANSI_LEN`.
+    fn from_ansi_bytes_unchecked(bytes: &[u8]) -> Self;
 }
 
-/// Bridge helper: parse from a slice using a fixed-length array parser.
-///
-/// This function validates that the slice has the correct length and
-/// converts it to an array before calling `try_from_ansi_bytes`.
-#[inline]
-pub fn try_from_ansi_array<T, const N: usize>(bytes: &[u8]) -> Result<T, ParseError>
+/// Bridge: types implementing `TryFromAnsiBytes` automatically get `TryFromAnsi`.
+impl<'a, T> TryFromAnsi<'a> for T
 where
-    T: TryFromAnsiBytes<N>,
+    T: TryFromAnsiBytes,
 {
-    let arr: &[u8; N] = bytes.try_into().map_err(|_| ParseError::WrongLen {
-        expected: N,
-        got: bytes.len(),
-    })?;
-    T::try_from_ansi_bytes(arr)
+    #[inline]
+    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError> {
+        T::try_from_ansi_bytes(bytes)
+    }
+}
+
+/// Bridge: types implementing `FromAnsiBytes` automatically get `TryFromAnsiBytes`.
+impl<T> TryFromAnsiBytes for T
+where
+    T: FromAnsiBytes,
+{
+    const ANSI_LEN: usize = T::ANSI_LEN;
+
+    #[inline]
+    fn try_from_ansi_bytes_unchecked(bytes: &[u8]) -> Result<Self, ParseError> {
+        Ok(T::from_ansi_bytes_unchecked(bytes))
+    }
 }
 
 /// Parse a single byte from an ANSI sequence.
@@ -339,33 +407,7 @@ pub fn split_on_byte(bytes: &[u8], delimiter: u8) -> impl Iterator<Item = &[u8]>
     bytes.split(move |&b| b == delimiter)
 }
 
-/// Macro to implement `TryFromAnsi` for a type that implements `TryFromAnsiBytes`.
-///
-/// This macro generates a bridge implementation that validates the slice length
-/// and delegates to the array-based parser.
-///
-/// # Example
-///
-/// ```ignore
-/// impl TryFromAnsiBytes<3> for RgbColor {
-///     fn try_from_ansi_bytes(bytes: &[u8; 3]) -> Result<Self, ParseError> {
-///         Ok(RgbColor { r: bytes[0], g: bytes[1], b: bytes[2] })
-///     }
-/// }
-///
-/// impl_try_from_ansi_bridge!(RgbColor, 3);
-/// ```
-#[macro_export]
-macro_rules! impl_try_from_ansi_bridge {
-    ($type:ty, $len:expr) => {
-        impl<'a> $crate::encode::TryFromAnsi<'a> for $type {
-            #[inline]
-            fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, $crate::encode::ParseError> {
-                $crate::encode::try_from_ansi_array::<$type, $len>(bytes)
-            }
-        }
-    };
-}
+
 
 impl ToAnsi for () {
     fn to_ansi(&self) -> impl AnsiEncode {
@@ -682,8 +724,10 @@ mod tests {
         b: u8,
     }
 
-    impl TryFromAnsiBytes<3> for RgbColor {
-        fn try_from_ansi_bytes(bytes: &[u8; 3]) -> Result<Self, ParseError> {
+    impl TryFromAnsiBytes for RgbColor {
+        const ANSI_LEN: usize = 3;
+
+        fn try_from_ansi_bytes_unchecked(bytes: &[u8]) -> Result<Self, ParseError> {
             Ok(RgbColor {
                 r: bytes[0],
                 g: bytes[1],
@@ -691,8 +735,6 @@ mod tests {
             })
         }
     }
-
-    impl_try_from_ansi_bridge!(RgbColor, 3);
 
     #[test]
     fn test_try_from_ansi_bytes() {
@@ -745,16 +787,17 @@ mod tests {
     #[derive(Debug, PartialEq, Eq)]
     struct TwoBytes(u8, u8);
 
-    impl TryFromAnsiBytes<2> for TwoBytes {
-        fn try_from_ansi_bytes(bytes: &[u8; 2]) -> Result<Self, ParseError> {
+    impl TryFromAnsiBytes for TwoBytes {
+        const ANSI_LEN: usize = 2;
+
+        fn try_from_ansi_bytes_unchecked(bytes: &[u8]) -> Result<Self, ParseError> {
             Ok(TwoBytes(bytes[0], bytes[1]))
         }
     }
 
-    impl_try_from_ansi_bridge!(TwoBytes, 2);
-
     #[test]
-    fn test_macro_bridge() {
+    fn test_blanket_impl_bridge() {
+        // TryFromAnsi is automatically implemented for TwoBytes
         let tb = TwoBytes::try_from_ansi(&[10, 20]).unwrap();
         assert_eq!(tb, TwoBytes(10, 20));
 
@@ -783,7 +826,7 @@ mod tests {
         assert_eq!(parse_int::<u32>(b"123").unwrap(), 123);
         assert_eq!(parse_int::<u32>(b"0").unwrap(), 0);
         assert_eq!(parse_int::<u16>(b"65535").unwrap(), 65535);
-        
+
         assert!(matches!(parse_int::<u32>(b""), Err(ParseError::Empty)));
         assert!(matches!(
             parse_int::<u32>(b"12a34"),
@@ -819,7 +862,7 @@ mod tests {
     impl<'a> TryFromAnsi<'a> for SetForegroundColor {
         fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, ParseError> {
             let parts: Vec<&[u8]> = split_on_byte(bytes, b';').collect();
-            
+
             match parts.as_slice() {
                 // Format: 38;5;N (indexed color)
                 [b"38", b"5", index] => {
