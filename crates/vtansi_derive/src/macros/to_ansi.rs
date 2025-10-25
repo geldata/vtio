@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput};
 
-use crate::helpers::{extract_repr_type, non_enum_error};
+use crate::helpers::{non_enum_error, HasTypeProperties};
 
 /// Generate the implementation of `ToAnsi` for an enum.
 ///
@@ -20,10 +20,10 @@ pub fn to_ansi_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
         return Err(non_enum_error());
     };
 
-    // Check for repr attribute and extract the type
-    let repr_type = extract_repr_type(ast);
+    // Extract type-level properties
+    let type_properties = ast.get_type_properties()?;
 
-    let expanded = if let Some(repr_type) = repr_type {
+    let expanded = if let Some(repr_type) = type_properties.repr_type {
         // Generate implementation using the primitive representation
         generate_repr_impl(
             name,

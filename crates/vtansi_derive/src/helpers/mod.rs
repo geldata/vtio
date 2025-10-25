@@ -1,10 +1,13 @@
 //! Helper functions and utilities for derive macros.
 
 pub mod default_variant;
+pub mod metadata;
 pub mod repr_type;
+pub mod type_props;
+pub mod variant_props;
 
 pub use self::default_variant::{find_default_variant, DefaultVariant};
-pub use self::repr_type::extract_repr_type;
+pub use self::type_props::HasTypeProperties;
 
 use proc_macro2::Span;
 

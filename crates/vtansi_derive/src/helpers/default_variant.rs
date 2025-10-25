@@ -1,6 +1,8 @@
 //! Logic for finding and representing default variants in enums.
 
-use syn::{Fields, Ident};
+use syn::{DataEnum, Fields, Ident};
+
+use super::variant_props::HasVariantProperties;
 
 /// Represents a variant marked with `#[vtansi(default)]`.
 pub enum DefaultVariant {
@@ -18,36 +20,32 @@ pub enum DefaultVariant {
 /// # Errors
 ///
 /// Returns an error if:
-/// - Multiple variants are marked with `#[vtansi(default)]`
+/// - Multiple variants are marked with `#[vtansi(default)]` (caught by
+///   variant properties parsing)
 /// - The default variant is not a unit or single-field tuple variant
-pub fn find_default_variant(data: &syn::DataEnum) -> syn::Result<Option<DefaultVariant>> {
+pub fn find_default_variant(data: &DataEnum) -> syn::Result<Option<DefaultVariant>> {
     let mut default_variant = None;
+    let mut default_ident: Option<&Ident> = None;
 
     for variant in &data.variants {
-        // Check for vtansi(default) attribute
-        let has_default = variant.attrs.iter().any(|attr| {
-            if !attr.path().is_ident("vtansi") {
-                return false;
-            }
+        let props = variant.get_variant_properties()?;
 
-            // Parse the attribute as a meta list
-            if let Ok(meta) = attr.parse_args::<Ident>() {
-                meta == "default"
-            } else {
-                false
-            }
-        });
-
-        if !has_default {
+        if props.default.is_none() {
             continue;
         }
 
-        if default_variant.is_some() {
+        // Check for duplicate default variants
+        if let Some(first_ident) = default_ident {
             return Err(syn::Error::new_spanned(
                 variant,
-                "Only one variant can be marked with #[vtansi(default)]",
+                format!(
+                    "Only one variant can be marked with #[vtansi(default)]. \
+                     First default variant was '{}'",
+                    first_ident
+                ),
             ));
         }
+        default_ident = Some(&variant.ident);
 
         // Determine if it's a capturing variant
         let dv = match &variant.fields {
