@@ -1,0 +1,137 @@
+# Tab key
+<TAB>
+
+# Enter key
+<CR>
+
+# Ctrl+Space (null byte)
+<NUL>
+
+# Ctrl+A
+<SOH>
+
+# Ctrl+B
+<STX>
+
+# Ctrl+C
+<ETX>
+
+# Ctrl+D
+<EOT>
+
+# Ctrl+E
+<ENQ>
+
+# Ctrl+F
+<ACK>
+
+# Ctrl+G (bell)
+<BEL>
+
+# Ctrl+H (backspace)
+<BS>
+
+# Ctrl+I (tab - same as TAB)
+<HT>
+
+# Ctrl+J (line feed)
+<LF>
+
+# Ctrl+K
+<VT>
+
+# Ctrl+L (form feed)
+<FF>
+
+# Ctrl+M (carriage return - becomes Enter)
+<CR>
+
+# Ctrl+N
+<SO>
+
+# Ctrl+O
+<SI>
+
+# Ctrl+P
+<DLE>
+
+# Ctrl+Q
+<DC1>
+
+# Ctrl+R
+<DC2>
+
+# Ctrl+S
+<DC3>
+
+# Ctrl+T
+<DC4>
+
+# Ctrl+U
+<NAK>
+
+# Ctrl+V
+<SYN>
+
+# Ctrl+W
+<ETB>
+
+# Ctrl+X
+<CAN>
+
+# Ctrl+Y
+<EM>
+
+# Ctrl+Z
+<SUB>
+
+# Ctrl+[ (same as ESC)
+<ESC>
+
+# Ctrl+\ (FS)
+<FS>
+
+# Ctrl+] (GS)
+<GS>
+
+# Ctrl+^ (RS)
+<RS>
+
+# Ctrl+_ (US)
+<US>
+
+# ESC ESC
+<ESC><ESC>
+
+# Alt+[ (not CSI, just ESC + [)
+<ESC>[
+
+# Multiple control characters in sequence
+<SOH><STX><ETX>
+
+# Mixed control and regular characters
+A<SOH>B<STX>C
+
+# Control characters with uppercase
+<SOH>A<ETX>B
+
+# Newline character
+<LF>
+
+# Carriage return and line feed
+<CR><LF>
+
+# Mixed newlines
+text<LF>more<CR><LF>final
+
+# Vertical tab
+<VT>
+
+# Multiple tabs
+<TAB><TAB><TAB>
+
+# Tab separated values
+one<TAB>two<TAB>three
+
+# Null bytes in text
+text<NUL>with<NUL>nulls

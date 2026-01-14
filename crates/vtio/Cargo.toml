@@ -1,0 +1,53 @@
+[package]
+name = "vtio"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[[bench]]
+name = "parser"
+path = "benches/parser.rs"
+harness = false
+
+[lib]
+bench = false
+
+[features]
+
+#! ### Optional Features
+
+## Enables [`serde`] for various types.
+serde = ["dep:serde", "bitflags/serde", "vt-push-parser/serde"]
+
+[dependencies]
+atoi_simd.workspace = true
+bitflags.workspace = true
+better_any.workspace = true
+linkme.workspace = true
+num_enum = "0.7.5"
+paste.workspace = true
+serde = { version = "1.0", features = ["derive"], optional = true }
+smallvec = { version = "1.15.0", features = ["const_new", "const_generics"] }
+strum = { version = "0.27.2", default-features = false, features = ["std", "derive", "phf"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+vt-push-parser = { version = "0.12.0" }
+vtansi = { path = "../vtansi", features = ["derive", "bitflags"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+criterion = "0.5"
+libc = "0.2"
+ansi-parser = "0.9"
+termion = "4.0"
+termwiz = "0.23"
+vte = "0.15"
+vtparse = "0.7"
+crossterm = { version = "0.28", default-features = false, features = ["events"] }
+nix = { version = "0.29", features = ["term", "fs"] }
+
+[[test]]
+name = "parser"
+path = "tests/parser.rs"
+harness = false
