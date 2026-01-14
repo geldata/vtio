@@ -7,3 +7,11 @@ edition = "2024"
 authors = ["Gel Data Inc. <hello@geldata.com>", "Elvis Pranskevichus <el@prans.net>"]
 license = "MIT"
 repository = "https://github.com/geldata/vtio"
+
+[workspace.dependencies]
+atoi_simd = "0.16.1"
+better_any = "0.2.1"
+bitflags = "2.9"
+derive_more = { version = "2.0", features = ["full"] }
+linkme = "0.3"
+paste = "1.0"

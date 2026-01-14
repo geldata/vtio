@@ -1,0 +1,26 @@
+[package]
+name = "vtansi"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[features]
+bitflags = ["dep:bitflags"]
+derive = ["dep:vtansi_derive"]
+
+[lib]
+bench = false
+
+[dependencies]
+atoi_simd.workspace = true
+better_any.workspace = true
+bitflags = { workspace = true, optional = true }
+itoa = "1.0"
+linkme.workspace = true
+paste.workspace = true
+vtansi_derive = { path = "../vtansi_derive", optional = true }
+
+[dev-dependencies]
+bytes = "1.0"
+vtansi_derive = { path = "../vtansi_derive" }
