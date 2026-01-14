@@ -34,6 +34,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 vt-push-parser = { version = "0.12.0" }
 vtansi = { path = "../vtansi", features = ["derive", "bitflags"] }
+xparsecolor = { path = "../xparsecolor" }
 
 [dev-dependencies]
 pretty_assertions = "1.4"
