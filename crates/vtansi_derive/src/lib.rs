@@ -2,7 +2,8 @@
 //!
 //! This crate provides four derive macros:
 //!
-//! - **`FromAnsi`** - Parse ANSI parameter values into Rust types
+//! - **`FromAnsi`** - Parse ANSI parameter values into Rust types (also
+//!   implements `TryFromAnsiIter` for vector format structs)
 //! - **`ToAnsi`** - Encode Rust types into ANSI parameter values
 //! - **`AnsiInput`** - Complete ANSI control sequences for input (terminal to host)
 //! - **`AnsiOutput`** - Complete ANSI control sequences for output (host to terminal)
@@ -51,6 +52,9 @@
 //! - **Optional fields** - automatic handling of `Option<T>` types
 //! - **Parameter multiplexing** - multiple fields at same parameter position
 //! - **Transparent Vec newtypes** - wrap `Vec<T>` with custom delimiters
+//! - **Iterator-based parsing** - `FromAnsi` automatically implements
+//!   `TryFromAnsiIter` for parsing from parameter iterators (vector format
+//!   structs only; enums and map format structs require manual implementation)
 //!
 //! ## AnsiInput and AnsiOutput
 //!
@@ -537,6 +541,11 @@ use syn::DeriveInput;
 
 /// Derive macro for `FromAnsi` trait.
 ///
+/// This macro generates implementations of both `TryFromAnsi` and `TryFromAnsiIter`
+/// traits (for vector format structs). The `TryFromAnsi` trait parses from a
+/// byte slice, while `TryFromAnsiIter` parses from an iterator of byte slices
+/// (useful for consuming parameters from a pre-split parameter list).
+///
 /// This macro can be applied to:
 ///
 /// ## Enums
@@ -549,6 +558,25 @@ use syn::DeriveInput;
 ///
 /// Structs with named or unnamed (tuple) fields where each field implements
 /// `TryFromAnsi`. Tuple structs automatically use `vector` format.
+///
+/// # Generated Traits
+///
+/// ## `TryFromAnsi`
+///
+/// Parses the type from a single byte slice. For structs, the byte slice is
+/// split by the delimiter to extract field values.
+///
+/// ## `TryFromAnsiIter`
+///
+/// Parses the type from an iterator of byte slices. This trait is **only**
+/// automatically derived for vector format structs:
+///
+/// - **Vector format structs**: Automatically derived; consumes one iterator
+///   item per field
+/// - **Map format structs**: **Not automatically derived**; must be
+///   implemented manually
+/// - **Enums**: **Not automatically derived**; must be implemented manually
+/// - **Transparent structs**: Behavior depends on the inner type
 ///
 /// # Attributes
 ///

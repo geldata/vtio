@@ -28,8 +28,8 @@ use crate::helpers::type_props::ValueProperties;
 use crate::helpers::{
     DefaultVariant, HasTypeProperties, extract_struct_param_info,
     extract_vec_inner_type, find_default_variant, generate_doc_imports,
-    get_primary_lifetime, metadata::FieldLocation, non_enum_error,
-    non_struct_error,
+    get_primary_lifetime, metadata::FieldLocation, metadata::StructFormat,
+    non_enum_error, non_struct_error,
 };
 
 use crate::macros::param_decoder::{
@@ -111,7 +111,7 @@ pub fn generate_normal_struct_impl(
         (quote! {}, quote! { <'_> })
     };
 
-    // Handle normal structs
+    // Handle normal structs - generate TryFromAnsi implementation
     let source =
         syn::Ident::new("__vtansi_data", proc_macro2::Span::mixed_site());
     let stype: syn::Type = syn::parse_quote!(Self);
@@ -126,6 +126,70 @@ pub fn generate_normal_struct_impl(
         props.into.as_ref(),
     )?;
 
+    // For TryFromAnsiIter, we need a lifetime parameter for the trait
+    let iter_lt = if get_primary_lifetime(ast).is_some() {
+        quote! { #lt }
+    } else {
+        quote! { '__vtansi_iter_lt }
+    };
+
+    let iter_impl_generics = if get_primary_lifetime(ast).is_some() {
+        quote! { #impl_generics }
+    } else {
+        // Insert a lifetime parameter for the trait bound
+        let gparams = &generics.params;
+        if gparams.is_empty() {
+            quote! { <'__vtansi_iter_lt> }
+        } else {
+            quote! { <'__vtansi_iter_lt, #gparams> }
+        }
+    };
+
+    let iter_where_clause = quote! { #where_clause };
+
+    // Generate TryFromAnsiIter implementation based on format
+    // Note: Map format does not get automatic TryFromAnsiIter - it must be implemented manually
+    let iter_impl = match props.format {
+        StructFormat::Map => {
+            // No automatic TryFromAnsiIter for map format
+            quote! {}
+        }
+        StructFormat::Vector => {
+            // For vector format, consume one item per field
+            let iter_source = syn::Ident::new(
+                "__vtansi_iter",
+                proc_macro2::Span::call_site(),
+            );
+            let (iter_param_decoding, iter_constructor) =
+                generate_param_decoding(
+                    &stype,
+                    &params,
+                    &props,
+                    &ParamSource::new(&iter_source, ParamSourceFormat::Iter),
+                    None,
+                    None,
+                    props.into.as_ref(),
+                )?;
+
+            quote! {
+                #[allow(clippy::use_self)]
+                #[automatically_derived]
+                impl #iter_impl_generics ::vtansi::parse::TryFromAnsiIter<#iter_lt> for #name #ty_generics #iter_where_clause {
+                    #[inline]
+                    fn try_from_ansi_iter<__VtansiIter>(__vtansi_iter: &mut __VtansiIter) -> ::core::result::Result<Self, ::vtansi::parse::ParseError>
+                    where
+                        __VtansiIter: ::core::iter::Iterator<Item = &#iter_lt [u8]>,
+                    {
+                        ::core::result::Result::Ok({
+                            #iter_param_decoding
+                            #iter_constructor
+                        })
+                    }
+                }
+            }
+        }
+    };
+
     Ok(quote! {
         #[allow(clippy::use_self)]
         #[automatically_derived]
@@ -138,6 +202,8 @@ pub fn generate_normal_struct_impl(
                 })
             }
         }
+
+        #iter_impl
     })
 }
 
@@ -152,10 +218,10 @@ pub fn generate_transparent_struct_impl(
     let name = &ast.ident;
     let generics = &ast.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let trait_lt = if let Some(lt) = get_primary_lifetime(ast) {
-        quote! { <#lt> }
+    let (lt, trait_lt) = if let Some(lt) = get_primary_lifetime(ast) {
+        (quote! { #lt }, quote! { <#lt> })
     } else {
-        quote! { <'_> }
+        (quote! {}, quote! { <'_> })
     };
 
     let fields = match &data.fields {
@@ -181,6 +247,25 @@ pub fn generate_transparent_struct_impl(
         None => quote! { Self(value) },
     };
 
+    // For TryFromAnsiIter, we need a lifetime parameter for the trait
+    let iter_lt = if get_primary_lifetime(ast).is_some() {
+        quote! { #lt }
+    } else {
+        quote! { '__vtansi_iter_lt }
+    };
+
+    let iter_impl_generics = if get_primary_lifetime(ast).is_some() {
+        quote! { #impl_generics }
+    } else {
+        // Insert a lifetime parameter for the trait bound
+        let params = &generics.params;
+        if params.is_empty() {
+            quote! { <'__vtansi_iter_lt> }
+        } else {
+            quote! { <'__vtansi_iter_lt, #params> }
+        }
+    };
+
     // Check if the field type is Vec<T>
     if let Some(inner_ty) = extract_vec_inner_type(field_ty) {
         // Vec type requires delimiter attribute
@@ -204,6 +289,22 @@ pub fn generate_transparent_struct_impl(
                     ::core::result::Result::Ok(#constructor)
                 }
             }
+
+            #[allow(clippy::use_self)]
+            #[automatically_derived]
+            impl #iter_impl_generics ::vtansi::parse::TryFromAnsiIter<#iter_lt> for #name #ty_generics #where_clause {
+                #[inline]
+                fn try_from_ansi_iter<__VtansiIter>(__vtansi_iter: &mut __VtansiIter) -> ::core::result::Result<Self, ::vtansi::parse::ParseError>
+                where
+                    __VtansiIter: ::core::iter::Iterator<Item = &#iter_lt [u8]>,
+                {
+                    // Consume all remaining items from the iterator
+                    let value: ::std::vec::Vec<#inner_ty> = __vtansi_iter
+                        .map(|part| <#inner_ty as ::vtansi::parse::TryFromAnsi>::try_from_ansi(part))
+                        .collect::<::core::result::Result<::std::vec::Vec<_>, _>>()?;
+                    ::core::result::Result::Ok(#constructor)
+                }
+            }
         })
     } else {
         // Non-Vec type: simple delegation
@@ -213,6 +314,21 @@ pub fn generate_transparent_struct_impl(
             impl #impl_generics ::vtansi::parse::TryFromAnsi #trait_lt for #name #ty_generics #where_clause {
                 #[inline]
                 fn try_from_ansi(bytes: &[u8]) -> ::core::result::Result<Self, ::vtansi::parse::ParseError> {
+                    let value = <#field_ty as ::vtansi::parse::TryFromAnsi>::try_from_ansi(bytes)?;
+                    ::core::result::Result::Ok(#constructor)
+                }
+            }
+
+            #[allow(clippy::use_self)]
+            #[automatically_derived]
+            impl #iter_impl_generics ::vtansi::parse::TryFromAnsiIter<#iter_lt> for #name #ty_generics #where_clause {
+                #[inline]
+                fn try_from_ansi_iter<__VtansiIter>(__vtansi_iter: &mut __VtansiIter) -> ::core::result::Result<Self, ::vtansi::parse::ParseError>
+                where
+                    __VtansiIter: ::core::iter::Iterator<Item = &#iter_lt [u8]>,
+                {
+                    // Consume one item and delegate to inner type's TryFromAnsi
+                    let bytes = __vtansi_iter.next().ok_or(::vtansi::parse::ParseError::Empty)?;
                     let value = <#field_ty as ::vtansi::parse::TryFromAnsi>::try_from_ansi(bytes)?;
                     ::core::result::Result::Ok(#constructor)
                 }

@@ -253,29 +253,6 @@ impl Coordinates {
     }
 }
 
-impl<'a> vtansi::TryFromAnsiIter<'a> for Coordinates {
-    fn try_from_ansi_iter<I>(iter: &mut I) -> Result<Self, vtansi::ParseError>
-    where
-        I: Iterator<Item = &'a [u8]>,
-    {
-        let column = iter.next().ok_or_else(|| {
-            vtansi::ParseError::InvalidValue(
-                "missing column parameter".to_string(),
-            )
-        })?;
-        let column = <u16 as vtansi::TryFromAnsi>::try_from_ansi(column)?;
-
-        let row = iter.next().ok_or_else(|| {
-            vtansi::ParseError::InvalidValue(
-                "missing row parameter".to_string(),
-            )
-        })?;
-        let row = <u16 as vtansi::TryFromAnsi>::try_from_ansi(row)?;
-
-        Ok(Coordinates { column, row })
-    }
-}
-
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
