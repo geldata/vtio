@@ -25,6 +25,8 @@ pub enum ParamSourceFormat {
     Flat,
     /// Parameter data is already split, i.e a `&[&[u8]]`.
     Split,
+    /// Parameter data comes from an external iterator (for TryFromAnsiIter)
+    Iter,
 }
 
 #[derive(Clone, Debug)]
@@ -206,6 +208,9 @@ fn generate_map_decoding(
         ParamSourceFormat::Split => quote! {
             ::vtansi::parse::parse_keyvalue_pairs_from_slice(#source_ident)
         },
+        ParamSourceFormat::Iter => quote! {
+            ::vtansi::parse::parse_keyvalue_pairs_from_iter(#source_ident)
+        },
     };
 
     let field_decoding = quote! {
@@ -281,17 +286,35 @@ fn generate_vector_decoding(
     };
 
     let source_ident = &source.ident;
-    let iter = match source.format {
+    let (_iter, setup) = match source.format {
         ParamSourceFormat::Flat => {
-            quote! { #source_ident.split(|&b| b == #delimiter_lit) }
+            let iter = quote! { #source_ident.split(|&b| b == #delimiter_lit) };
+            let setup = quote! {
+                let mut #param_iterator = #iter;
+                let mut #params_exhausted = false;
+                #mux_setup
+            };
+            (iter, setup)
         }
-        ParamSourceFormat::Split => quote! { #source_ident.into_iter() },
-    };
-
-    let setup = quote! {
-        let mut #param_iterator = #iter;
-        let mut #params_exhausted = false;
-        #mux_setup
+        ParamSourceFormat::Split => {
+            let iter = quote! { #source_ident.into_iter() };
+            let setup = quote! {
+                let mut #param_iterator = #iter;
+                let mut #params_exhausted = false;
+                #mux_setup
+            };
+            (iter, setup)
+        }
+        ParamSourceFormat::Iter => {
+            // For Iter format, the source is already a mutable iterator reference
+            // We alias it to param_iterator for consistency with the rest of the code
+            let setup = quote! {
+                let #param_iterator = #source_ident;
+                let mut #params_exhausted = false;
+                #mux_setup
+            };
+            (quote! {}, setup)
+        }
     };
 
     let field_decoding = fields
