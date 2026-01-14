@@ -343,52 +343,6 @@ impl<'a> vtansi::AnsiEvent<'a> for BracketedPaste<'a> {
     vtansi::impl_ansi_event_encode!();
 }
 
-/// Request default foreground color.
-///
-/// Change/read special text default foreground color.
-///
-/// This is a color in addition to the palette and direct colors which
-/// applies to all text that has not otherwise been assigned a
-/// foreground color.
-///
-/// See <https://terminalguide.namepad.de/seq/osc-10/> for terminal
-/// support specifics.
-#[derive(
-    Debug,
-    PartialOrd,
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Hash,
-    vtansi::derive::AnsiOutput,
-)]
-#[vtansi(osc, number = "10", params = ["?"])]
-pub struct RequestSpecialTextDefaultForeground;
-
-/// Request default background color.
-///
-/// Change/read special text default background color.
-///
-/// This is a color in addition to the palette and direct colors which
-/// applies to all text that has not otherwise been assigned a
-/// background color.
-///
-/// See <https://terminalguide.namepad.de/seq/osc-11/> for terminal
-/// support specifics.
-#[derive(
-    Debug,
-    PartialOrd,
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Hash,
-    vtansi::derive::AnsiOutput,
-)]
-#[vtansi(osc, number = "11", params = ["?"])]
-pub struct RequestSpecialTextDefaultBackground;
-
 /// Request text attributes (SGR) using `DECRQSS`.
 ///
 /// Query SGR state using DEC Request Status String.

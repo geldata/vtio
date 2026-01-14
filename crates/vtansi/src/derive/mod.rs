@@ -216,14 +216,13 @@ pub const CSI_ARGS: CsiArgs = CsiArgs {
 /// Marks a struct as an OSC sequence, which starts with `ESC ]` and ends with
 /// the String Terminator (ST).
 ///
-/// # Required Attributes
-///
-/// - `number = "N"` - The OSC number (Ps in `ESC ] Ps ; Pt ST`)
-///
 /// # Optional Attributes
 ///
+/// - `number = "N"` - The OSC number (Ps in `ESC ] Ps ; Pt ST`)
 /// - `data = "..."` - Static data string
 /// - `data_delimiter = ";"` - Custom separator (default: `;`)
+///
+/// Note: All fields in OSC sequences default to the `data` location.
 ///
 /// # Example
 ///
@@ -242,8 +241,9 @@ pub fn osc(_: OscArgs) {}
 pub struct OscArgs {
     /// OSC numeric parameter (Ps).
     ///
-    /// Required for OSC sequences. Specifies the numeric command identifier
-    /// that appears after `ESC ]` and before the semicolon separator.
+    /// Optional. Specifies the numeric command identifier that appears after
+    /// `ESC ]` and before the semicolon separator. If not provided, the
+    /// sequence matches on just the introducer.
     ///
     /// # Common OSC Numbers
     ///

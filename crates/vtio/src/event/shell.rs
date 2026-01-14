@@ -111,7 +111,6 @@ pub struct CommandStart;
 )]
 #[vtansi(osc, number = "133", data = "D")]
 pub struct CommandEnd {
-    #[vtansi(locate = "data")]
     pub exit_code: Option<i32>,
 }
 

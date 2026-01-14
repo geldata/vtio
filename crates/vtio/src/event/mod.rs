@@ -1,6 +1,7 @@
 //! Terminal event sequences.
 
 pub mod charset;
+pub mod color;
 pub mod cursor;
 pub mod dsr;
 pub mod iterm;

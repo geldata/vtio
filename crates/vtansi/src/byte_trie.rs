@@ -310,6 +310,71 @@ impl<'a, V> ByteTrieCursor<'a, V> {
         last_answer
     }
 
+    /// Advances through bytes finding the longest matching prefix.
+    ///
+    /// Walks through the trie as far as possible, tracking the last position
+    /// where a match was found. Returns a tuple of `(Answer, bytes_consumed)`:
+    /// - `(Answer::DeadEnd, 0)` if no progress could be made
+    /// - `(Answer::Prefix, n)` if we advanced but found no match
+    /// - `(Answer::Match(v), n)` or `(Answer::PrefixAndMatch(v), n)` for the
+    ///   longest match found
+    ///
+    /// The cursor position is updated to the end of the longest match.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut cursor = trie.cursor();
+    /// // If trie contains "abc" -> handler1 and "abcd" -> handler2
+    /// // and we call advance_longest_match(b"abcde"):
+    /// // Returns (Answer::Match(handler2), 4) since "abcd" is the longest match
+    /// ```
+    #[inline]
+    pub fn advance_longest_match(
+        &mut self,
+        bytes: &[u8],
+    ) -> (Answer<'a, V>, usize) {
+        let mut best_match: Option<(Answer<'a, V>, usize, Option<u16>)> = None;
+        let mut consumed = 0usize;
+
+        for (i, &byte) in bytes.iter().enumerate() {
+            let answer = self.advance(byte);
+            match answer {
+                Answer::DeadEnd => break,
+                Answer::Match(value) => {
+                    best_match =
+                        Some((Answer::Match(value), i + 1, self.node_idx));
+                    consumed = i + 1;
+                    break; // No more children, this is the longest possible
+                }
+                Answer::PrefixAndMatch(value) => {
+                    best_match = Some((
+                        Answer::PrefixAndMatch(value),
+                        i + 1,
+                        self.node_idx,
+                    ));
+                    consumed = i + 1;
+                    // Continue to find potentially longer match
+                }
+                Answer::Prefix => {
+                    consumed = i + 1;
+                    // No match yet, keep walking
+                }
+            }
+        }
+
+        // Restore cursor to the position of the best match
+        if let Some((answer, consumed, node_idx)) = best_match {
+            self.node_idx = node_idx;
+            (answer, consumed)
+        } else if consumed > 0 {
+            // We made progress but found no match
+            (Answer::Prefix, consumed)
+        } else {
+            (Answer::DeadEnd, 0)
+        }
+    }
+
     /// Return the state at the current cursor position.
     #[inline]
     #[must_use]

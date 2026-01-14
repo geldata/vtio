@@ -28,7 +28,7 @@ struct ParserState {
     // Buffer for incomplete UTF-8 sequences from previous feed (max 4 bytes)
     utf8_buffer: [u8; MAX_UTF8_CHAR_BYTES],
     utf8_buffer_len: usize,
-    paste_buffer: Vec<u8>,
+    accum_buffer: Vec<u8>,
     capture_mode: CaptureMode,
 }
 
@@ -37,7 +37,7 @@ impl ParserState {
         Self {
             utf8_buffer: [0; MAX_UTF8_CHAR_BYTES],
             utf8_buffer_len: 0,
-            paste_buffer: Vec::new(),
+            accum_buffer: Vec::new(),
             capture_mode: CaptureMode::None,
         }
     }
@@ -96,6 +96,7 @@ impl TerminalInputParser {
             });
     }
 
+    #[allow(clippy::too_many_lines)]
     fn process_vt_event<F>(
         vt_event: &VTCaptureEvent,
         state: &mut ParserState,
@@ -158,15 +159,31 @@ impl TerminalInputParser {
             VTCaptureEvent::VTEvent(vt_event @ VTEvent::Ss3(ss3)) => {
                 parse_ss3(vt_event, *ss3, state, cb)
             }
+            VTCaptureEvent::VTEvent(VTEvent::OscStart | VTEvent::OscCancel) => {
+                state.accum_buffer.clear();
+                VTInputCapture::None
+            }
+            VTCaptureEvent::VTEvent(VTEvent::OscData(data)) => {
+                state.accum_buffer.extend_from_slice(data);
+                VTInputCapture::None
+            }
+            VTCaptureEvent::VTEvent(
+                vt_event @ VTEvent::OscEnd { data, .. },
+            ) => {
+                state.accum_buffer.extend_from_slice(data);
+                let osc_data = std::mem::take(&mut state.accum_buffer);
+                parse_osc(vt_event, &osc_data, cb);
+                VTInputCapture::None
+            }
             VTCaptureEvent::Capture(data) => {
                 match state.capture_mode {
                     CaptureMode::BracketedPaste => {
-                        state.paste_buffer.extend_from_slice(data);
+                        state.accum_buffer.extend_from_slice(data);
                     }
                     CaptureMode::DefaultMouse => {
                         // Store the 3 bytes for default mouse event
-                        state.paste_buffer.clear();
-                        state.paste_buffer.extend_from_slice(data);
+                        state.accum_buffer.clear();
+                        state.accum_buffer.extend_from_slice(data);
                     }
                     CaptureMode::None => {
                         // Unexpected capture data, ignore
@@ -179,16 +196,16 @@ impl TerminalInputParser {
                     CaptureMode::BracketedPaste => {
                         use crate::event::terminal::BracketedPaste;
 
-                        let paste_data = state.paste_buffer.clone();
-                        state.paste_buffer.clear();
+                        let paste_data = state.accum_buffer.clone();
+                        state.accum_buffer.clear();
                         state.capture_mode = CaptureMode::None;
                         cb(&BracketedPaste(&paste_data));
                     }
                     CaptureMode::DefaultMouse => {
                         // Parse the 3 captured bytes as default mouse event
-                        if state.paste_buffer.len() == 3
+                        if state.accum_buffer.len() == 3
                             && let Ok(event) =
-                                parse_default_mouse_bytes(&state.paste_buffer)
+                                parse_default_mouse_bytes(&state.accum_buffer)
                         {
                             cb(&event);
                         } else {
@@ -196,13 +213,13 @@ impl TerminalInputParser {
                                 &VTEvent::Raw(
                                     &[
                                         format_csi!("M").as_bytes(),
-                                        &state.paste_buffer,
+                                        &state.accum_buffer,
                                     ]
                                     .concat(),
                                 ),
                             ));
                         }
-                        state.paste_buffer.clear();
+                        state.accum_buffer.clear();
                         state.capture_mode = CaptureMode::None;
                     }
                     CaptureMode::None => {
@@ -373,7 +390,7 @@ where
     // Wrapper callback that intercepts BracketedPasteStart to set up capture mode
     let mut intercept_cb = |event: &dyn vtansi::AnsiEvent| {
         if event.downcast_ref::<BracketedPasteStart>().is_some() {
-            state.paste_buffer.clear();
+            state.accum_buffer.clear();
             state.capture_mode = CaptureMode::BracketedPaste;
             capture = VTInputCapture::Terminator(BracketedPasteEnd::BYTES);
         } else {
@@ -491,6 +508,39 @@ where
 
     cb(&UnrecognizedInputEvent(vt_event));
     capture
+}
+
+fn parse_osc<F>(vt_event: &VTEvent, osc_data: &[u8], cb: &mut F)
+where
+    F: FnMut(&dyn vtansi::AnsiEvent),
+{
+    // OSC format: [number;][static_data]dynamic_data
+    // The number and static data are optional and matched via trie lookup.
+    // Static data from the trie key (like `data = "A"`) is matched during trie walk.
+    //
+    // Strategy:
+    // 1. Use longest match to find how much of osc_data is static (number + static data)
+    // 2. Only Match or PrefixAndMatch are valid - DeadEnd or Prefix means unrecognized
+    // 3. Pass the remaining data directly to the handler via AnsiEventData::new_with_data
+
+    let mut cursor = vtansi::registry::ansi_input_osc_trie_cursor();
+
+    let (answer, consumed) = cursor.advance_longest_match(osc_data);
+
+    match answer {
+        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
+            let remaining = &osc_data[consumed..];
+            let event_data = AnsiEventData::new_with_data(remaining);
+            if handler(&event_data, cb).is_ok() {
+                return;
+            }
+        }
+        Answer::DeadEnd | Answer::Prefix => {
+            // No match found - unrecognized sequence
+        }
+    }
+
+    cb(&UnrecognizedInputEvent(vt_event));
 }
 
 fn parse_esc<F>(
@@ -1250,33 +1300,34 @@ mod tests {
 
     #[test]
     fn test_idle_resets_incomplete_sequence() {
-        // Test that calling idle handles incomplete sequences properly
+        // Test that calling idle handles incomplete escape sequences properly
         let mut parser = TerminalInputParser::new();
         let mut event_count = 0;
 
-        // Start an OSC sequence but don't complete it
-        parser.feed_with(b"\x1b]10;rgb:ffff/ffff/ffff", &mut |_event| {
+        // Start an escape sequence but don't complete it
+        parser.feed_with(b"\x1b", &mut |_event| {
             event_count += 1;
         });
 
-        // Should have OscStart and potentially OscData
-        assert!(event_count > 0);
+        // Incomplete escape - no events emitted yet
+        assert_eq!(event_count, 0);
 
-        event_count = 0;
-
-        // Call idle - incomplete OSC may produce OscData
+        // Call idle - this should emit the escape as a standalone event
         parser.idle(&mut |_event| {
             event_count += 1;
         });
 
+        // idle should have emitted the pending escape
+        assert!(event_count > 0);
+
         event_count = 0;
 
-        // Additional input after idle
+        // Additional input after idle - CSI sequence should parse correctly
         parser.feed_with(b"\x1b[3;1R", &mut |_event| {
             event_count += 1;
         });
 
-        // Should have at least one event
+        // Should have at least one event (cursor position report)
         assert!(event_count > 0);
     }
 
@@ -1388,5 +1439,130 @@ mod tests {
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].code, KeyCode::Left);
+    }
+
+    // ==========================================================================
+    // OSC Sequence Tests
+    // ==========================================================================
+
+    #[test]
+    fn test_osc_palette_color_response() {
+        use crate::event::color::TerminalPaletteColorResponse;
+
+        let mut parser = TerminalInputParser::new();
+        let mut response: Option<TerminalPaletteColorResponse> = None;
+
+        // OSC 4 ; 0 ; rgb:0000/0000/0000 BEL - palette color 0 response (black)
+        parser.feed_with(b"\x1b]4;0;rgb:0000/0000/0000\x07", &mut |event| {
+            if let Some(r) =
+                event.downcast_ref::<TerminalPaletteColorResponse>()
+            {
+                response = Some(*r);
+            }
+        });
+
+        let r = response.expect("Expected TerminalPaletteColorResponse");
+        assert_eq!(r.index, 0);
+        let (red, green, blue) = r.color.as_rgb().expect("Expected RGB color");
+        assert_eq!(red, 0x0000);
+        assert_eq!(green, 0x0000);
+        assert_eq!(blue, 0x0000);
+    }
+
+    #[test]
+    fn test_osc_foreground_color_response() {
+        use crate::event::color::SpecialTextForegroundColorResponse;
+
+        let mut parser = TerminalInputParser::new();
+        let mut response: Option<SpecialTextForegroundColorResponse> = None;
+
+        // OSC 10 ; rgb:ffff/ffff/ffff BEL - foreground color response (white)
+        parser.feed_with(b"\x1b]10;rgb:ffff/ffff/ffff\x07", &mut |event| {
+            if let Some(r) =
+                event.downcast_ref::<SpecialTextForegroundColorResponse>()
+            {
+                response = Some(*r);
+            }
+        });
+
+        let r = response.expect("Expected SpecialTextForegroundColorResponse");
+        let (red, green, blue) = r.as_rgb().expect("Expected RGB color");
+        assert_eq!(red, 0xffff);
+        assert_eq!(green, 0xffff);
+        assert_eq!(blue, 0xffff);
+    }
+
+    #[test]
+    fn test_osc_unrecognized_number() {
+        use crate::event::UnrecognizedInputEvent;
+
+        let mut parser = TerminalInputParser::new();
+        let mut unrecognized_count = 0;
+
+        // OSC 9999 - unrecognized OSC number
+        parser.feed_with(b"\x1b]9999;some data\x07", &mut |event| {
+            if event.downcast_ref::<UnrecognizedInputEvent>().is_some() {
+                unrecognized_count += 1;
+            }
+        });
+
+        assert_eq!(unrecognized_count, 1);
+    }
+
+    #[test]
+    fn test_osc_chunked_parsing() {
+        use crate::event::color::SpecialTextForegroundColorResponse;
+
+        let mut parser = TerminalInputParser::new();
+        let mut response: Option<SpecialTextForegroundColorResponse> = None;
+
+        // Feed in small chunks
+        let chunks: &[&[u8]] = &[
+            b"\x1b]", b"10", b";", b"rgb:", b"ff", b"ff/", b"00", b"00/",
+            b"ff", b"ff", b"\x07",
+        ];
+
+        for chunk in chunks {
+            parser.feed_with(chunk, &mut |event| {
+                if let Some(r) =
+                    event.downcast_ref::<SpecialTextForegroundColorResponse>()
+                {
+                    response = Some(*r);
+                }
+            });
+        }
+
+        let r = response.expect(
+            "Expected SpecialTextForegroundColorResponse after chunked parsing",
+        );
+        let (red, green, blue) = r.as_rgb().expect("Expected RGB color");
+        assert_eq!(red, 0xffff);
+        assert_eq!(green, 0x0000);
+        assert_eq!(blue, 0xffff);
+    }
+
+    #[test]
+    fn test_osc_cancelled() {
+        use crate::event::color::SpecialTextForegroundColorResponse;
+
+        let mut parser = TerminalInputParser::new();
+        let mut response_count = 0;
+
+        // Start an OSC sequence but cancel it with CAN (0x18) before terminating
+        // Then send a valid OSC sequence
+        parser.feed_with(
+            b"\x1b]10;rgb:ffff/0000/0000\x18\x1b]10;rgb:0000/ffff/0000\x07",
+            &mut |event| {
+                if event
+                    .downcast_ref::<SpecialTextForegroundColorResponse>()
+                    .is_some()
+                {
+                    response_count += 1;
+                }
+            },
+        );
+
+        // Only the second (non-cancelled) sequence should produce a response
+        assert_eq!(response_count, 1);
     }
 }

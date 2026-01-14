@@ -282,6 +282,24 @@ impl AnsiControlFunctionTrieCursor {
     pub fn advance_slice(&mut self, bytes: &[u8]) -> Answer<'static, Handler> {
         self.0.advance_slice(bytes)
     }
+
+    /// Advances through bytes finding the longest matching prefix.
+    ///
+    /// Walks through the trie as far as possible, tracking the last position
+    /// where a match was found. Returns a tuple of `(Answer, bytes_consumed)`:
+    /// - `(Answer::DeadEnd, 0)` if no progress could be made
+    /// - `(Answer::Prefix, n)` if we advanced but found no match
+    /// - `(Answer::Match(v), n)` or `(Answer::PrefixAndMatch(v), n)` for the
+    ///   longest match found
+    ///
+    /// The cursor position is updated to the end of the longest match.
+    #[inline]
+    pub fn advance_longest_match(
+        &mut self,
+        bytes: &[u8],
+    ) -> (Answer<'static, Handler>, usize) {
+        self.0.advance_longest_match(bytes)
+    }
 }
 
 #[must_use]
@@ -341,6 +359,21 @@ static ANSI_INPUT_CSI_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
 #[inline]
 pub fn ansi_input_csi_trie_cursor() -> AnsiControlFunctionTrieCursor {
     *ANSI_INPUT_CSI_TRIE_CURSOR
+}
+
+static ANSI_INPUT_OSC_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
+    LazyLock::new(|| {
+        let mut cursor = ansi_control_input_function_trie_cursor();
+        cursor.advance_slice(b"\x1B]");
+        // Advance past the \0 final byte placeholder (OSC has no final byte)
+        cursor.advance(0);
+        cursor
+    });
+
+#[must_use]
+#[inline]
+pub fn ansi_input_osc_trie_cursor() -> AnsiControlFunctionTrieCursor {
+    *ANSI_INPUT_OSC_TRIE_CURSOR
 }
 
 #[must_use]

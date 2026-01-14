@@ -1728,6 +1728,7 @@ dependencies = [
  "vtansi",
  "vte",
  "vtparse 0.7.0",
+ "xparsecolor",
 ]
 
 [[package]]

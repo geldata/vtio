@@ -25,8 +25,8 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::DeriveInput;
 use syn::spanned::Spanned;
+use syn::{DeriveInput, Fields};
 
 use crate::helpers::generate_doc_imports;
 
@@ -160,6 +160,56 @@ fn generate_tid_impl(ast: &DeriveInput) -> syn::Result<TokenStream> {
 ///
 /// Returns an error if the SS3 sequence has multiple fields or has fields in
 /// non-data locations.
+fn validate_osc_sequence(ast: &DeriveInput) -> syn::Result<()> {
+    use crate::helpers::HasFieldProperties;
+    use crate::helpers::metadata::FieldLocation;
+    use syn::Field;
+
+    let syn::Data::Struct(data) = &ast.data else {
+        return Ok(());
+    };
+
+    let fields: Box<dyn Iterator<Item = &Field>> = match &data.fields {
+        Fields::Named(f) => Box::new(f.named.iter()),
+        Fields::Unnamed(f) => Box::new(f.unnamed.iter()),
+        Fields::Unit => return Ok(()),
+    };
+
+    for field in fields {
+        let field_props = field.get_field_properties()?;
+
+        // Check if locate was explicitly specified
+        if let Some(location) = field_props.location {
+            match location {
+                FieldLocation::Data => {
+                    // Pointless but allowed - data is the default for OSC sequences.
+                    // Users should remove the redundant attribute.
+                }
+                FieldLocation::Params => {
+                    return Err(syn::Error::new_spanned(
+                        field,
+                        "OSC sequences do not support #[vtansi(locate = \"params\")].\n\
+                         \n\
+                         All fields in OSC sequences must be in the data location.\n\
+                         Remove the locate attribute.",
+                    ));
+                }
+                FieldLocation::Final => {
+                    return Err(syn::Error::new_spanned(
+                        field,
+                        "OSC sequences do not support #[vtansi(locate = \"final\")].\n\
+                         \n\
+                         OSC sequences have no final byte - they are terminated by ST.\n\
+                         Remove the locate attribute.",
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_ss3_sequence(
     ast: &DeriveInput,
     props: &ControlProperties,
@@ -291,6 +341,11 @@ fn generate_esc_impl(
     // Validate SS3 sequences
     if props.kind == ControlFunctionKind::Ss3 {
         validate_ss3_sequence(ast, props, &params)?;
+    }
+
+    // Validate OSC sequences
+    if props.kind == ControlFunctionKind::Osc {
+        validate_osc_sequence(ast)?;
     }
 
     let control_impl = generate_control_impl(ast, props)?;

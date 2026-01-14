@@ -919,13 +919,16 @@ impl HasTypeProperties for DeriveInput {
             data_delimiter = Some(syn::parse_quote!(b';'));
         }
 
-        // For SS3 sequences, default field location to Data if not explicitly set
-        let field_location =
-            if kind == ControlFunctionKind::Ss3 && seen_location.is_none() {
-                FieldLocation::Data
-            } else {
-                field_location
-            };
+        // For SS3 and OSC sequences, default field location to Data if not explicitly set
+        let field_location = if seen_location.is_none()
+            && matches!(
+                kind,
+                ControlFunctionKind::Ss3 | ControlFunctionKind::Osc
+            ) {
+            FieldLocation::Data
+        } else {
+            field_location
+        };
 
         Ok(ControlProperties {
             format,
