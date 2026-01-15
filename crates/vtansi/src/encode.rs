@@ -127,6 +127,61 @@ pub fn write_byte_into<W: io::Write + ?Sized>(
     }
 }
 
+/// A newtype wrapper for encoding a byte as a raw byte value.
+///
+/// Unlike `u8` which encodes as decimal digits (e.g., `255` becomes "255"),
+/// `RawByte` writes the byte directly to the output stream.
+///
+/// This is useful for protocols that require raw byte values rather than
+/// their decimal representation, such as the default mouse reporting format.
+///
+/// # Example
+///
+/// ```ignore
+/// use vtansi::{write_csi, RawByte};
+///
+/// let mut buf = Vec::new();
+/// write_csi!(&mut buf; 'M', RawByte(32), RawByte(42), RawByte(37));
+/// assert_eq!(buf, b"\x1b[M\x20\x2A\x25");
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RawByte(pub u8);
+
+impl std::ops::Deref for RawByte {
+    type Target = u8;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<u8> for RawByte {
+    #[inline]
+    fn from(value: u8) -> Self {
+        RawByte(value)
+    }
+}
+
+impl From<RawByte> for u8 {
+    #[inline]
+    fn from(value: RawByte) -> Self {
+        value.0
+    }
+}
+
+impl AnsiEncode for RawByte {
+    const ENCODED_LEN: Option<usize> = Some(1);
+
+    #[inline]
+    fn encode_ansi_into<W: io::Write + ?Sized>(
+        &self,
+        sink: &mut W,
+    ) -> Result<usize, EncodeError> {
+        write_byte_into(sink, self.0)
+    }
+}
+
 /// Copy a UTF-8 string into the provided buffer,
 /// returning the number of bytes written.
 ///

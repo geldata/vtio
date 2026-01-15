@@ -895,6 +895,69 @@ mod tests {
     }
 
     #[test]
+    fn test_mouse_events_urxvt_format() {
+        // urxvt format: ESC [ btn ; col ; row M
+        // where btn is offset by 32 (like default format)
+        let mut parser = TerminalInputParser::new();
+        let mut events: Vec<MouseEvent> = Vec::new();
+
+        // Test left button click at column 10, row 5
+        // btn = 32 + 0 (left button) = 32
+        // col = 10, row = 5
+        parser.feed_with(b"\x1b[32;10;5M", &mut |event| {
+            if let Some(mouse_event) = event.downcast_ref::<MouseEvent>() {
+                events.push(*mouse_event);
+            }
+        });
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                ..
+            }
+        ));
+        assert_eq!(events[0].column(), 9); // 0-based
+        assert_eq!(events[0].row(), 4); // 0-based
+
+        // Test right button click at column 200, row 150 (large coordinates)
+        // btn = 32 + 2 (right button) = 34
+        events.clear();
+        parser.feed_with(b"\x1b[34;200;150M", &mut |event| {
+            if let Some(mouse_event) = event.downcast_ref::<MouseEvent>() {
+                events.push(*mouse_event);
+            }
+        });
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Right),
+                ..
+            }
+        ));
+        assert_eq!(events[0].column(), 199);
+        assert_eq!(events[0].row(), 149);
+
+        // Test scroll up
+        // btn = 32 + 64 (scroll up) = 96
+        events.clear();
+        parser.feed_with(b"\x1b[96;10;5M", &mut |event| {
+            if let Some(mouse_event) = event.downcast_ref::<MouseEvent>() {
+                events.push(*mouse_event);
+            }
+        });
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            MouseEvent {
+                kind: MouseEventKind::ScrollUp,
+                ..
+            }
+        ));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn test_cursor_position_report() {
         use crate::event::cursor::CursorPositionReport;

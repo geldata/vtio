@@ -16,7 +16,8 @@ pub use encode::write_bytes_into;
 pub use encode::write_int;
 pub use encode::write_str_into;
 pub use encode::{
-    AnsiEncode, AnsiFinalByte, AnsiMuxEncode, EncodeError, StaticAnsiEncode,
+    AnsiEncode, AnsiFinalByte, AnsiMuxEncode, EncodeError, RawByte,
+    StaticAnsiEncode,
 };
 pub use encode::{
     encode_delimited_values, encode_delimited_values_with_optional,
