@@ -215,7 +215,7 @@ ansi_composite! {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, vtansi::derive::AnsiOutput,
 )]
-#[vtansi(csi, finalbyte = 'm')]
+#[vtansi(csi, private = '?', finalbyte = 'm')]
 pub struct SetLinuxMousePointerStyle {
     /// XOR mask for attribute manipulation.
     pub attr_xor: u8,
