@@ -382,3 +382,70 @@ pub fn ansi_control_output_function_trie_cursor()
 -> AnsiControlFunctionTrieCursor {
     AnsiControlFunctionTrieCursor::new(&ANSI_CONTROL_OUTPUT_FUNCTION_TRIE)
 }
+
+static ANSI_OUTPUT_C0_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
+    LazyLock::new(|| {
+        let mut cursor = ansi_control_output_function_trie_cursor();
+        cursor.advance(0);
+        cursor
+    });
+
+#[must_use]
+#[inline]
+pub fn ansi_output_c0_trie_cursor() -> AnsiControlFunctionTrieCursor {
+    *ANSI_OUTPUT_C0_TRIE_CURSOR
+}
+
+static ANSI_OUTPUT_ESC_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
+    LazyLock::new(|| {
+        let mut cursor = ansi_control_output_function_trie_cursor();
+        cursor.advance_slice(b"\x1B");
+        cursor
+    });
+
+#[must_use]
+#[inline]
+pub fn ansi_output_esc_trie_cursor() -> AnsiControlFunctionTrieCursor {
+    *ANSI_OUTPUT_ESC_TRIE_CURSOR
+}
+
+static ANSI_OUTPUT_CSI_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
+    LazyLock::new(|| {
+        let mut cursor = ansi_control_output_function_trie_cursor();
+        cursor.advance_slice(b"\x1B[");
+        cursor
+    });
+
+#[must_use]
+#[inline]
+pub fn ansi_output_csi_trie_cursor() -> AnsiControlFunctionTrieCursor {
+    *ANSI_OUTPUT_CSI_TRIE_CURSOR
+}
+
+static ANSI_OUTPUT_OSC_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
+    LazyLock::new(|| {
+        let mut cursor = ansi_control_output_function_trie_cursor();
+        cursor.advance_slice(b"\x1B]");
+        // Advance past the \0 final byte placeholder (OSC has no final byte)
+        cursor.advance(0);
+        cursor
+    });
+
+#[must_use]
+#[inline]
+pub fn ansi_output_osc_trie_cursor() -> AnsiControlFunctionTrieCursor {
+    *ANSI_OUTPUT_OSC_TRIE_CURSOR
+}
+
+static ANSI_OUTPUT_DCS_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
+    LazyLock::new(|| {
+        let mut cursor = ansi_control_output_function_trie_cursor();
+        cursor.advance_slice(b"\x1BP");
+        cursor
+    });
+
+#[must_use]
+#[inline]
+pub fn ansi_output_dcs_trie_cursor() -> AnsiControlFunctionTrieCursor {
+    *ANSI_OUTPUT_DCS_TRIE_CURSOR
+}

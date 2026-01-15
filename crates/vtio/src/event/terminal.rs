@@ -343,6 +343,29 @@ impl<'a> vtansi::AnsiEvent<'a> for BracketedPaste<'a> {
     vtansi::impl_ansi_event_encode!();
 }
 
+/// Bell (BEL).
+///
+/// Traditionally rings a bell.
+///
+/// Current implementations vary in how this is interpreted. Most
+/// implementations still support an audible signal but often also offer
+/// setting window manager urgency hints or other advanced reactions.
+///
+/// See <https://terminalguide.namepad.de/seq/a_c0-g/> for terminal
+/// support specifics.
+#[derive(
+    Debug,
+    PartialOrd,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Hash,
+    vtansi::derive::AnsiOutput,
+)]
+#[vtansi(c0, code = 0x07)]
+pub struct Bell;
+
 /// Request text attributes (SGR) using `DECRQSS`.
 ///
 /// Query SGR state using DEC Request Status String.

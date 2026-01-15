@@ -7,8 +7,10 @@ use vt_push_parser::{
     capture::{VTCaptureEvent, VTCapturePushParser, VTInputCapture},
     event::VTEvent,
 };
-use vtansi::registry::{AnsiControlFunctionTrieCursor, AnsiEventData, Answer};
+use vtansi::registry::{AnsiEventData, Answer};
 use vtansi::{StaticAnsiEncode, format_csi};
+
+use super::common;
 
 const MAX_UTF8_CHAR_BYTES: usize = 4;
 
@@ -256,48 +258,6 @@ impl TerminalInputParser {
     }
 }
 
-#[inline]
-fn maybe_handle_byte<F>(
-    cursor: &mut AnsiControlFunctionTrieCursor,
-    byte: u8,
-    cb: &mut F,
-) -> Option<VTInputCapture>
-where
-    F: FnMut(&dyn vtansi::AnsiEvent),
-{
-    match cursor.advance(byte) {
-        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
-            handler(&AnsiEventData::default(), &mut |event| {
-                cb(event);
-            })
-            .ok()
-            .map(|()| VTInputCapture::None)
-        }
-        Answer::DeadEnd | Answer::Prefix => None,
-    }
-}
-
-#[inline]
-fn maybe_handle_data<F>(
-    cursor: &AnsiControlFunctionTrieCursor,
-    data: &AnsiEventData,
-    cb: &mut F,
-) -> Option<VTInputCapture>
-where
-    F: FnMut(&dyn vtansi::AnsiEvent),
-{
-    match cursor.deref() {
-        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
-            handler(data, &mut |event| {
-                cb(event);
-            })
-            .ok()
-            .map(|()| VTInputCapture::None)
-        }
-        Answer::DeadEnd | Answer::Prefix => None,
-    }
-}
-
 fn parse_c0<F>(
     vt_event: &VTEvent,
     c0_byte: u8,
@@ -307,27 +267,13 @@ fn parse_c0<F>(
 where
     F: FnMut(&dyn vtansi::AnsiEvent),
 {
-    let mut cursor = vtansi::registry::ansi_input_c0_trie_cursor();
-
-    // Advance with the C0 byte
-    if !cursor.advance(c0_byte).is_prefix() {
+    if !common::parse_c0(
+        c0_byte,
+        vtansi::registry::ansi_input_c0_trie_cursor,
+        cb,
+    ) {
         cb(&UnrecognizedInputEvent(vt_event));
-        return VTInputCapture::None;
     }
-
-    // Advance with \0 placeholder (byte type keys end with \0)
-    cursor.advance(0);
-
-    match cursor.deref() {
-        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
-            if handler(&AnsiEventData::default(), cb).is_ok() {
-                return VTInputCapture::None;
-            }
-        }
-        Answer::DeadEnd | Answer::Prefix => (),
-    }
-
-    cb(&UnrecognizedInputEvent(vt_event));
     VTInputCapture::None
 }
 
@@ -343,19 +289,19 @@ where
     let mut cursor = vtansi::registry::ansi_input_ss3_trie_cursor();
 
     // First try to match with the actual data byte (for specific handlers)
-    if let Some(capture) = maybe_handle_byte(&mut cursor, ss3.char, cb) {
-        return capture;
+    if common::maybe_handle_byte(&mut cursor, ss3.char, cb) {
+        return VTInputCapture::None;
     }
 
     // Then try matching with \0 placeholder (for generic handlers like Ss3KeySeq)
     let mut cursor = vtansi::registry::ansi_input_ss3_trie_cursor();
     cursor.advance(0); // Advance with \0 placeholder
-    if let Some(capture) = maybe_handle_data(
+    if common::maybe_handle_data(
         &cursor,
         &AnsiEventData::new_with_data(std::slice::from_ref(&ss3.char)),
         cb,
     ) {
-        return capture;
+        return VTInputCapture::None;
     }
 
     cb(&UnrecognizedInputEvent(vt_event));
@@ -514,33 +460,13 @@ fn parse_osc<F>(vt_event: &VTEvent, osc_data: &[u8], cb: &mut F)
 where
     F: FnMut(&dyn vtansi::AnsiEvent),
 {
-    // OSC format: [number;][static_data]dynamic_data
-    // The number and static data are optional and matched via trie lookup.
-    // Static data from the trie key (like `data = "A"`) is matched during trie walk.
-    //
-    // Strategy:
-    // 1. Use longest match to find how much of osc_data is static (number + static data)
-    // 2. Only Match or PrefixAndMatch are valid - DeadEnd or Prefix means unrecognized
-    // 3. Pass the remaining data directly to the handler via AnsiEventData::new_with_data
-
-    let mut cursor = vtansi::registry::ansi_input_osc_trie_cursor();
-
-    let (answer, consumed) = cursor.advance_longest_match(osc_data);
-
-    match answer {
-        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
-            let remaining = &osc_data[consumed..];
-            let event_data = AnsiEventData::new_with_data(remaining);
-            if handler(&event_data, cb).is_ok() {
-                return;
-            }
-        }
-        Answer::DeadEnd | Answer::Prefix => {
-            // No match found - unrecognized sequence
-        }
+    if !common::parse_osc(
+        osc_data,
+        vtansi::registry::ansi_input_osc_trie_cursor,
+        cb,
+    ) {
+        cb(&UnrecognizedInputEvent(vt_event));
     }
-
-    cb(&UnrecognizedInputEvent(vt_event));
 }
 
 fn parse_esc<F>(
@@ -552,41 +478,10 @@ fn parse_esc<F>(
 where
     F: FnMut(&dyn vtansi::AnsiEvent),
 {
-    let mut cursor = vtansi::registry::ansi_input_esc_trie_cursor();
-
-    if let Some(private) = seq.private {
-        let answer = cursor.advance(private);
-        if answer.is_dead_end() {
-            cb(&UnrecognizedInputEvent(vt_event));
-            return VTInputCapture::None;
-        }
+    if !common::parse_esc(seq, vtansi::registry::ansi_input_esc_trie_cursor, cb)
+    {
+        cb(&UnrecognizedInputEvent(vt_event));
     }
-
-    match cursor.deref() {
-        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
-            let finalbyte_slice = std::slice::from_ref(&seq.final_byte);
-            let data = AnsiEventData::new_with_finalbyte(finalbyte_slice);
-            if handler(&data, cb).is_ok() {
-                return VTInputCapture::None;
-            }
-        }
-        Answer::DeadEnd | Answer::Prefix => (),
-    }
-
-    let mut suffix = [0u8; 2];
-    suffix[1] = seq.final_byte;
-
-    match cursor.advance_slice(&suffix) {
-        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
-            let data = AnsiEventData::new();
-            if handler(&data, cb).is_ok() {
-                return VTInputCapture::None;
-            }
-        }
-        Answer::DeadEnd | Answer::Prefix => (),
-    }
-
-    cb(&UnrecognizedInputEvent(vt_event));
     VTInputCapture::None
 }
 
@@ -599,49 +494,13 @@ fn parse_esc_invalid<F>(
 where
     F: FnMut(&dyn vtansi::AnsiEvent),
 {
-    let mut cursor = vtansi::registry::ansi_input_esc_trie_cursor();
-
-    // Advance with \0 placeholder to find fallback handlers like AltKeySeq
-    cursor.advance(0);
-
-    match cursor.deref() {
-        Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
-            let mut data = [0u8; 4];
-            let data_slice = match seq {
-                vt_push_parser::event::EscInvalid::Four(a, b, c, d) => {
-                    data[0] = a;
-                    data[1] = b;
-                    data[2] = c;
-                    data[3] = d;
-                    &data[..]
-                }
-                vt_push_parser::event::EscInvalid::Three(a, b, c) => {
-                    data[0] = a;
-                    data[1] = b;
-                    data[2] = c;
-                    &data[..3]
-                }
-                vt_push_parser::event::EscInvalid::Two(a, b) => {
-                    data[0] = a;
-                    data[1] = b;
-                    &data[..2]
-                }
-                vt_push_parser::event::EscInvalid::One(a) => {
-                    data[0] = a;
-                    &data[..1]
-                }
-            };
-
-            let params: [&[u8]; 1] = [data_slice];
-            let data = AnsiEventData::new_with_params(&params);
-            if handler(&data, cb).is_ok() {
-                return VTInputCapture::None;
-            }
-        }
-        Answer::DeadEnd | Answer::Prefix => (),
+    if !common::parse_esc_invalid(
+        seq,
+        vtansi::registry::ansi_input_esc_trie_cursor,
+        cb,
+    ) {
+        cb(&UnrecognizedInputEvent(vt_event));
     }
-
-    cb(&UnrecognizedInputEvent(vt_event));
     VTInputCapture::None
 }
 
@@ -654,7 +513,7 @@ pub fn bytes_to_events<F>(
 where
     F: FnMut(&dyn vtansi::AnsiEvent),
 {
-    crate::event::keyboard::bytes_to_events(bytes, utf8_buffer, cb)
+    common::bytes_to_events(bytes, utf8_buffer, cb)
 }
 
 #[cfg(test)]
