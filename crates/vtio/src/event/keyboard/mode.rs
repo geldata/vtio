@@ -77,6 +77,19 @@ pub struct KeyboardEnhancementFlagsResponse(
 #[vtansi(csi, private = '>', finalbyte = 'u')]
 pub struct PushKeyboardEnhancementFlags(pub KeyboardEnhancementFlags);
 
+/// Set Keyboard Enhancement Flags.
+///
+/// Set the keyboard enhancement flags directly, without using the stack.
+///
+/// Unlike [`PushKeyboardEnhancementFlags`], this does not push the flags onto
+/// a stack; it sets them directly.
+///
+/// See <https://sw.kovidgoyal.net/kitty/keyboard-protocol/#progressive-enhancement>
+/// for more information.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, vtansi::derive::AnsiOutput)]
+#[vtansi(csi, private = '=', finalbyte = 'u')]
+pub struct SetKeyboardEnhancementFlags(pub KeyboardEnhancementFlags);
+
 /// Pop Keyboard Enhancement Flags.
 ///
 /// Disable extra kinds of keyboard events.

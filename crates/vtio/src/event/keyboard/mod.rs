@@ -14,7 +14,7 @@ pub use mode::{
     KeyboardEnhancementFlags, KeyboardEnhancementFlagsQuery,
     KeyboardEnhancementFlagsResponse, PopKeyboardEnhancementFlags,
     PushKeyboardEnhancementFlags, ResetApplicationKeypadMode,
-    SetApplicationKeypadMode,
+    SetApplicationKeypadMode, SetKeyboardEnhancementFlags,
 };
 pub use modifier::{
     KeyEventKind, KeyEventState, KeyModifiers, ModifierKeyCode,
