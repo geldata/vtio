@@ -780,4 +780,78 @@ mod tests {
             "CommandEnd should have exit_code = Some(127)"
         );
     }
+
+    #[test]
+    fn test_request_terminal_name_and_version() {
+        use crate::event::UnrecognizedOutputEvent;
+        use crate::event::terminal::RequestTerminalNameAndVersion;
+
+        // CSI > 0 q
+        let input = b"\x1b[>0q";
+        let mut events = Vec::new();
+        let mut unrecognized = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(input, &mut |event: &dyn vtansi::AnsiEvent| {
+            if event
+                .downcast_ref::<RequestTerminalNameAndVersion>()
+                .is_some()
+            {
+                events.push("RequestTerminalNameAndVersion");
+            }
+            if let Some(u) = event.downcast_ref::<UnrecognizedOutputEvent>() {
+                println!("Unrecognized event: {:?}", u);
+                unrecognized.push(format!("{:?}", u));
+            }
+        });
+        println!("Unrecognized events: {:?}", unrecognized);
+        assert_eq!(
+            events.len(),
+            1,
+            "CSI > 0 q should be parsed as RequestTerminalNameAndVersion"
+        );
+    }
+
+    #[test]
+    fn test_request_primary_device_attributes_without_param() {
+        use crate::event::terminal::RequestPrimaryDeviceAttributes;
+
+        // CSI c - DA1 without parameter
+        let input = b"\x1b[c";
+        let mut events: Vec<RequestPrimaryDeviceAttributes> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(input, &mut |event: &dyn vtansi::AnsiEvent| {
+            if let Some(da) =
+                event.downcast_ref::<RequestPrimaryDeviceAttributes>()
+            {
+                events.push(*da);
+            }
+        });
+        assert_eq!(
+            events.len(),
+            1,
+            "CSI c should be parsed as RequestPrimaryDeviceAttributes"
+        );
+    }
+
+    #[test]
+    fn test_request_primary_device_attributes_with_param() {
+        use crate::event::terminal::RequestPrimaryDeviceAttributes;
+
+        // CSI 0 c - DA1 with explicit parameter 0
+        let input = b"\x1b[0c";
+        let mut events: Vec<RequestPrimaryDeviceAttributes> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(input, &mut |event: &dyn vtansi::AnsiEvent| {
+            if let Some(da) =
+                event.downcast_ref::<RequestPrimaryDeviceAttributes>()
+            {
+                events.push(*da);
+            }
+        });
+        assert_eq!(
+            events.len(),
+            1,
+            "CSI 0 c should be parsed as RequestPrimaryDeviceAttributes"
+        );
+    }
 }

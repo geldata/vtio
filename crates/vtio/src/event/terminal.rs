@@ -449,6 +449,7 @@ pub struct RequestTerminalID;
 /// support specifics.
 #[derive(
     Debug,
+    Default,
     PartialOrd,
     PartialEq,
     Eq,
@@ -458,7 +459,14 @@ pub struct RequestTerminalID;
     vtansi::derive::AnsiOutput,
 )]
 #[vtansi(csi, finalbyte = 'c')]
-pub struct RequestPrimaryDeviceAttributes;
+pub struct RequestPrimaryDeviceAttributes(Option<u8>);
+
+impl RequestPrimaryDeviceAttributes {
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Some(0))
+    }
+}
 
 /// Request secondary device attributes (`DA2`).
 ///
@@ -1301,7 +1309,7 @@ impl Default for TermcapQueryResponse {
     Hash,
     vtansi::derive::AnsiOutput,
 )]
-#[vtansi(csi, intermediate = ">", finalbyte = 'q')]
+#[vtansi(csi, private = '>', params = ["0"], finalbyte = 'q')]
 pub struct RequestTerminalNameAndVersion;
 
 /// Response to terminal name and version request (`XTVERSION`).
@@ -1521,7 +1529,7 @@ mod tests {
         request.encode_ansi_into(&mut buf).unwrap();
         let encoded = String::from_utf8(buf).unwrap();
 
-        assert_eq!(encoded, "\x1b[>q");
+        assert_eq!(encoded, "\x1b[>0q");
     }
 
     #[test]
