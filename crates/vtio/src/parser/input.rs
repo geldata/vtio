@@ -5,7 +5,7 @@ use better_any::TidExt;
 use vt_push_parser::{
     VT_PARSER_INTEREST_ALL,
     capture::{VTCaptureEvent, VTCapturePushParser, VTInputCapture},
-    event::VTEvent,
+    event::{DCSOwned, VTEvent},
 };
 use vtansi::registry::{AnsiEventData, Answer};
 use vtansi::{StaticAnsiEncode, format_csi};
@@ -23,6 +23,8 @@ enum CaptureMode {
     BracketedPaste,
     /// Capturing default mouse event bytes (3 bytes: btn, col, row).
     DefaultMouse,
+    /// Capturing DCS data.
+    DcsData,
 }
 
 #[derive(Debug, Default)]
@@ -32,6 +34,7 @@ struct ParserState {
     utf8_buffer_len: usize,
     accum_buffer: Vec<u8>,
     capture_mode: CaptureMode,
+    dcs_header: Option<DCSOwned>,
 }
 
 impl ParserState {
@@ -41,7 +44,21 @@ impl ParserState {
             utf8_buffer_len: 0,
             accum_buffer: Vec::new(),
             capture_mode: CaptureMode::None,
+            dcs_header: None,
         }
+    }
+
+    fn store_dcs_header(&mut self, dcs: &vt_push_parser::event::DCS) {
+        self.dcs_header = Some(DCSOwned {
+            private: dcs.private,
+            params: dcs.params.to_owned(),
+            intermediates: dcs.intermediates,
+            final_byte: dcs.final_byte,
+        });
+    }
+
+    fn clear_dcs_header(&mut self) {
+        self.dcs_header = None;
     }
 }
 
@@ -177,9 +194,40 @@ impl TerminalInputParser {
                 parse_osc(vt_event, &osc_data, cb);
                 VTInputCapture::None
             }
+            VTCaptureEvent::VTEvent(VTEvent::DcsStart(dcs)) => {
+                state.store_dcs_header(dcs);
+                state.accum_buffer.clear();
+                state.capture_mode = CaptureMode::DcsData;
+                VTInputCapture::None
+            }
+            VTCaptureEvent::VTEvent(VTEvent::DcsCancel) => {
+                state.clear_dcs_header();
+                state.accum_buffer.clear();
+                state.capture_mode = CaptureMode::None;
+                VTInputCapture::None
+            }
+            VTCaptureEvent::VTEvent(VTEvent::DcsData(data)) => {
+                if state.capture_mode == CaptureMode::DcsData {
+                    state.accum_buffer.extend_from_slice(data);
+                }
+                VTInputCapture::None
+            }
+            VTCaptureEvent::VTEvent(vt_event @ VTEvent::DcsEnd(data)) => {
+                state.accum_buffer.extend_from_slice(data);
+                let dcs_data = std::mem::take(&mut state.accum_buffer);
+                if let Some(dcs_header) = state.dcs_header.take() {
+                    parse_dcs(vt_event, &dcs_header, &dcs_data, cb);
+                    state.clear_dcs_header();
+                } else {
+                    cb(&crate::event::UnrecognizedInputEvent(vt_event));
+                }
+                state.accum_buffer.clear();
+                state.capture_mode = CaptureMode::None;
+                VTInputCapture::None
+            }
             VTCaptureEvent::Capture(data) => {
                 match state.capture_mode {
-                    CaptureMode::BracketedPaste => {
+                    CaptureMode::BracketedPaste | CaptureMode::DcsData => {
                         state.accum_buffer.extend_from_slice(data);
                     }
                     CaptureMode::DefaultMouse => {
@@ -224,7 +272,8 @@ impl TerminalInputParser {
                         state.accum_buffer.clear();
                         state.capture_mode = CaptureMode::None;
                     }
-                    CaptureMode::None => {
+                    CaptureMode::DcsData | CaptureMode::None => {
+                        // DCS data is handled by DcsEnd event, not CaptureEnd
                         // Unexpected capture end, ignore
                     }
                 }
@@ -472,6 +521,24 @@ where
     if !common::parse_osc(
         osc_data,
         vtansi::registry::ansi_input_osc_trie_cursor,
+        cb,
+    ) {
+        cb(&UnrecognizedInputEvent(vt_event));
+    }
+}
+
+fn parse_dcs<F>(
+    vt_event: &VTEvent,
+    dcs_header: &DCSOwned,
+    dcs_data: &[u8],
+    cb: &mut F,
+) where
+    F: FnMut(&dyn vtansi::AnsiEvent),
+{
+    if !common::parse_dcs_owned(
+        dcs_header,
+        dcs_data,
+        vtansi::registry::ansi_input_dcs_trie_cursor,
         cb,
     ) {
         cb(&UnrecognizedInputEvent(vt_event));
@@ -1407,6 +1474,50 @@ mod tests {
         assert_eq!(red, 0xffff);
         assert_eq!(green, 0x0000);
         assert_eq!(blue, 0xffff);
+    }
+
+    #[test]
+    fn test_terminal_name_and_version_response() {
+        use crate::event::terminal::TerminalNameAndVersionResponse;
+
+        let mut parser = TerminalInputParser::new();
+        let mut found = false;
+        let mut version_str = None;
+
+        // DCS > | xterm(388) ST
+        parser.feed_with(b"\x1bP>|xterm(388)\x1b\\", &mut |event| {
+            if let Some(response) =
+                event.downcast_ref::<TerminalNameAndVersionResponse>()
+            {
+                found = true;
+                version_str = Some(response.version.to_string());
+            }
+        });
+
+        assert!(found, "TerminalNameAndVersionResponse should be parsed");
+        assert_eq!(version_str, Some("xterm(388)".to_string()));
+    }
+
+    #[test]
+    fn test_tertiary_device_attributes_response() {
+        use crate::event::terminal::TertiaryDeviceAttributesResponse;
+
+        let mut parser = TerminalInputParser::new();
+        let mut found = false;
+        let mut unit_id_str = None;
+
+        // DCS ! | 7E565445 ST (hex for "~VTE")
+        parser.feed_with(b"\x1bP!|7E565445\x1b\\", &mut |event| {
+            if let Some(response) =
+                event.downcast_ref::<TertiaryDeviceAttributesResponse>()
+            {
+                found = true;
+                unit_id_str = response.data.as_str().map(String::from);
+            }
+        });
+
+        assert!(found, "TertiaryDeviceAttributesResponse should be parsed");
+        assert_eq!(unit_id_str, Some("~VTE".to_string()));
     }
 
     #[test]

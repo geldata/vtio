@@ -376,6 +376,19 @@ pub fn ansi_input_osc_trie_cursor() -> AnsiControlFunctionTrieCursor {
     *ANSI_INPUT_OSC_TRIE_CURSOR
 }
 
+static ANSI_INPUT_DCS_TRIE_CURSOR: LazyLock<AnsiControlFunctionTrieCursor> =
+    LazyLock::new(|| {
+        let mut cursor = ansi_control_input_function_trie_cursor();
+        cursor.advance_slice(b"\x1BP");
+        cursor
+    });
+
+#[must_use]
+#[inline]
+pub fn ansi_input_dcs_trie_cursor() -> AnsiControlFunctionTrieCursor {
+    *ANSI_INPUT_DCS_TRIE_CURSOR
+}
+
 #[must_use]
 #[inline]
 pub fn ansi_control_output_function_trie_cursor()

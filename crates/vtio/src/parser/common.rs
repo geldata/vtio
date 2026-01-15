@@ -483,14 +483,6 @@ where
         return false;
     }
 
-    // Advance with has_params marker (DCS uses same format as CSI for params)
-    if matches!(
-        cursor.advance((!all_params.is_empty()).into()),
-        Answer::DeadEnd
-    ) {
-        return false;
-    }
-
     // Advance through intermediate bytes for key matching
     if !intermediates.is_empty()
         && cursor.advance_slice(intermediates) == Answer::DeadEnd

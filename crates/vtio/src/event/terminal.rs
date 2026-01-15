@@ -483,7 +483,7 @@ pub struct RequestSecondaryDeviceAttributes;
 /// it typically returns additional terminal identification
 /// information.
 ///
-/// See <https://terminalguide.namepad.de/seq/> for terminal support
+/// See <https://terminalguide.namepad.de/seq/csi_sc__r/> for terminal support
 /// specifics.
 #[derive(
     Debug,
@@ -495,8 +495,8 @@ pub struct RequestSecondaryDeviceAttributes;
     Hash,
     vtansi::derive::AnsiOutput,
 )]
-#[vtansi(csi, intermediate = "=", finalbyte = 'c')]
-pub struct RequestTertiaryDeviceAttributes;
+#[vtansi(csi, params = ["=0"], finalbyte = 'c')]
+pub struct RequestTerminalUnitId;
 
 /// Terminal conformance level for DA1 response.
 ///
@@ -739,10 +739,10 @@ pub struct SecondaryDeviceAttributesResponse {
 
 /// Response to tertiary device attributes request (`DECRPTUI`).
 ///
-/// Send terminal unit ID in response to a DA3 query.
+/// Sent in response to a DA3 query, e.g [`RequestTerminalUnitId`].
 ///
 /// The response format is `DCS ! | [hex_string] ST` where `hex_string`
-/// is the terminal's unit ID encoded as hexadecimal pairs.
+/// is a string encoded as hexadecimal pairs.
 ///
 /// This is less commonly supported than DA1 and DA2. When supported,
 /// the unit ID is typically a string identifying the terminal
@@ -766,7 +766,7 @@ pub struct SecondaryDeviceAttributesResponse {
 pub struct TertiaryDeviceAttributesResponse {
     /// The terminal's unit ID (hex-decoded).
     #[vtansi(locate = "data")]
-    pub unit_id: HexString,
+    pub data: HexString,
 }
 
 /// Select VT-XXX Conformance Level (`DECSCL`).
@@ -1311,7 +1311,7 @@ mod tests {
     #[test]
     fn test_tertiary_device_attributes_response_encoding() {
         let response = TertiaryDeviceAttributesResponse {
-            unit_id: HexString::from_string("~VTE"),
+            data: HexString::from_string("~VTE"),
         };
 
         let mut buf = Vec::new();
@@ -1319,6 +1319,17 @@ mod tests {
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1bP!|7E565445\x1b\\");
+    }
+
+    #[test]
+    fn test_request_terminal_unit_id_encoding() {
+        let request = RequestTerminalUnitId;
+
+        let mut buf = Vec::new();
+        request.encode_ansi_into(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1b[=0c");
     }
 
     #[test]
