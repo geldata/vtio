@@ -377,6 +377,15 @@ where
         return capture;
     }
 
+    // Advance through intermediate bytes for key matching
+    let intermediates = seq.intermediates.as_ref();
+    if !intermediates.is_empty()
+        && cursor.advance_slice(intermediates) == Answer::DeadEnd
+    {
+        cb(&UnrecognizedInputEvent(vt_event));
+        return capture;
+    }
+
     // Advance with final byte
     let mut finalbyte_handler: Option<vtansi::registry::Handler> = None;
 

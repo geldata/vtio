@@ -103,6 +103,14 @@ where
         }
     }
 
+    // Advance through intermediate bytes for key matching
+    let intermediates = seq.intermediates.as_ref();
+    if !intermediates.is_empty()
+        && cursor.advance_slice(intermediates) == Answer::DeadEnd
+    {
+        return false;
+    }
+
     match cursor.deref() {
         Answer::Match(handler) | Answer::PrefixAndMatch(handler) => {
             let finalbyte_slice = std::slice::from_ref(&seq.final_byte);
@@ -114,6 +122,7 @@ where
         Answer::DeadEnd | Answer::Prefix => (),
     }
 
+    // Build suffix: \0 placeholder + final byte (for sequences without intermediates in key)
     let mut suffix = [0u8; 2];
     suffix[1] = seq.final_byte;
 
@@ -225,6 +234,14 @@ where
         cursor.advance((!all_params.is_empty()).into()),
         Answer::DeadEnd
     ) {
+        return false;
+    }
+
+    // Advance through intermediate bytes for key matching
+    let intermediates = seq.intermediates.as_ref();
+    if !intermediates.is_empty()
+        && cursor.advance_slice(intermediates) == Answer::DeadEnd
+    {
         return false;
     }
 
@@ -353,6 +370,7 @@ where
     parse_dcs_internal(
         seq.private,
         all_params,
+        seq.intermediates.as_ref(),
         seq.final_byte,
         dcs_data,
         cursor_factory,
@@ -389,6 +407,7 @@ where
     parse_dcs_internal(
         dcs_header.private,
         all_params,
+        dcs_header.intermediates.as_ref(),
         dcs_header.final_byte,
         dcs_data,
         cursor_factory,
@@ -400,6 +419,7 @@ where
 fn parse_dcs_internal<F>(
     private: Option<u8>,
     all_params: &[&[u8]],
+    intermediates: &[u8],
     final_byte: u8,
     dcs_data: &[u8],
     cursor_factory: impl FnOnce() -> AnsiControlFunctionTrieCursor,
@@ -422,6 +442,13 @@ where
         cursor.advance((!all_params.is_empty()).into()),
         Answer::DeadEnd
     ) {
+        return false;
+    }
+
+    // Advance through intermediate bytes for key matching
+    if !intermediates.is_empty()
+        && cursor.advance_slice(intermediates) == Answer::DeadEnd
+    {
         return false;
     }
 

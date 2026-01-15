@@ -331,6 +331,18 @@ impl ControlProperties {
             // Add marker byte: 0x00 = no params, 0x01 = has params
             buf.push(has_params.into());
         }
+        // Include intermediate bytes for disambiguation (CSI, ESC, DCS)
+        // Intermediate bytes come before the final byte in these sequences
+        if matches!(
+            self.kind,
+            ControlFunctionKind::Csi
+                | ControlFunctionKind::Esc
+                | ControlFunctionKind::Dcs
+        ) {
+            if let Some(intermediate) = &self.intermediate {
+                buf.extend(intermediate.iter());
+            }
+        }
         // Use provided final byte, or disambiguate by final byte itself (unless dynamic).
         if let Some(fb) = final_byte {
             buf.push(fb);
@@ -346,6 +358,18 @@ impl ControlProperties {
             buf.extend(number);
             buf.push(*self.delimiter);
             i += 1;
+        }
+        // Include OSC data field for disambiguation (e.g., "SetMark", "Copy=")
+        if self.kind == ControlFunctionKind::Osc && !self.data.is_empty() {
+            buf.extend(self.data.iter());
+            // Include data_delimiter if present (e.g., '=' in "Copy=")
+            if let Some(data_delim) = &self.data_delimiter {
+                buf.push(data_delim.into());
+            }
+        }
+        // Include DCS data field for disambiguation (e.g., "m", " q", "\"p")
+        if self.kind == ControlFunctionKind::Dcs && !self.data.is_empty() {
+            buf.extend(self.data.iter());
         }
         for param in &self.params {
             if i > 0 {
