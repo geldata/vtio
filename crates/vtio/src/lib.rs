@@ -21,6 +21,8 @@ pub use crate::parser::TerminalInputParser;
 /// ```
 pub use better_any::TidExt as AnyEvent;
 
+pub use vtansi::{AnsiEncode, AnsiEvent};
+
 #[doc(hidden)]
 pub mod __private {
     pub use paste;
