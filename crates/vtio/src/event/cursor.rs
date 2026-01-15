@@ -1197,7 +1197,7 @@ impl AnsiMuxEncode for LinuxCursorSize {
 /// See <https://terminalguide.namepad.de/seq/csi_sc__p/> for terminal
 /// support specifics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, vtansi::derive::AnsiOutput)]
-#[vtansi(csi, intermediate = " ", finalbyte = 'q')]
+#[vtansi(csi, private = '?', finalbyte = 'c')]
 pub struct LinuxCursorStyle {
     /// Cursor size.
     pub size: LinuxCursorSize,

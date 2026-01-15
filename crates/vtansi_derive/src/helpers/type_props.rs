@@ -338,10 +338,9 @@ impl ControlProperties {
             ControlFunctionKind::Csi
                 | ControlFunctionKind::Esc
                 | ControlFunctionKind::Dcs
-        ) {
-            if let Some(intermediate) = &self.intermediate {
-                buf.extend(intermediate.iter());
-            }
+        ) && let Some(intermediate) = &self.intermediate
+        {
+            buf.extend(intermediate.iter());
         }
         // Use provided final byte, or disambiguate by final byte itself (unless dynamic).
         if let Some(fb) = final_byte {
