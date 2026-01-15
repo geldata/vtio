@@ -1,4 +1,6 @@
-//! Keyboard event encoding and decoding.
+//! Key event encoding and decoding.
+
+use super::KeyboardModeFlags;
 
 use vtansi::{
     AnsiEncode, EncodeError, TryFromAnsi, TryFromAnsiIter, write_byte_into,
@@ -470,6 +472,23 @@ impl KeyEncoding {
     /// - Navigation keys (arrows, Home, End, F1-F4): CSI or SS3 sequences
     /// - Extended function keys (F5-F20, Insert, Delete, PageUp/Down): CSI tilde sequences
     fn from_key_event(event: &KeyEvent) -> Self {
+        Self::from_key_event_with_modes(event, KeyboardModeFlags::empty())
+    }
+
+    /// Determine the encoding strategy for a key event, respecting terminal mode flags.
+    ///
+    /// This method is like [`from_key_event`] but takes into account the current
+    /// terminal mode settings which affect how certain keys are encoded:
+    ///
+    /// - `CURSOR_KEYS`: When set, cursor keys use SS3 (ESC O) instead of CSI (ESC [)
+    /// - `APPLICATION_KEYPAD`: When set, keypad keys use SS3 sequences
+    /// - `BACKSPACE_SENDS_DELETE`: When set, Backspace sends BS (0x08) instead of DEL (0x7F)
+    /// - `ALT_KEY_HIGH_BIT_SET`: When set, Alt sets high bit instead of ESC prefix
+    /// - `DELETE_KEY_SENDS_DEL`: When set, Delete key sends DEL (0x7F) instead of escape sequence
+    fn from_key_event_with_modes(
+        event: &KeyEvent,
+        mode_flags: KeyboardModeFlags,
+    ) -> Self {
         // Only encode press events
         if event.kind != KeyEventKind::Press {
             return Self::None;
@@ -478,17 +497,34 @@ impl KeyEncoding {
         let mods = event.modifiers;
         let mod_param = mods.to_xterm_param();
         let has_mods = mod_param > 1;
-        let alt_prefix = mods.contains(KeyModifiers::ALT);
         let code = event.code;
+
+        // Determine Alt key behavior based on mode flags
+        // ALT_KEY_HIGH_BIT_SET: set high bit instead of ESC prefix
+        // Default (or ALT_KEY_SENDS_ESC_PREFIX): use ESC prefix
+        let alt_high_bit =
+            mode_flags.contains(KeyboardModeFlags::ALT_KEY_HIGH_BIT_SET);
+        let alt_prefix = mods.contains(KeyModifiers::ALT) && !alt_high_bit;
+        let alt_set_high_bit = mods.contains(KeyModifiers::ALT) && alt_high_bit;
+
+        // Check cursor keys mode (DECCKM) - when set, cursor keys use SS3
+        let cursor_keys_mode =
+            mode_flags.contains(KeyboardModeFlags::CURSOR_KEYS);
+
+        // Note: APPLICATION_KEYPAD mode (DECNKM) is not handled here because
+        // we cannot distinguish keypad keys from main keyboard keys at the
+        // KeyCode level - both appear as KeyCode::Char('5'), etc.
 
         // Character keys: control codes, shifted chars, or plain UTF-8
         if let KeyCode::Char(c) = code {
-            return Self::encode_char(c, mods, alt_prefix);
+            return Self::encode_char(c, mods, alt_prefix, alt_set_high_bit);
         }
 
         // Special keys with raw byte or CSI-u encoding
         match code {
             KeyCode::Enter => {
+                // In application keypad mode, Enter from keypad uses SS3 M
+                // For regular Enter, use CR or CSI-u with modifiers
                 return if has_mods {
                     Self::CsiU {
                         code: 13,
@@ -498,7 +534,27 @@ impl KeyEncoding {
                     Self::Raw(b'\r')
                 };
             }
-            KeyCode::Backspace => return Self::Raw(0x7f),
+            KeyCode::Backspace => {
+                // BACKSPACE_SENDS_DELETE mode: when SET, backspace sends BS (0x08)
+                // When RESET (default), backspace sends DEL (0x7F)
+                // Note: The mode name is confusing - "delete" here means the DEL character
+                return if mode_flags
+                    .contains(KeyboardModeFlags::BACKSPACE_SENDS_DELETE)
+                {
+                    Self::Raw(0x08) // BS
+                } else {
+                    Self::Raw(0x7f) // DEL
+                };
+            }
+            KeyCode::Delete => {
+                // DELETE_KEY_SENDS_DEL mode: when set, Delete sends DEL (0x7F)
+                // instead of the escape sequence
+                if mode_flags.contains(KeyboardModeFlags::DELETE_KEY_SENDS_DEL)
+                {
+                    return Self::Raw(0x7f);
+                }
+                // Otherwise fall through to CSI tilde encoding below
+            }
             KeyCode::Tab => {
                 return if mods.contains(KeyModifiers::SHIFT) {
                     Self::CsiFinal(b'Z') // BackTab
@@ -512,8 +568,22 @@ impl KeyEncoding {
 
         // Navigation keys: CSI final byte format (cursor keys, Home/End, F1-F4)
         if let Some(final_byte) = key_to_csi_final_byte(code) {
-            // F1-F4 use SS3 without modifiers, CSI with modifiers
-            let use_ss3 = matches!(code, KeyCode::F(1..=4)) && !has_mods;
+            // Determine if we should use SS3 encoding:
+            // - F1-F4: SS3 without modifiers (traditional behavior)
+            // - Cursor keys: SS3 when CURSOR_KEYS mode (DECCKM) is set and no modifiers
+            // - Home/End: SS3 when CURSOR_KEYS mode is set and no modifiers (some terminals)
+            let is_cursor_key = matches!(
+                code,
+                KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right
+            );
+            let is_f1_f4 = matches!(code, KeyCode::F(1..=4));
+            let is_home_end = matches!(code, KeyCode::Home | KeyCode::End);
+
+            let use_ss3 = !has_mods
+                && (is_f1_f4
+                    || (is_cursor_key && cursor_keys_mode)
+                    || (is_home_end && cursor_keys_mode));
+
             return if use_ss3 {
                 Self::Ss3(final_byte)
             } else if has_mods {
@@ -550,9 +620,14 @@ impl KeyEncoding {
     ///
     /// - With CONTROL: produces control code (0x00-0x1F, 0x7F)
     /// - With SHIFT on lowercase: produces uppercase
-    /// - With ALT: adds ESC prefix
+    /// - With ALT: adds ESC prefix or sets high bit depending on mode
     #[inline]
-    fn encode_char(c: char, mods: KeyModifiers, alt_prefix: bool) -> Self {
+    fn encode_char(
+        c: char,
+        mods: KeyModifiers,
+        alt_prefix: bool,
+        alt_set_high_bit: bool,
+    ) -> Self {
         if mods.contains(KeyModifiers::CONTROL) {
             let ctrl = control_code_for(c);
             if alt_prefix {
@@ -561,11 +636,14 @@ impl KeyEncoding {
                     alt_prefix: true,
                     ch: ctrl as char,
                 }
+            } else if alt_set_high_bit {
+                // Alt+Ctrl+char with high bit mode: set bit 7
+                Self::Raw(ctrl | 0x80)
             } else {
                 Self::Raw(ctrl)
             }
         } else {
-            // Regular char, possibly with Shift (handled by case) or Alt (ESC prefix)
+            // Regular char, possibly with Shift (handled by case) or Alt
             let ch = if mods.contains(KeyModifiers::SHIFT)
                 && c.is_ascii_lowercase()
             {
@@ -573,7 +651,13 @@ impl KeyEncoding {
             } else {
                 c
             };
-            Self::Char { alt_prefix, ch }
+
+            if alt_set_high_bit && ch.is_ascii() {
+                // Alt with high bit mode: set bit 7 on ASCII characters
+                Self::Raw((ch as u8) | 0x80)
+            } else {
+                Self::Char { alt_prefix, ch }
+            }
         }
     }
 }
@@ -661,11 +745,15 @@ impl AnsiEncode for EnhancedKeyEncoding {
     }
 }
 
-/// Choose a key event according to the given keyboard enhancement flags.
+/// Choose a key event according to the given keyboard enhancement flags and mode flags.
 ///
 /// When `DISAMBIGUATE_ESCAPE_CODES` or `REPORT_ALL_KEYS_AS_ESCAPE_CODES` flags
 /// are set, the key event would be encoded using the CSI u format (kitty keyboard
 /// protocol). Otherwise, it uses the legacy terminal encoding.
+///
+/// The `mode_flags` parameter is a [`KeyboardModeFlags`] bitmask of keyboard modes,
+/// typically collected from terminal mode query responses using
+/// [`crate::event::mode::collect_mode_flags`].
 ///
 /// # Example
 ///
@@ -675,18 +763,24 @@ impl AnsiEncode for EnhancedKeyEncoding {
 ///     KeyboardEnhancementFlags,
 ///     get_key_event_encoding,
 /// };
+/// use vtio::event::mode::collect_mode_flags;
 /// use vtansi::AnsiEncode;
 ///
 /// let event = KeyEvent::from(KeyCode::Enter);
 /// let flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES;
 ///
+/// // Collect mode flags from queried terminal modes
+/// let modes = [cursor_keys_mode, app_keypad_mode];
+/// let mode_flags = collect_mode_flags(&modes);
+///
 /// let mut buf = Vec::new();
-/// encode_key_event(&event, flags).encode_ansi_into(&mut buf)?;
+/// get_key_event_encoding(&event, flags, mode_flags).encode_ansi_into(&mut buf)?;
 /// ```
 #[must_use]
 pub fn get_key_event_encoding(
     event: &KeyEvent,
     flags: KeyboardEnhancementFlags,
+    mode_flags: KeyboardModeFlags,
 ) -> impl AnsiEncode {
     let use_csi_u = flags
         .contains(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
@@ -697,7 +791,9 @@ pub fn get_key_event_encoding(
     if use_csi_u {
         EnhancedKeyEncoding::CsiU(CsiUKeyEventSeq(CsiUKeyEvent(event.clone())))
     } else {
-        EnhancedKeyEncoding::Legacy(KeyEncoding::from_key_event(event))
+        EnhancedKeyEncoding::Legacy(KeyEncoding::from_key_event_with_modes(
+            event, mode_flags,
+        ))
     }
 }
 
@@ -2111,5 +2207,261 @@ mod tests {
         let event: KeyEvent =
             CsiUKeyEvent::try_from_ansi(b"57360").unwrap().into();
         assert_eq!(event.code, KeyCode::NumLock);
+    }
+
+    // ========================================================================
+    // Keyboard Mode Flags Tests
+    // ========================================================================
+
+    #[test]
+    fn test_mode_flags_cursor_keys_mode() {
+        use super::KeyboardModeFlags;
+
+        let event = KeyEvent::from(KeyCode::Up);
+
+        // Without CURSOR_KEYS mode: CSI [ A
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::empty(),
+        );
+        assert_eq!(enc, KeyEncoding::CsiFinal(b'A'));
+
+        // With CURSOR_KEYS mode (DECCKM): SS3 A
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::CURSOR_KEYS,
+        );
+        assert_eq!(enc, KeyEncoding::Ss3(b'A'));
+    }
+
+    #[test]
+    fn test_mode_flags_cursor_keys_with_modifiers() {
+        use super::KeyboardModeFlags;
+
+        // Cursor key with modifier should use CSI even in cursor keys mode
+        let event = KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT);
+
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::CURSOR_KEYS,
+        );
+        // Should be CSI 1;2 A (not SS3)
+        assert_eq!(
+            enc,
+            KeyEncoding::CsiModFinal {
+                mods: 2,
+                final_byte: b'A'
+            }
+        );
+    }
+
+    #[test]
+    fn test_mode_flags_backspace_sends_delete() {
+        use super::KeyboardModeFlags;
+
+        let event = KeyEvent::from(KeyCode::Backspace);
+
+        // Default: Backspace sends DEL (0x7F)
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::empty(),
+        );
+        assert_eq!(enc, KeyEncoding::Raw(0x7f));
+
+        // With BACKSPACE_SENDS_DELETE mode: Backspace sends BS (0x08)
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::BACKSPACE_SENDS_DELETE,
+        );
+        assert_eq!(enc, KeyEncoding::Raw(0x08));
+    }
+
+    #[test]
+    fn test_mode_flags_delete_key_sends_del() {
+        use super::KeyboardModeFlags;
+
+        let event = KeyEvent::from(KeyCode::Delete);
+
+        // Default: Delete sends CSI 3 ~
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::empty(),
+        );
+        assert_eq!(enc, KeyEncoding::CsiTilde(3));
+
+        // With DELETE_KEY_SENDS_DEL mode: Delete sends DEL (0x7F)
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::DELETE_KEY_SENDS_DEL,
+        );
+        assert_eq!(enc, KeyEncoding::Raw(0x7f));
+    }
+
+    #[test]
+    fn test_mode_flags_alt_high_bit_set() {
+        use super::KeyboardModeFlags;
+
+        let event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT);
+
+        // Default: Alt+a sends ESC a
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::empty(),
+        );
+        assert_eq!(
+            enc,
+            KeyEncoding::Char {
+                alt_prefix: true,
+                ch: 'a'
+            }
+        );
+
+        // With ALT_KEY_HIGH_BIT_SET mode: Alt+a sends 0xE1 (0x61 | 0x80)
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::ALT_KEY_HIGH_BIT_SET,
+        );
+        assert_eq!(enc, KeyEncoding::Raw(0x61 | 0x80));
+    }
+
+    #[test]
+    fn test_mode_flags_alt_ctrl_high_bit_set() {
+        use super::KeyboardModeFlags;
+
+        let event = KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::ALT | KeyModifiers::CONTROL,
+        );
+
+        // Default: Alt+Ctrl+a sends ESC followed by Ctrl-A (0x01)
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::empty(),
+        );
+        assert_eq!(
+            enc,
+            KeyEncoding::Char {
+                alt_prefix: true,
+                ch: '\x01'
+            }
+        );
+
+        // With ALT_KEY_HIGH_BIT_SET mode: Alt+Ctrl+a sends 0x81 (0x01 | 0x80)
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::ALT_KEY_HIGH_BIT_SET,
+        );
+        assert_eq!(enc, KeyEncoding::Raw(0x01 | 0x80));
+    }
+
+    #[test]
+    fn test_mode_flags_application_keypad() {
+        use super::KeyboardModeFlags;
+
+        // Note: At the KeyCode level, we cannot distinguish between main keyboard
+        // and keypad keys - they both appear as KeyCode::Char('5'). The APPLICATION_KEYPAD
+        // mode flag is available for use by higher-level code that can track key origin.
+        //
+        // This test verifies that the SS3 mapping exists for keypad characters,
+        // even though the current implementation doesn't automatically switch
+        // based on the mode flag alone (since we can't tell keypad from main keyboard).
+        let event = KeyEvent::from(KeyCode::Char('5'));
+
+        // Character '5' always encodes as the character itself
+        // (we can't distinguish keypad vs main keyboard at KeyCode level)
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::empty(),
+        );
+        assert_eq!(
+            enc,
+            KeyEncoding::Char {
+                alt_prefix: false,
+                ch: '5'
+            }
+        );
+
+        // Even with APPLICATION_KEYPAD, regular Char still encodes as char
+        // because we can't tell it's from the keypad
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::APPLICATION_KEYPAD,
+        );
+        assert_eq!(
+            enc,
+            KeyEncoding::Char {
+                alt_prefix: false,
+                ch: '5'
+            }
+        );
+
+        // Verify that the SS3 mapping exists for '5' -> 'u'
+        // (used when parsing SS3 sequences from terminal)
+        assert_eq!(ss3_byte_to_key(b'u'), Some(KeyCode::Char('5')));
+        assert_eq!(key_to_ss3_byte(KeyCode::Char('5')), Some(b'u'));
+    }
+
+    #[test]
+    fn test_mode_flags_home_end_cursor_mode() {
+        use super::KeyboardModeFlags;
+
+        let event = KeyEvent::from(KeyCode::Home);
+
+        // Default: Home sends CSI H
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::empty(),
+        );
+        assert_eq!(enc, KeyEncoding::CsiFinal(b'H'));
+
+        // With CURSOR_KEYS mode: Home sends SS3 H
+        let enc = KeyEncoding::from_key_event_with_modes(
+            &event,
+            KeyboardModeFlags::CURSOR_KEYS,
+        );
+        assert_eq!(enc, KeyEncoding::Ss3(b'H'));
+    }
+
+    #[test]
+    fn test_get_key_event_encoding_with_mode_flags() {
+        use super::{KeyboardEnhancementFlags, KeyboardModeFlags};
+        use vtansi::AnsiEncode;
+
+        let event = KeyEvent::from(KeyCode::Up);
+
+        // Legacy mode without CURSOR_KEYS: CSI [ A
+        let mut buf = Vec::new();
+        get_key_event_encoding(
+            &event,
+            KeyboardEnhancementFlags::empty(),
+            KeyboardModeFlags::empty(),
+        )
+        .encode_ansi_into(&mut buf)
+        .unwrap();
+        assert_eq!(buf, b"\x1b[A");
+
+        // Legacy mode with CURSOR_KEYS: SS3 A
+        let mut buf = Vec::new();
+        get_key_event_encoding(
+            &event,
+            KeyboardEnhancementFlags::empty(),
+            KeyboardModeFlags::CURSOR_KEYS,
+        )
+        .encode_ansi_into(&mut buf)
+        .unwrap();
+        assert_eq!(buf, b"\x1bOA");
+
+        // CSI-u mode ignores CURSOR_KEYS flag
+        let mut buf = Vec::new();
+        get_key_event_encoding(
+            &event,
+            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
+            KeyboardModeFlags::CURSOR_KEYS,
+        )
+        .encode_ansi_into(&mut buf)
+        .unwrap();
+        // CSI-u format for Up arrow
+        assert!(buf.starts_with(b"\x1b["));
+        assert!(buf.ends_with(b"u"));
     }
 }

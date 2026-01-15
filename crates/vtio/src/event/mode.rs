@@ -113,4 +113,38 @@ macro_rules! terminal_mode {
             pub struct [<Request $base_name>];
         }
     };
+
+    // With flag specifier (private mode)
+    ($(#[$meta:meta])* $base_name:ident, private = $private:literal, params = [$($params:literal),* $(,)?], flag = $flag:expr) => {
+        $crate::terminal_mode!($(#[$meta])* $base_name, private = $private, params = [$($params),*]);
+
+        impl $crate::event::keyboard::AsModeFlag for $base_name {
+            fn as_mode_flag(&self) -> $crate::event::keyboard::KeyboardModeFlags {
+                if self.state == $crate::event::mode::TerminalModeState::Set
+                    || self.state == $crate::event::mode::TerminalModeState::PermanentlySet
+                {
+                    $flag
+                } else {
+                    $crate::event::keyboard::KeyboardModeFlags::empty()
+                }
+            }
+        }
+    };
+
+    // With flag specifier (non-private mode)
+    ($(#[$meta:meta])* $base_name:ident, params = [$($params:literal),* $(,)?], flag = $flag:expr) => {
+        $crate::terminal_mode!($(#[$meta])* $base_name, params = [$($params),*]);
+
+        impl $crate::event::keyboard::AsModeFlag for $base_name {
+            fn as_mode_flag(&self) -> $crate::event::keyboard::KeyboardModeFlags {
+                if self.state == $crate::event::mode::TerminalModeState::Set
+                    || self.state == $crate::event::mode::TerminalModeState::PermanentlySet
+                {
+                    $flag
+                } else {
+                    $crate::event::keyboard::KeyboardModeFlags::empty()
+                }
+            }
+        }
+    };
 }
