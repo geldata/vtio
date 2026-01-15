@@ -86,14 +86,29 @@ pub enum TerminalColorAction {
 impl TerminalColorAction {
     /// Create a query specification.
     #[must_use]
-    pub const fn query() -> Self {
+    pub fn query() -> Self {
         Self::Query
     }
 
     /// Create a color specification from an RGB color.
     #[must_use]
-    pub const fn set(color: XColor) -> Self {
-        Self::Set(color)
+    pub fn set(color: impl Into<XColor>) -> Self {
+        Self::Set(color.into())
+    }
+
+    /// Check if this is a query.
+    #[must_use]
+    pub const fn is_query(&self) -> bool {
+        matches!(self, Self::Query)
+    }
+
+    /// Get the color if this is a Set action.
+    #[must_use]
+    pub const fn as_set(&self) -> Option<&XColor> {
+        match self {
+            Self::Set(color) => Some(color),
+            Self::Query => None,
+        }
     }
 }
 
@@ -324,6 +339,15 @@ impl RequestOrSetTerminalPaletteColor {
     }
 }
 
+impl Deref for RequestOrSetTerminalPaletteColor {
+    type Target = TerminalPaletteAction;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Response to a query for the special text default foreground color.
 ///
 /// See <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Operating-System-Commands>
@@ -332,6 +356,14 @@ impl RequestOrSetTerminalPaletteColor {
 #[derive(Debug, Clone, Copy, PartialEq, vtansi::derive::AnsiInput)]
 #[vtansi(osc, number = "10")]
 pub struct SpecialTextForegroundColorResponse(TerminalPaletteColor);
+
+impl SpecialTextForegroundColorResponse {
+    /// Create a new response with the given color.
+    #[must_use]
+    pub fn new(color: impl Into<TerminalPaletteColor>) -> Self {
+        Self(color.into())
+    }
+}
 
 impl Deref for SpecialTextForegroundColorResponse {
     type Target = TerminalPaletteColor;
@@ -369,6 +401,15 @@ impl RequestOrSetSpecialTextForegroundColor {
     }
 }
 
+impl Deref for RequestOrSetSpecialTextForegroundColor {
+    type Target = TerminalColorAction;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Response to a query for the special text default background color.
 ///
 /// See <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Operating-System-Commands>
@@ -377,6 +418,14 @@ impl RequestOrSetSpecialTextForegroundColor {
 #[derive(Debug, Clone, Copy, PartialEq, vtansi::derive::AnsiInput)]
 #[vtansi(osc, number = "11")]
 pub struct SpecialTextBackgroundColorResponse(TerminalPaletteColor);
+
+impl SpecialTextBackgroundColorResponse {
+    /// Create a new response with the given color.
+    #[must_use]
+    pub fn new(color: impl Into<TerminalPaletteColor>) -> Self {
+        Self(color.into())
+    }
+}
 
 impl Deref for SpecialTextBackgroundColorResponse {
     type Target = TerminalPaletteColor;
@@ -411,6 +460,15 @@ impl RequestOrSetSpecialTextBackgroundColor {
     #[must_use]
     pub const fn set(color: &XColor) -> Self {
         Self(TerminalColorAction::Set(*color))
+    }
+}
+
+impl Deref for RequestOrSetSpecialTextBackgroundColor {
+    type Target = TerminalColorAction;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
