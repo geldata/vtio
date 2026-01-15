@@ -13,7 +13,7 @@ bitflags! {
     /// See <https://sw.kovidgoyal.net/kitty/keyboard-protocol/#progressive-enhancement>
     /// for more information.
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
-    #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+    #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Default)]
     pub struct KeyboardEnhancementFlags: u8 {
         /// Represent Escape and modified keys using CSI-u sequences.
         ///

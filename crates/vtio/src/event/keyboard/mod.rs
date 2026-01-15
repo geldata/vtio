@@ -7,7 +7,7 @@ mod mode;
 mod modifier;
 mod util;
 
-pub use encoding::bytes_to_events;
+pub use encoding::{bytes_to_events, get_key_event_encoding};
 pub use event::{KeyEvent, KeyEventBuilder};
 pub use keycode::{KeyCode, MediaKeyCode};
 pub use mode::{

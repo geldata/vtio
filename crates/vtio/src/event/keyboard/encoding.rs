@@ -5,6 +5,8 @@ use vtansi::{
     write_csi,
 };
 
+use super::mode::KeyboardEnhancementFlags;
+
 use super::event::{KeyEvent, KeyEventBuilder};
 use super::keycode::{KeyCode, MediaKeyCode};
 use super::modifier::{
@@ -631,6 +633,71 @@ impl AnsiEncode for KeyEvent {
         buf: &mut W,
     ) -> Result<usize, EncodeError> {
         KeyEncoding::from_key_event(self).encode_ansi_into(buf)
+    }
+}
+
+// ============================================================================
+// Keyboard Enhancement Flags Encoding
+// ============================================================================
+
+/// Internal enum for choosing between legacy and CSI u encoding.
+#[derive(Debug, Clone)]
+enum EnhancedKeyEncoding {
+    /// Legacy encoding (SS3, CSI ~, etc.)
+    Legacy(KeyEncoding),
+    /// CSI u encoding (kitty keyboard protocol)
+    CsiU(CsiUKeyEventSeq),
+}
+
+impl AnsiEncode for EnhancedKeyEncoding {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        sink: &mut W,
+    ) -> Result<usize, EncodeError> {
+        match self {
+            Self::Legacy(enc) => enc.encode_ansi_into(sink),
+            Self::CsiU(seq) => seq.encode_ansi_into(sink),
+        }
+    }
+}
+
+/// Choose a key event according to the given keyboard enhancement flags.
+///
+/// When `DISAMBIGUATE_ESCAPE_CODES` or `REPORT_ALL_KEYS_AS_ESCAPE_CODES` flags
+/// are set, the key event would be encoded using the CSI u format (kitty keyboard
+/// protocol). Otherwise, it uses the legacy terminal encoding.
+///
+/// # Example
+///
+/// ```ignore
+/// use vtio::event::keyboard::{
+///     KeyEvent,
+///     KeyboardEnhancementFlags,
+///     get_key_event_encoding,
+/// };
+/// use vtansi::AnsiEncode;
+///
+/// let event = KeyEvent::from(KeyCode::Enter);
+/// let flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES;
+///
+/// let mut buf = Vec::new();
+/// encode_key_event(&event, flags).encode_ansi_into(&mut buf)?;
+/// ```
+#[must_use]
+pub fn get_key_event_encoding(
+    event: &KeyEvent,
+    flags: KeyboardEnhancementFlags,
+) -> impl AnsiEncode {
+    let use_csi_u = flags
+        .contains(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        || flags.contains(
+            KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES,
+        );
+
+    if use_csi_u {
+        EnhancedKeyEncoding::CsiU(CsiUKeyEventSeq(CsiUKeyEvent(event.clone())))
+    } else {
+        EnhancedKeyEncoding::Legacy(KeyEncoding::from_key_event(event))
     }
 }
 
