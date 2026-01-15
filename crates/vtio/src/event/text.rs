@@ -35,3 +35,11 @@ impl<'a> vtansi::AnsiEvent<'a> for PlainText<'a> {
 
     vtansi::impl_ansi_event_encode!();
 }
+
+impl std::ops::Deref for PlainText<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}

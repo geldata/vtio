@@ -737,73 +737,6 @@ pub struct SecondaryDeviceAttributesResponse {
     pub extra: Option<u16>,
 }
 
-/// Unit ID wrapper for hex encoding.
-///
-/// Encodes a 4-byte unit ID as an 8-character hexadecimal string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct UnitId(pub [u8; 4]);
-
-impl UnitId {
-    /// Create from a 4-byte array.
-    #[must_use]
-    pub const fn new(bytes: [u8; 4]) -> Self {
-        Self(bytes)
-    }
-
-    /// Create from a string (takes first 4 bytes).
-    #[must_use]
-    pub fn from_string(s: &str) -> Self {
-        let bytes = s.as_bytes();
-        let mut id = [0u8; 4];
-        let len = bytes.len().min(4);
-        id[..len].copy_from_slice(&bytes[..len]);
-        Self(id)
-    }
-}
-
-impl vtansi::AnsiEncode for UnitId {
-    fn encode_ansi_into<W: std::io::Write + ?Sized>(
-        &self,
-        sink: &mut W,
-    ) -> Result<usize, vtansi::EncodeError> {
-        const HEX: &[u8; 16] = b"0123456789ABCDEF";
-        let mut hex = [0u8; 8];
-
-        for (i, &b) in self.0.iter().enumerate() {
-            hex[2 * i] = HEX[(b >> 4) as usize];
-            hex[2 * i + 1] = HEX[(b & 0x0F) as usize];
-        }
-
-        <_ as vtansi::AnsiEncode>::encode_ansi_into(&hex, sink)
-    }
-}
-
-impl From<[u8; 4]> for UnitId {
-    fn from(bytes: [u8; 4]) -> Self {
-        Self(bytes)
-    }
-}
-
-impl<'a> vtansi::TryFromAnsi<'a> for UnitId {
-    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, vtansi::ParseError> {
-        let mut id = [0u8; 4];
-
-        // Parse hex string back to bytes
-        for (i, chunk) in bytes.chunks(2).enumerate().take(4) {
-            if chunk.len() == 2
-                && let Ok(b) = u8::from_str_radix(
-                    std::str::from_utf8(chunk).unwrap_or("00"),
-                    16,
-                )
-            {
-                id[i] = b;
-            }
-        }
-
-        Ok(Self(id))
-    }
-}
-
 /// Response to tertiary device attributes request (`DECRPTUI`).
 ///
 /// Send terminal unit ID in response to a DA3 query.
@@ -812,7 +745,7 @@ impl<'a> vtansi::TryFromAnsi<'a> for UnitId {
 /// is the terminal's unit ID encoded as hexadecimal pairs.
 ///
 /// This is less commonly supported than DA1 and DA2. When supported,
-/// the unit ID is typically a fixed string identifying the terminal
+/// the unit ID is typically a string identifying the terminal
 /// hardware or implementation.
 ///
 /// # Examples
@@ -831,8 +764,9 @@ impl<'a> vtansi::TryFromAnsi<'a> for UnitId {
 )]
 #[vtansi(dcs, intermediate = "!", finalbyte = '|')]
 pub struct TertiaryDeviceAttributesResponse {
+    /// The terminal's unit ID (hex-decoded).
     #[vtansi(locate = "data")]
-    pub unit_id: UnitId,
+    pub unit_id: HexString,
 }
 
 /// Select VT-XXX Conformance Level (`DECSCL`).
@@ -897,10 +831,434 @@ pub struct SelectVTConformanceLevel {
 #[vtansi(dcs, intermediate = "$", finalbyte = 'q', data = "\"p")]
 pub struct RequestVTConformanceLevel;
 
+/// Hex-encoded string.
+///
+/// Encodes a string as hex pairs (each ASCII byte becomes two hex digits).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct HexString(pub Vec<u8>);
+
+impl HexString {
+    /// Create a new `HexString` from raw bytes.
+    #[must_use]
+    pub const fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    /// Create a `HexString` from a string slice.
+    #[must_use]
+    pub fn from_string(s: &str) -> Self {
+        Self(s.as_bytes().to_vec())
+    }
+
+    /// Get the decoded bytes as a string slice if valid UTF-8.
+    #[must_use]
+    pub fn as_str(&self) -> Option<&str> {
+        std::str::from_utf8(&self.0).ok()
+    }
+
+    /// Get the raw decoded bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for HexString {
+    type Target = Vec<u8>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<&str> for HexString {
+    fn from(s: &str) -> Self {
+        Self::from_string(s)
+    }
+}
+
+impl From<String> for HexString {
+    fn from(s: String) -> Self {
+        Self(s.into_bytes())
+    }
+}
+
+impl From<Vec<u8>> for HexString {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+}
+
+impl vtansi::AnsiEncode for HexString {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        sink: &mut W,
+    ) -> Result<usize, vtansi::EncodeError> {
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        let mut hex = Vec::with_capacity(self.0.len() * 2);
+
+        for &b in &self.0 {
+            hex.push(HEX[(b >> 4) as usize]);
+            hex.push(HEX[(b & 0x0F) as usize]);
+        }
+
+        <[u8] as vtansi::AnsiEncode>::encode_ansi_into(&hex, sink)
+    }
+}
+
+impl<'a> vtansi::TryFromAnsi<'a> for HexString {
+    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, vtansi::ParseError> {
+        let mut result = Vec::with_capacity(bytes.len() / 2);
+
+        for chunk in bytes.chunks(2) {
+            if chunk.len() == 2
+                && let Ok(s) = std::str::from_utf8(chunk)
+                && let Ok(b) = u8::from_str_radix(s, 16)
+            {
+                result.push(b);
+            }
+        }
+
+        Ok(Self(result))
+    }
+}
+
+/// Wrapper for encoding multiple hex-encoded query strings.
+///
+/// Used internally by [`RequestTermcapQuery`] to encode the query
+/// data as semicolon-separated hex strings.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct HexStringList(Vec<HexString>);
+
+impl std::ops::Deref for HexStringList {
+    type Target = Vec<HexString>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl vtansi::AnsiEncode for HexStringList {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        sink: &mut W,
+    ) -> Result<usize, vtansi::EncodeError> {
+        let mut written = 0;
+
+        for (i, query) in self.0.iter().enumerate() {
+            if i > 0 {
+                written +=
+                    <[u8] as vtansi::AnsiEncode>::encode_ansi_into(b";", sink)?;
+            }
+            written += vtansi::AnsiEncode::encode_ansi_into(query, sink)?;
+        }
+
+        Ok(written)
+    }
+}
+
+impl<'a> vtansi::TryFromAnsi<'a> for HexStringList {
+    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, vtansi::ParseError> {
+        let mut result = Vec::new();
+        for part in bytes.split(|&b| b == b';') {
+            if !part.is_empty() {
+                result.push(HexString::try_from_ansi(part)?);
+            }
+        }
+        Ok(Self(result))
+    }
+}
+
+/// Request termcap/terminfo capability query (`XTGETTCAP`).
+///
+/// Query keyboard mapping or miscellaneous terminal information using
+/// the xterm termcap query mechanism.
+///
+/// The `queries` field contains one or more capability names to query,
+/// which will be hex-encoded in the DCS sequence. Multiple queries
+/// are separated by semicolons.
+///
+/// Common query values (before hex encoding):
+/// - `colors` or `Co` - number of palette colors (256, 88, or 16)
+/// - `RGB` - significant bits for direct color display
+/// - `name` or `TN` - name of terminal description (e.g., "xterm")
+/// - terminfo key names (e.g., `kf1` for function key 1)
+///
+/// The terminal replies with [`TermcapQueryResponse`].
+///
+/// **Note:** xterm aborts processing at the first unsuccessful query;
+/// all subsequent query parts are ignored.
+///
+/// See <https://terminalguide.namepad.de/seq/dcs-plus-q/> for terminal
+/// support specifics.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, vtansi::derive::AnsiOutput)]
+#[vtansi(dcs, intermediate = "+", finalbyte = 'q')]
+pub struct RequestTermcapQuery {
+    /// The capability names to query (will be hex-encoded).
+    #[vtansi(locate = "data")]
+    pub queries: HexStringList,
+}
+
+impl RequestTermcapQuery {
+    /// Create a new termcap query request with a single query.
+    #[must_use]
+    pub fn new(query: impl Into<HexString>) -> Self {
+        Self {
+            queries: HexStringList(vec![query.into()]),
+        }
+    }
+
+    /// Create a new termcap query request with multiple queries.
+    #[must_use]
+    pub fn with_queries(
+        queries: impl IntoIterator<Item = impl Into<HexString>>,
+    ) -> Self {
+        Self {
+            queries: HexStringList(
+                queries.into_iter().map(Into::into).collect(),
+            ),
+        }
+    }
+}
+
+/// A single termcap query result with key and optional value.
+///
+/// When the terminal successfully resolves a query, both `key` and
+/// `value` are present. When the query is valid but has no data,
+/// only `key` is present with `value` set to `None`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TermcapQueryResult {
+    /// The queried capability name (hex-decoded).
+    pub key: HexString,
+    /// The result value (hex-decoded), if available.
+    pub value: Option<HexString>,
+}
+
+/// Wrapper for parsing termcap query response data.
+///
+/// Parses the semicolon-separated hex-encoded key=value pairs from
+/// the DCS response.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct TermcapQueryResultList(Vec<TermcapQueryResult>);
+
+impl std::ops::Deref for TermcapQueryResultList {
+    type Target = Vec<TermcapQueryResult>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl vtansi::AnsiEncode for TermcapQueryResultList {
+    fn encode_ansi_into<W: std::io::Write + ?Sized>(
+        &self,
+        sink: &mut W,
+    ) -> Result<usize, vtansi::EncodeError> {
+        let mut written = 0;
+
+        for (i, result) in self.0.iter().enumerate() {
+            if i > 0 {
+                written +=
+                    <[u8] as vtansi::AnsiEncode>::encode_ansi_into(b";", sink)?;
+            }
+            written += vtansi::AnsiEncode::encode_ansi_into(&result.key, sink)?;
+            if let Some(ref value) = result.value {
+                written +=
+                    <[u8] as vtansi::AnsiEncode>::encode_ansi_into(b"=", sink)?;
+                written += vtansi::AnsiEncode::encode_ansi_into(value, sink)?;
+            }
+        }
+
+        Ok(written)
+    }
+}
+
+impl<'a> vtansi::TryFromAnsi<'a> for TermcapQueryResultList {
+    fn try_from_ansi(bytes: &'a [u8]) -> Result<Self, vtansi::ParseError> {
+        if bytes.is_empty() {
+            return Ok(Self(Vec::new()));
+        }
+
+        let mut results = Vec::new();
+        for part in bytes.split(|&b| b == b';') {
+            if part.is_empty() {
+                continue;
+            }
+
+            // Split on '=' to separate key and value
+            if let Some(eq_pos) = part.iter().position(|&b| b == b'=') {
+                let key = HexString::try_from_ansi(&part[..eq_pos])?;
+                let value = HexString::try_from_ansi(&part[eq_pos + 1..])?;
+                results.push(TermcapQueryResult {
+                    key,
+                    value: Some(value),
+                });
+            } else {
+                // No '=' means valid query but no data
+                let key = HexString::try_from_ansi(part)?;
+                results.push(TermcapQueryResult { key, value: None });
+            }
+        }
+
+        Ok(Self(results))
+    }
+}
+
+/// Response to termcap/terminfo capability query (`XTGETTCAP`).
+///
+/// Response from the terminal to [`RequestTermcapQuery`].
+///
+/// The response format depends on whether the query was successful:
+///
+/// - Invalid/unrecognized query: `DCS 0 + r ST`
+/// - Valid query with results: `DCS 1 + r <query>=<result>[;<query>=<result>...] ST`
+/// - Valid query without data: `DCS 1 + r <query>[;<query>...] ST`
+///
+/// Both `query` and `result` are hex-encoded strings.
+///
+/// See <https://terminalguide.namepad.de/seq/dcs-plus-q/> for terminal
+/// support specifics.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, vtansi::derive::AnsiInput)]
+#[vtansi(dcs, intermediate = "+", finalbyte = 'r')]
+pub struct TermcapQueryResponse {
+    /// Whether the query was valid (`true` = `1`, `false` = `0`).
+    #[vtansi(locate = "params")]
+    pub valid: bool,
+    /// The query results, empty if the query was invalid.
+    #[vtansi(locate = "data")]
+    pub results: TermcapQueryResultList,
+}
+
+impl TermcapQueryResponse {
+    /// Check if the response indicates a valid query.
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.valid
+    }
+
+    /// Get the first result's value as a string, if present.
+    #[must_use]
+    pub fn first_value_as_str(&self) -> Option<&str> {
+        self.results
+            .0
+            .first()
+            .and_then(|r| r.value.as_ref())
+            .and_then(|v| v.as_str())
+    }
+
+    /// Find a result by key name.
+    #[must_use]
+    pub fn get(&self, key: &str) -> Option<&TermcapQueryResult> {
+        self.results.0.iter().find(|r| r.key.as_str() == Some(key))
+    }
+}
+
+/// Request terminal name and version (`XTVERSION`).
+///
+/// Query the terminal's name and version string using the xterm
+/// XTVERSION extension.
+///
+/// The terminal replies with [`TerminalNameAndVersionResponse`].
+///
+/// # Example Response Strings
+///
+/// Different terminals return different version strings:
+/// - xterm: `XTerm(388)`
+/// - VTE (GNOME Terminal): `VTE(0.74.2)`
+/// - foot: `foot(1.16.2)`
+/// - kitty: `kitty(0.32.2)`
+/// - Alacritty: `alacritty(0.13.1)`
+/// - iTerm2: `iTerm2 3.5.0`
+/// - `WezTerm`: `wezterm 20240203-110809-5046fc22`
+///
+/// See <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html> for
+/// the xterm specification.
+#[derive(
+    Debug,
+    PartialOrd,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Hash,
+    vtansi::derive::AnsiOutput,
+)]
+#[vtansi(csi, intermediate = ">", finalbyte = 'q')]
+pub struct RequestTerminalNameAndVersion;
+
+/// Response to terminal name and version request (`XTVERSION`).
+///
+/// Response from the terminal to [`RequestTerminalNameAndVersion`].
+///
+/// The response format is `DCS > | <version-string> ST` where
+/// `version-string` contains the terminal name and version.
+///
+/// # Example Response Strings
+///
+/// Different terminals return different version strings:
+/// - xterm: `XTerm(388)`
+/// - VTE (GNOME Terminal): `VTE(0.74.2)`
+/// - foot: `foot(1.16.2)`
+/// - kitty: `kitty(0.32.2)`
+/// - Alacritty: `alacritty(0.13.1)`
+/// - iTerm2: `iTerm2 3.5.0`
+/// - `WezTerm`: `wezterm 20240203-110809-5046fc22`
+///
+/// See <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html> for
+/// the xterm specification.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, vtansi::derive::AnsiInput)]
+#[vtansi(dcs, intermediate = ">", finalbyte = '|')]
+pub struct TerminalNameAndVersionResponse<'a> {
+    /// The terminal name and version string.
+    #[vtansi(locate = "data")]
+    pub version: &'a str,
+}
+
+/// Owned version of [`TerminalNameAndVersionResponse`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TerminalNameAndVersionResponseOwned {
+    /// The terminal name and version string.
+    pub version: String,
+}
+
+impl<'a> From<TerminalNameAndVersionResponse<'a>>
+    for TerminalNameAndVersionResponseOwned
+{
+    fn from(response: TerminalNameAndVersionResponse<'a>) -> Self {
+        Self {
+            version: response.version.to_string(),
+        }
+    }
+}
+
+impl TerminalNameAndVersionResponseOwned {
+    /// Borrow this owned response as a borrowed version.
+    #[must_use]
+    pub fn borrow(&self) -> TerminalNameAndVersionResponse<'_> {
+        TerminalNameAndVersionResponse {
+            version: &self.version,
+        }
+    }
+}
+
+impl TerminalNameAndVersionResponse<'_> {
+    /// Convert to an owned version.
+    #[must_use]
+    pub fn to_owned(&self) -> TerminalNameAndVersionResponseOwned {
+        TerminalNameAndVersionResponseOwned {
+            version: self.version.to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use vtansi::AnsiEncode;
+    use vtansi::TryFromAnsi;
 
     #[test]
     fn test_primary_device_attributes_response_encoding() {
@@ -953,7 +1311,7 @@ mod tests {
     #[test]
     fn test_tertiary_device_attributes_response_encoding() {
         let response = TertiaryDeviceAttributesResponse {
-            unit_id: UnitId([0x7E, 0x56, 0x54, 0x45]), // "~VTE"
+            unit_id: HexString::from_string("~VTE"),
         };
 
         let mut buf = Vec::new();
@@ -989,5 +1347,54 @@ mod tests {
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1b[62\"p");
+    }
+
+    #[test]
+    fn test_request_termcap_query_single() {
+        let request = RequestTermcapQuery::new("colors");
+
+        let mut buf = Vec::new();
+        request.encode_ansi_into(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        // "colors" hex-encoded = "636F6C6F7273"
+        assert_eq!(encoded, "\x1bP+q636F6C6F7273\x1b\\");
+    }
+
+    #[test]
+    fn test_request_termcap_query_multiple() {
+        let request = RequestTermcapQuery::with_queries(["colors", "RGB"]);
+
+        let mut buf = Vec::new();
+        request.encode_ansi_into(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        // "colors" = "636F6C6F7273", "RGB" = "524742"
+        assert_eq!(encoded, "\x1bP+q636F6C6F7273;524742\x1b\\");
+    }
+
+    #[test]
+    fn test_hex_string_roundtrip() {
+        let original = HexString::from_string("test");
+
+        let mut buf = Vec::new();
+        original.encode_ansi_into(&mut buf).unwrap();
+
+        // Should encode to "74657374"
+        assert_eq!(&buf, b"74657374");
+
+        let decoded = HexString::try_from_ansi(&buf).unwrap();
+        assert_eq!(decoded.as_str(), Some("test"));
+    }
+
+    #[test]
+    fn test_request_terminal_name_and_version_encoding() {
+        let request = RequestTerminalNameAndVersion;
+
+        let mut buf = Vec::new();
+        request.encode_ansi_into(&mut buf).unwrap();
+        let encoded = String::from_utf8(buf).unwrap();
+
+        assert_eq!(encoded, "\x1b[>q");
     }
 }
