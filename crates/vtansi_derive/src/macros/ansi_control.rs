@@ -121,6 +121,31 @@ fn generate_control_impl(
             }
 
             ::vtansi::impl_ansi_event_encode!();
+            ::vtansi::impl_ansi_event_terse_fmt!();
+        }
+    })
+}
+
+/// Generate `TerseDisplay` trait implementation.
+///
+/// This generates an implementation that delegates to `Debug` for rendering
+/// the innards of the event.
+///
+/// # Errors
+///
+/// syn::Error
+fn generate_terse_display_impl(ast: &DeriveInput) -> syn::Result<TokenStream> {
+    let ty = &ast.ident;
+    let (impl_generics, ty_generics, where_clause) =
+        ast.generics.split_for_impl();
+
+    Ok(quote! {
+        #[automatically_derived]
+        impl #impl_generics ::vtansi::TerseDisplay for #ty #ty_generics #where_clause {
+            #[inline]
+            fn terse_fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                ::std::fmt::Debug::fmt(self, f)
+            }
         }
     })
 }
@@ -305,6 +330,7 @@ fn generate_byte_impl(
         let registry = generate_registry_entries(ast, props, &params)?;
         let control_impl = generate_control_impl(ast, props)?;
         let tid_impl = generate_tid_impl(ast)?;
+        let terse_display_impl = generate_terse_display_impl(ast)?;
         let encode_impl = quote! {
             impl #impl_generics ::vtansi::StaticAnsiEncode for #struct_name #ty_generics #where_clause {
                 const BYTES: &'static [u8] = ::std::slice::from_ref(&#code);
@@ -315,6 +341,7 @@ fn generate_byte_impl(
             #registry
             #control_impl
             #tid_impl
+            #terse_display_impl
             #encode_impl
         })
     } else {
@@ -350,6 +377,7 @@ fn generate_esc_impl(
 
     let control_impl = generate_control_impl(ast, props)?;
     let tid_impl = generate_tid_impl(ast)?;
+    let terse_display_impl = generate_terse_display_impl(ast)?;
     let registry = generate_registry_entries(ast, props, &params)?;
     let encode_impl = generate_esc_encode_impl(ast, props, &params)?;
     // let decode_impl = generate_esc_decode_impl(ast, props, &params)?;
@@ -358,6 +386,7 @@ fn generate_esc_impl(
         #registry
         #control_impl
         #tid_impl
+        #terse_display_impl
         #encode_impl
         // #decode_impl
     })

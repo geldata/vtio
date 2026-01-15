@@ -2,6 +2,7 @@
 
 pub mod macros;
 
+pub mod debug;
 pub mod encode;
 pub mod parse;
 
@@ -26,6 +27,8 @@ pub use encode::{
 
 pub use parse::parse_keyvalue_pairs;
 pub use parse::{ParseError, TryFromAnsi, TryFromAnsiIter};
+
+pub use debug::{TerseDebug, TerseDisplay};
 
 #[cfg(feature = "derive")]
 pub mod derive;
@@ -116,6 +119,19 @@ pub trait AnsiEvent<'a>: better_any::Tid<'a> {
         self.encode_ansi_into(&mut v)?;
         Ok(v)
     }
+
+    /// Format this event in a terse, human-readable format.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if formatting fails.
+    fn terse_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+}
+
+impl std::fmt::Debug for dyn AnsiEvent<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.terse_fmt(f)
+    }
 }
 
 /// Blanket implementation helper: implement `AnsiEvent::encode_ansi_into` by
@@ -140,6 +156,33 @@ macro_rules! impl_ansi_event_encode {
             sink: &mut dyn ::std::io::Write,
         ) -> ::core::result::Result<usize, $crate::EncodeError> {
             <Self as $crate::AnsiEncode>::encode_ansi_into(self, sink)
+        }
+    };
+}
+
+/// Blanket implementation helper: implement `AnsiEvent::terse_fmt` by
+/// delegating to `TerseDisplay::terse_fmt`.
+///
+/// Use this macro in your `AnsiEvent` implementation when your type also
+/// implements `TerseDisplay`:
+///
+/// ```ignore
+/// impl<'a> AnsiEvent<'a> for MyType {
+///     fn ansi_control_kind(&self) -> Option<AnsiControlFunctionKind> { ... }
+///     fn ansi_direction(&self) -> AnsiControlDirection { ... }
+///     vtansi::impl_ansi_event_encode!();
+///     vtansi::impl_ansi_event_terse_fmt!();
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_ansi_event_terse_fmt {
+    () => {
+        #[inline]
+        fn terse_fmt(
+            &self,
+            f: &mut ::std::fmt::Formatter<'_>,
+        ) -> ::std::fmt::Result {
+            <Self as $crate::TerseDisplay>::terse_fmt(self, f)
         }
     };
 }

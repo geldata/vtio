@@ -1586,7 +1586,7 @@ key(press:shift-a:text="ABC")
 ```
 
 ```
-KeyboardEnhancementFlags(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES))
+KeyboardEnhancementFlagsResponse(Some(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES)))
 ```
 ---
 ## Protocol Negotiation - Response with flags (disambiguate + report event types)
@@ -1595,7 +1595,7 @@ KeyboardEnhancementFlags(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES))
 ```
 
 ```
-KeyboardEnhancementFlags(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES | REPORT_EVENT_TYPES))
+KeyboardEnhancementFlagsResponse(Some(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES | REPORT_EVENT_TYPES)))
 ```
 ---
 ## Protocol Negotiation - Response with flags (all enhancements)
@@ -1604,6 +1604,6 @@ KeyboardEnhancementFlags(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES | RE
 ```
 
 ```
-KeyboardEnhancementFlags(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES | REPORT_EVENT_TYPES | REPORT_ALTERNATE_KEYS | REPORT_ALL_KEYS_AS_ESCAPE_CODES | REPORT_ASSOCIATED_TEXT))
+KeyboardEnhancementFlagsResponse(Some(KeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES | REPORT_EVENT_TYPES | REPORT_ALTERNATE_KEYS | REPORT_ALL_KEYS_AS_ESCAPE_CODES | REPORT_ASSOCIATED_TEXT)))
 ```
 ---

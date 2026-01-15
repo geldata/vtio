@@ -10,6 +10,25 @@ pub struct PlainText<'a>(pub &'a str);
 
 better_any::tid! {PlainText<'a>}
 
+impl vtansi::TerseDisplay for PlainText<'_> {
+    fn terse_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Write;
+        f.write_str("text(\"")?;
+        for c in self.0.chars() {
+            if c == '"' {
+                f.write_str("\\\"")?;
+            } else if c == '\\' {
+                f.write_str("\\\\")?;
+            } else if c.is_control() {
+                write!(f, "\\u{{{:x}}}", c as u32)?;
+            } else {
+                f.write_char(c)?;
+            }
+        }
+        f.write_str("\")")
+    }
+}
+
 impl vtansi::AnsiEncode for PlainText<'_> {
     #[inline]
     fn encode_ansi_into<W: Write + ?Sized>(
@@ -34,6 +53,7 @@ impl<'a> vtansi::AnsiEvent<'a> for PlainText<'a> {
     }
 
     vtansi::impl_ansi_event_encode!();
+    vtansi::impl_ansi_event_terse_fmt!();
 }
 
 impl std::ops::Deref for PlainText<'_> {

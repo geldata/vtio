@@ -6,7 +6,7 @@ use super::util::parse_colon_separated;
 use vtansi::bitflags;
 use vtansi::{AnsiEncode, EncodeError, TryFromAnsi};
 
-use crate::TerseDisplay;
+use vtansi::TerseDisplay;
 
 /// Represents a keyboard event kind.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

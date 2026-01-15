@@ -34,6 +34,12 @@ pub struct UnrecognizedInputEvent<'a>(pub &'a VTEvent<'a>);
 
 better_any::tid! {UnrecognizedInputEvent<'a>}
 
+impl vtansi::TerseDisplay for UnrecognizedInputEvent<'_> {
+    fn terse_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 impl vtansi::AnsiEncode for UnrecognizedInputEvent<'_> {
     #[inline]
     fn encode_ansi_into<W: std::io::Write + ?Sized>(
@@ -74,6 +80,7 @@ impl<'a> vtansi::AnsiEvent<'a> for UnrecognizedInputEvent<'a> {
     }
 
     vtansi::impl_ansi_event_encode!();
+    vtansi::impl_ansi_event_terse_fmt!();
 }
 
 /// Unrecognized output event wrapper.
@@ -81,6 +88,12 @@ impl<'a> vtansi::AnsiEvent<'a> for UnrecognizedInputEvent<'a> {
 pub struct UnrecognizedOutputEvent<'a>(pub &'a VTEvent<'a>);
 
 better_any::tid! {UnrecognizedOutputEvent<'a>}
+
+impl vtansi::TerseDisplay for UnrecognizedOutputEvent<'_> {
+    fn terse_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
 
 impl vtansi::AnsiEncode for UnrecognizedOutputEvent<'_> {
     #[inline]
@@ -122,4 +135,5 @@ impl<'a> vtansi::AnsiEvent<'a> for UnrecognizedOutputEvent<'a> {
     }
 
     vtansi::impl_ansi_event_encode!();
+    vtansi::impl_ansi_event_terse_fmt!();
 }

@@ -3,10 +3,7 @@
 pub mod event;
 pub mod parser;
 
-mod traits;
-
 pub use crate::parser::TerminalInputParser;
-pub use crate::traits::{TerseDebug, TerseDisplay};
 
 /// Re-export of [`better_any::TidExt`] as `AnyEvent` for convenient event downcasting.
 ///

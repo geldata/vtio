@@ -76,7 +76,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufWriter, Read, Write};
 use std::time::{Duration, Instant};
-use vtansi::AnsiEncode;
+use vtansi::{AnsiEncode, TerseDebug};
 use vtio::event::mode::TerminalModeState;
 use vtio::event::mouse::{
     DisableMouseAnyEventTrackingMode, DisableMouseClickAndDragTrackingMode,
@@ -89,7 +89,7 @@ use vtio::event::{
     PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use vtio::event::{cursor, keyboard, mouse, screen, scroll, terminal};
-use vtio::{AnyEvent, TerminalInputParser, TerseDebug};
+use vtio::{AnyEvent, TerminalInputParser};
 
 #[cfg(unix)]
 mod raw_mode {

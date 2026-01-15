@@ -2,8 +2,9 @@ use better_any::TidExt;
 use pretty_assertions::assert_eq;
 use std::fmt::Write;
 use vt_push_parser::ascii::decode_string;
+use vtansi::TerseDisplay;
+use vtio::TerminalInputParser;
 use vtio::event::{KeyEvent, KeyboardEnhancementFlagsResponse};
-use vtio::{TerminalInputParser, TerseDisplay};
 
 pub struct TestConfig<'a> {
     pub input_file: &'a str,

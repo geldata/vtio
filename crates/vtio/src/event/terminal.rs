@@ -318,6 +318,12 @@ pub struct BracketedPaste<'a>(pub &'a [u8]);
 
 better_any::tid! {BracketedPaste<'a>}
 
+impl vtansi::TerseDisplay for BracketedPaste<'_> {
+    fn terse_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 impl vtansi::AnsiEncode for BracketedPaste<'_> {
     #[inline]
     fn encode_ansi_into<W: std::io::Write + ?Sized>(
@@ -341,6 +347,7 @@ impl<'a> vtansi::AnsiEvent<'a> for BracketedPaste<'a> {
     }
 
     vtansi::impl_ansi_event_encode!();
+    vtansi::impl_ansi_event_terse_fmt!();
 }
 
 /// Bell (BEL).

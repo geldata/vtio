@@ -7,7 +7,7 @@ use vtansi::AnsiEvent;
 
 use super::keycode::KeyCode;
 use super::modifier::{KeyEventKind, KeyEventState, KeyModifiers};
-use crate::TerseDisplay;
+use vtansi::TerseDisplay;
 
 /// Represents a key event.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -362,6 +362,7 @@ impl AnsiEvent<'_> for KeyEvent {
     }
 
     vtansi::impl_ansi_event_encode!();
+    vtansi::impl_ansi_event_terse_fmt!();
 }
 
 better_any::tid! {KeyEvent}

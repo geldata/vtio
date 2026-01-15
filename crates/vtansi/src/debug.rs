@@ -1,3 +1,8 @@
+//! Terse display traits for terminal events.
+//!
+//! These traits provide a concise, human-readable format for terminal events,
+//! suitable for test output and debugging.
+
 use std::{any::type_name, fmt};
 
 /// Format terminal events in a terse, human-readable format for test
@@ -11,8 +16,12 @@ pub trait TerseDisplay {
     fn terse_fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
+/// Format terminal events in a terse format with type name prefix.
+///
+/// This trait is automatically implemented for all types that implement
+/// [`TerseDisplay`], wrapping the output with the type name.
 pub trait TerseDebug {
-    /// Format the value in a terse format.
+    /// Format the value in a terse format with type name prefix.
     ///
     /// # Errors
     ///

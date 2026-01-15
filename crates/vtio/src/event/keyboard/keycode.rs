@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 use std::hash::Hash;
 
 use super::modifier::ModifierKeyCode;
-use crate::TerseDisplay;
+use vtansi::TerseDisplay;
 
 /// Represents a media key (as part of [`KeyCode::Media`]).
 #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]

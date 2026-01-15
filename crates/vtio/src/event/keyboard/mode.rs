@@ -1,7 +1,5 @@
 use std::fmt;
 use std::hash::Hash;
-
-use crate::TerseDisplay;
 use vtansi::bitflags;
 
 bitflags! {
@@ -137,17 +135,6 @@ impl fmt::Display for KeyboardEnhancementFlags {
             }
         }
         Ok(())
-    }
-}
-
-impl TerseDisplay for KeyboardEnhancementFlagsResponse {
-    fn terse_fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "KeyboardEnhancementFlags(KeyboardEnhancementFlags({}))",
-            self.0
-                .map_or("None".to_string(), |flags| format!("{flags}"))
-        )
     }
 }
 

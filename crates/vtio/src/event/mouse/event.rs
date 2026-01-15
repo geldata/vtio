@@ -1,6 +1,8 @@
 //! Core mouse event types.
 
-use vtansi::ParseError;
+use std::fmt::{self, Write};
+
+use vtansi::{ParseError, TerseDisplay};
 
 use crate::event::keyboard::KeyModifiers;
 
@@ -160,6 +162,70 @@ impl MouseEvent {
 
 better_any::tid! { MouseEvent }
 
+impl TerseDisplay for MouseEvent {
+    fn terse_fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("mouse(")?;
+
+        // Event kind (down, up, drag, moved, scroll)
+        match self.kind {
+            MouseEventKind::Down(btn) => {
+                f.write_str("down:")?;
+                write_button(f, btn)?;
+            }
+            MouseEventKind::Up(btn) => {
+                f.write_str("up:")?;
+                write_button(f, btn)?;
+            }
+            MouseEventKind::Drag(btn) => {
+                f.write_str("drag:")?;
+                write_button(f, btn)?;
+            }
+            MouseEventKind::Moved => f.write_str("moved")?,
+            MouseEventKind::ScrollUp => f.write_str("scroll:up")?,
+            MouseEventKind::ScrollDown => f.write_str("scroll:down")?,
+            MouseEventKind::ScrollLeft => f.write_str("scroll:left")?,
+            MouseEventKind::ScrollRight => f.write_str("scroll:right")?,
+        }
+
+        // Modifiers (if any)
+        if !self.modifiers.is_empty() {
+            f.write_char(':')?;
+            let mut first = true;
+            if self.modifiers.contains(KeyModifiers::CONTROL) {
+                f.write_str("ctrl")?;
+                first = false;
+            }
+            if self.modifiers.contains(KeyModifiers::ALT) {
+                if !first {
+                    f.write_char('-')?;
+                }
+                f.write_str("alt")?;
+                first = false;
+            }
+            if self.modifiers.contains(KeyModifiers::SHIFT) {
+                if !first {
+                    f.write_char('-')?;
+                }
+                f.write_str("shift")?;
+            }
+        }
+
+        // Coordinates
+        write!(f, "@{},{}", self.coords.column, self.coords.row)?;
+
+        f.write_char(')')
+    }
+}
+
+fn write_button(f: &mut fmt::Formatter<'_>, btn: MouseButton) -> fmt::Result {
+    match btn {
+        MouseButton::Left => f.write_str("left"),
+        MouseButton::Right => f.write_str("right"),
+        MouseButton::Middle => f.write_str("middle"),
+        MouseButton::Nth(n) => write!(f, "btn{n}"),
+    }
+}
+
 impl vtansi::AnsiEvent<'_> for MouseEvent {
     #[inline]
     fn ansi_control_kind(&self) -> Option<vtansi::AnsiControlFunctionKind> {
@@ -172,6 +238,7 @@ impl vtansi::AnsiEvent<'_> for MouseEvent {
     }
 
     vtansi::impl_ansi_event_encode!();
+    vtansi::impl_ansi_event_terse_fmt!();
 }
 
 /// A mouse event kind.
