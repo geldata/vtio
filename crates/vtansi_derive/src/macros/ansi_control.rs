@@ -750,13 +750,22 @@ pub fn generate_registry_entries(
         0 // Normal: no params
     };
 
+    // For OSC sequences with data and all-optional data params, we need to emit
+    // two entries: one without the trailing delimiter (for no data params) and
+    // one with the trailing delimiter (for when data params are provided).
+    let has_all_optional_data_params = params.data_params.required_count == 0
+        && params.data_params.total_count > 0
+        && props.kind == ControlFunctionKind::Osc
+        && !props.data.is_empty();
+
     let emit_entry = |suffix: Option<usize>,
                       final_byte: Option<u8>,
-                      param_marker: u8|
+                      param_marker: u8,
+                      has_data_params: bool|
      -> syn::Result<proc_macro2::TokenStream> {
         // Generate trie key with the specific final byte and param marker
         let key_bytes = syn::LitByteStr::new(
-            &props.get_key(final_byte, param_marker),
+            &props.get_key(final_byte, param_marker, has_data_params),
             proc_macro2::Span::mixed_site(),
         );
 
@@ -817,68 +826,122 @@ pub fn generate_registry_entries(
         Ok(code)
     };
 
-    // Build list of (suffix, final_byte, param_marker) tuples for entries to emit
+    // Build list of (suffix, final_byte, param_marker, has_data_params) tuples for entries to emit
     //
     // For disambiguated sequences, we always use the computed param_marker (2 + total_params).
     // For normal sequences:
     // - If all params are optional, emit two entries (param_marker=0 and param_marker=1)
     // - Otherwise, emit one entry with the computed param_marker
-    let entry_specs: Vec<(Option<usize>, Option<u8>, u8)> =
-        match props.final_bytes.len() {
-            0 => {
-                if props.disambiguate {
-                    vec![(None, None, param_marker)]
-                } else if has_all_optional_params {
-                    // Emit two entries: one with param_marker=0, one with param_marker=1
-                    vec![(None, None, 0), (Some(1), None, 1)]
-                } else {
-                    vec![(None, None, param_marker)]
-                }
+    // For OSC sequences with all-optional data params:
+    // - Emit two entries: one with has_data_params=false, one with has_data_params=true
+    let default_has_data_params = !params.data_params.is_empty();
+    let entry_specs: Vec<(Option<usize>, Option<u8>, u8, bool)> = match props
+        .final_bytes
+        .len()
+    {
+        0 => {
+            if props.disambiguate {
+                vec![(None, None, param_marker, default_has_data_params)]
+            } else if has_all_optional_params {
+                // Emit two entries: one with param_marker=0, one with param_marker=1
+                vec![
+                    (None, None, 0, default_has_data_params),
+                    (Some(1), None, 1, default_has_data_params),
+                ]
+            } else if has_all_optional_data_params {
+                // Emit two entries: one without trailing delimiter, one with
+                vec![
+                    (None, None, param_marker, false),
+                    (Some(1), None, param_marker, true),
+                ]
+            } else {
+                vec![(None, None, param_marker, default_has_data_params)]
             }
-            1 => {
-                let fb = Some(*props.final_bytes[0]);
-                if props.disambiguate {
-                    vec![(None, fb, param_marker)]
-                } else if has_all_optional_params {
-                    vec![(None, fb, 0), (Some(1), fb, 1)]
-                } else {
-                    vec![(None, fb, param_marker)]
-                }
+        }
+        1 => {
+            let fb = Some(*props.final_bytes[0]);
+            if props.disambiguate {
+                vec![(None, fb, param_marker, default_has_data_params)]
+            } else if has_all_optional_params {
+                vec![
+                    (None, fb, 0, default_has_data_params),
+                    (Some(1), fb, 1, default_has_data_params),
+                ]
+            } else if has_all_optional_data_params {
+                vec![
+                    (None, fb, param_marker, false),
+                    (Some(1), fb, param_marker, true),
+                ]
+            } else {
+                vec![(None, fb, param_marker, default_has_data_params)]
             }
-            _ => {
-                if props.disambiguate {
-                    props
-                        .final_bytes
-                        .iter()
-                        .enumerate()
-                        .map(|(i, b)| (Some(i), Some(**b), param_marker))
-                        .collect()
-                } else if has_all_optional_params {
-                    // For multiple final bytes with all-optional params,
-                    // emit two entries per final byte
-                    props
-                        .final_bytes
-                        .iter()
-                        .enumerate()
-                        .flat_map(|(i, b)| {
-                            let fb = Some(**b);
-                            vec![(Some(i * 2), fb, 0), (Some(i * 2 + 1), fb, 1)]
-                        })
-                        .collect()
-                } else {
-                    props
-                        .final_bytes
-                        .iter()
-                        .enumerate()
-                        .map(|(i, b)| (Some(i), Some(**b), param_marker))
-                        .collect()
-                }
+        }
+        _ => {
+            if props.disambiguate {
+                props
+                    .final_bytes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| {
+                        (
+                            Some(i),
+                            Some(**b),
+                            param_marker,
+                            default_has_data_params,
+                        )
+                    })
+                    .collect()
+            } else if has_all_optional_params {
+                // For multiple final bytes with all-optional params,
+                // emit two entries per final byte
+                props
+                    .final_bytes
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, b)| {
+                        let fb = Some(**b);
+                        vec![
+                            (Some(i * 2), fb, 0, default_has_data_params),
+                            (Some(i * 2 + 1), fb, 1, default_has_data_params),
+                        ]
+                    })
+                    .collect()
+            } else if has_all_optional_data_params {
+                props
+                    .final_bytes
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, b)| {
+                        let fb = Some(**b);
+                        vec![
+                            (Some(i * 2), fb, param_marker, false),
+                            (Some(i * 2 + 1), fb, param_marker, true),
+                        ]
+                    })
+                    .collect()
+            } else {
+                props
+                    .final_bytes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| {
+                        (
+                            Some(i),
+                            Some(**b),
+                            param_marker,
+                            default_has_data_params,
+                        )
+                    })
+                    .collect()
             }
-        };
+        }
+    };
 
     let entries: Vec<_> = entry_specs
         .into_iter()
-        .map(|(suffix, fb, marker)| emit_entry(suffix, fb, marker))
+        .map(|(suffix, fb, marker, has_data_params)| {
+            emit_entry(suffix, fb, marker, has_data_params)
+        })
         .collect::<syn::Result<_>>()?;
 
     Ok(quote! {

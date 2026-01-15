@@ -656,4 +656,128 @@ mod tests {
         });
         assert_eq!(events.len(), 1);
     }
+
+    #[allow(clippy::too_many_lines)]
+    #[test]
+    fn test_osc_133_shell_integration() {
+        use crate::event::shell::{
+            CommandEnd, CommandStart, PromptEnd, PromptStart,
+        };
+
+        // Test OSC 133;A (PromptStart)
+        let mut prompt_starts: Vec<PromptStart> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(
+            b"\x1b]133;A\x1b\\",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if let Some(ps) = event.downcast_ref::<PromptStart>() {
+                    prompt_starts.push(*ps);
+                }
+            },
+        );
+        assert_eq!(
+            prompt_starts.len(),
+            1,
+            "OSC 133;A (PromptStart) should be recognized"
+        );
+
+        // Test OSC 133;B (PromptEnd)
+        let mut prompt_ends: Vec<PromptEnd> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(
+            b"\x1b]133;B\x1b\\",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if let Some(pe) = event.downcast_ref::<PromptEnd>() {
+                    prompt_ends.push(*pe);
+                }
+            },
+        );
+        assert_eq!(
+            prompt_ends.len(),
+            1,
+            "OSC 133;B (PromptEnd) should be recognized"
+        );
+
+        // Test OSC 133;C (CommandStart)
+        let mut command_starts: Vec<CommandStart> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(
+            b"\x1b]133;C\x1b\\",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if let Some(cs) = event.downcast_ref::<CommandStart>() {
+                    command_starts.push(*cs);
+                }
+            },
+        );
+        assert_eq!(
+            command_starts.len(),
+            1,
+            "OSC 133;C (CommandStart) should be recognized"
+        );
+
+        // Test OSC 133;D (CommandEnd without exit code)
+        let mut command_ends: Vec<CommandEnd> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(
+            b"\x1b]133;D\x1b\\",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if let Some(ce) = event.downcast_ref::<CommandEnd>() {
+                    command_ends.push(*ce);
+                }
+            },
+        );
+        assert_eq!(
+            command_ends.len(),
+            1,
+            "OSC 133;D (CommandEnd) should be recognized"
+        );
+        assert_eq!(
+            command_ends[0].exit_code, None,
+            "CommandEnd without exit code should have None"
+        );
+
+        // Test OSC 133;D;0 (CommandEnd with exit code 0)
+        let mut command_ends: Vec<CommandEnd> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(
+            b"\x1b]133;D;0\x1b\\",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if let Some(ce) = event.downcast_ref::<CommandEnd>() {
+                    command_ends.push(*ce);
+                }
+            },
+        );
+        assert_eq!(
+            command_ends.len(),
+            1,
+            "OSC 133;D;0 (CommandEnd with exit code) should be recognized"
+        );
+        assert_eq!(
+            command_ends[0].exit_code,
+            Some(0),
+            "CommandEnd should have exit_code = Some(0)"
+        );
+
+        // Test OSC 133;D;127 (CommandEnd with exit code 127)
+        let mut command_ends: Vec<CommandEnd> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(
+            b"\x1b]133;D;127\x1b\\",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if let Some(ce) = event.downcast_ref::<CommandEnd>() {
+                    command_ends.push(*ce);
+                }
+            },
+        );
+        assert_eq!(
+            command_ends.len(),
+            1,
+            "OSC 133;D;127 (CommandEnd with exit code) should be recognized"
+        );
+        assert_eq!(
+            command_ends[0].exit_code,
+            Some(127),
+            "CommandEnd should have exit_code = Some(127)"
+        );
+    }
 }

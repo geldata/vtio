@@ -325,8 +325,18 @@ impl ControlProperties {
     /// - 0x00 = no params
     /// - 0x01 = has params (normal case)
     /// - 0x02 + N = exactly N params (disambiguated sequences)
+    ///
+    /// The `has_data_params` flag indicates whether the struct has data
+    /// parameters (fields in the data section). This is used to determine
+    /// whether to include the data_delimiter after the static data string
+    /// for OSC sequences.
     #[must_use]
-    pub fn get_key(&self, final_byte: Option<u8>, param_marker: u8) -> Vec<u8> {
+    pub fn get_key(
+        &self,
+        final_byte: Option<u8>,
+        param_marker: u8,
+        has_data_params: bool,
+    ) -> Vec<u8> {
         let mut buf: Vec<u8> = Vec::new();
         buf.extend(self.kind.introducer().to_vec());
         if let Some(private) = &self.private {
@@ -375,9 +385,13 @@ impl ControlProperties {
         // Include OSC data field for disambiguation (e.g., "SetMark", "Copy=")
         if self.kind == ControlFunctionKind::Osc && !self.data.is_empty() {
             buf.extend(self.data.iter());
-            // Include data_delimiter if present (e.g., '=' in "Copy=")
-            if let Some(data_delim) = &self.data_delimiter {
-                buf.push(data_delim.into());
+            // Include data_delimiter only if there are actual data params to follow
+            // (e.g., '=' in "Copy=" when there's a field after it, but not for
+            // unit structs like PromptStart where "A" is the entire data)
+            if has_data_params {
+                if let Some(data_delim) = &self.data_delimiter {
+                    buf.push(data_delim.into());
+                }
             }
         }
         // Include DCS data field for disambiguation (e.g., "m", " q", "\"p")
