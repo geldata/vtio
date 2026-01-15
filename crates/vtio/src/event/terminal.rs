@@ -978,7 +978,7 @@ impl<'a> vtansi::TryFromAnsi<'a> for HexStringList {
     }
 }
 
-/// Request termcap/terminfo capability query (`XTGETTCAP`).
+/// Request termcap/terminfo capability (`XTGETTCAP`).
 ///
 /// Query keyboard mapping or miscellaneous terminal information using
 /// the xterm termcap query mechanism.
@@ -1002,13 +1002,13 @@ impl<'a> vtansi::TryFromAnsi<'a> for HexStringList {
 /// support specifics.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, vtansi::derive::AnsiOutput)]
 #[vtansi(dcs, intermediate = "+", finalbyte = 'q')]
-pub struct RequestTermcapQuery {
+pub struct RequestTermcap {
     /// The capability names to query (will be hex-encoded).
     #[vtansi(locate = "data")]
     pub queries: HexStringList,
 }
 
-impl RequestTermcapQuery {
+impl RequestTermcap {
     /// Create a new termcap query request with a single query.
     #[must_use]
     pub fn new(query: impl Into<HexString>) -> Self {
@@ -1041,6 +1041,35 @@ pub struct TermcapQueryResult {
     pub key: HexString,
     /// The result value (hex-decoded), if available.
     pub value: Option<HexString>,
+}
+
+impl TermcapQueryResult {
+    /// Check if this result has a value.
+    ///
+    /// Returns `true` if the query was successful and returned data,
+    /// `false` if the query was valid but no data was available.
+    #[must_use]
+    pub fn has_value(&self) -> bool {
+        self.value.is_some()
+    }
+
+    /// Get the key as a string, if it's valid UTF-8.
+    #[must_use]
+    pub fn key_as_str(&self) -> Option<&str> {
+        self.key.as_str()
+    }
+
+    /// Get the value as a string, if present and valid UTF-8.
+    #[must_use]
+    pub fn value_as_str(&self) -> Option<&str> {
+        self.value.as_ref().and_then(|v| v.as_str())
+    }
+
+    /// Get the value as bytes, if present.
+    #[must_use]
+    pub fn value_as_bytes(&self) -> Option<&[u8]> {
+        self.value.as_ref().map(HexString::as_bytes)
+    }
 }
 
 /// Wrapper for parsing termcap query response data.
@@ -1120,11 +1149,17 @@ impl<'a> vtansi::TryFromAnsi<'a> for TermcapQueryResultList {
 ///
 /// The response format depends on whether the query was successful:
 ///
-/// - Invalid/unrecognized query: `DCS 0 + r ST`
-/// - Valid query with results: `DCS 1 + r <query>=<result>[;<query>=<result>...] ST`
-/// - Valid query without data: `DCS 1 + r <query>[;<query>...] ST`
+/// - **Negative response** (invalid/unrecognized query): `DCS 0 + r ST`
+///   - The `valid` field is `false`, and `results` is empty.
+/// - **Positive response** with results: `DCS 1 + r <query>=<result>[;<query>=<result>...] ST`
+///   - The `valid` field is `true`, and each result has both key and value.
+/// - **Positive response** without data: `DCS 1 + r <query>[;<query>...] ST`
+///   - The `valid` field is `true`, but result entries have `value` set to `None`.
 ///
 /// Both `query` and `result` are hex-encoded strings.
+///
+/// Note: xterm aborts processing with the first query that is not successful,
+/// and all further query parts are ignored, resulting in a negative response.
 ///
 /// See <https://terminalguide.namepad.de/seq/dcs-plus-q/> for terminal
 /// support specifics.
@@ -1140,10 +1175,68 @@ pub struct TermcapQueryResponse {
 }
 
 impl TermcapQueryResponse {
-    /// Check if the response indicates a valid query.
+    /// Create an invalid/negative response (`DCS 0 + r ST`).
+    ///
+    /// Use this when the query was unrecognized or invalid.
+    #[must_use]
+    pub fn invalid() -> Self {
+        Self {
+            valid: false,
+            results: TermcapQueryResultList(Vec::new()),
+        }
+    }
+
+    /// Create a valid response with no results.
+    ///
+    /// This represents a positive response where the query was recognized
+    /// but no data is included in the response.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            valid: true,
+            results: TermcapQueryResultList(Vec::new()),
+        }
+    }
+
+    /// Create a valid response with the given results.
+    ///
+    /// Use this when the query was successful and returned data.
+    #[must_use]
+    pub fn with_results(results: Vec<TermcapQueryResult>) -> Self {
+        Self {
+            valid: true,
+            results: TermcapQueryResultList(results),
+        }
+    }
+
+    /// Check if the response indicates a valid query (positive response).
+    ///
+    /// Returns `true` if the terminal recognized the query (even if no data
+    /// was available for the query).
     #[must_use]
     pub fn is_valid(&self) -> bool {
         self.valid
+    }
+
+    /// Check if this is a negative response.
+    ///
+    /// A negative response (`DCS 0 + r ST`) indicates that the query was
+    /// invalid or unrecognized by the terminal. In this case, `results`
+    /// will be empty.
+    ///
+    /// This is the inverse of [`is_valid`](Self::is_valid).
+    #[must_use]
+    pub fn is_negative(&self) -> bool {
+        !self.valid
+    }
+
+    /// Check if this response has any results.
+    ///
+    /// Returns `false` for negative responses and for positive responses
+    /// that contain no data.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.results.0.is_empty()
     }
 
     /// Get the first result's value as a string, if present.
@@ -1160,6 +1253,21 @@ impl TermcapQueryResponse {
     #[must_use]
     pub fn get(&self, key: &str) -> Option<&TermcapQueryResult> {
         self.results.0.iter().find(|r| r.key.as_str() == Some(key))
+    }
+
+    /// Get a result's value as a string by key name.
+    ///
+    /// Returns `None` if the key is not found or if the value is not
+    /// present or not valid UTF-8.
+    #[must_use]
+    pub fn get_value_as_str(&self, key: &str) -> Option<&str> {
+        self.get(key).and_then(|r| r.value_as_str())
+    }
+}
+
+impl Default for TermcapQueryResponse {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -1369,7 +1477,7 @@ mod tests {
 
     #[test]
     fn test_request_termcap_query_single() {
-        let request = RequestTermcapQuery::new("colors");
+        let request = RequestTermcap::new("colors");
 
         let mut buf = Vec::new();
         request.encode_ansi_into(&mut buf).unwrap();
@@ -1381,7 +1489,7 @@ mod tests {
 
     #[test]
     fn test_request_termcap_query_multiple() {
-        let request = RequestTermcapQuery::with_queries(["colors", "RGB"]);
+        let request = RequestTermcap::with_queries(["colors", "RGB"]);
 
         let mut buf = Vec::new();
         request.encode_ansi_into(&mut buf).unwrap();
@@ -1414,5 +1522,107 @@ mod tests {
         let encoded = String::from_utf8(buf).unwrap();
 
         assert_eq!(encoded, "\x1b[>q");
+    }
+
+    #[test]
+    fn test_termcap_query_result_list_negative_response() {
+        // Negative response has empty data
+        let result = TermcapQueryResultList::try_from_ansi(b"").unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_termcap_query_result_list_valid_with_value() {
+        // "colors" = 636F6C6F7273, "256" = 323536
+        let result =
+            TermcapQueryResultList::try_from_ansi(b"636F6C6F7273=323536")
+                .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].key.as_str(), Some("colors"));
+        assert_eq!(result[0].value_as_str(), Some("256"));
+        assert!(result[0].has_value());
+    }
+
+    #[test]
+    fn test_termcap_query_result_list_valid_without_value() {
+        // Valid query but no data available - just key, no "="
+        // "colors" = 636F6C6F7273
+        let result =
+            TermcapQueryResultList::try_from_ansi(b"636F6C6F7273").unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].key.as_str(), Some("colors"));
+        assert!(result[0].value.is_none());
+        assert!(!result[0].has_value());
+    }
+
+    #[test]
+    fn test_termcap_query_result_list_multiple() {
+        // "colors" = 636F6C6F7273, "256" = 323536
+        // "RGB" = 524742, "8" = 38
+        let result = TermcapQueryResultList::try_from_ansi(
+            b"636F6C6F7273=323536;524742=38",
+        )
+        .unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].key.as_str(), Some("colors"));
+        assert_eq!(result[0].value_as_str(), Some("256"));
+        assert_eq!(result[1].key.as_str(), Some("RGB"));
+        assert_eq!(result[1].value_as_str(), Some("8"));
+    }
+
+    #[test]
+    fn test_termcap_query_response_helpers() {
+        let response =
+            TermcapQueryResponse::with_results(vec![TermcapQueryResult {
+                key: HexString::from_string("colors"),
+                value: Some(HexString::from_string("256")),
+            }]);
+
+        assert!(response.is_valid());
+        assert!(!response.is_negative());
+        assert!(!response.is_empty());
+        assert_eq!(response.first_value_as_str(), Some("256"));
+        assert_eq!(response.get_value_as_str("colors"), Some("256"));
+        assert!(response.get("unknown").is_none());
+    }
+
+    #[test]
+    fn test_termcap_query_response_negative() {
+        let response = TermcapQueryResponse::invalid();
+
+        assert!(!response.is_valid());
+        assert!(response.is_negative());
+        assert!(response.is_empty());
+        assert!(response.first_value_as_str().is_none());
+    }
+
+    #[test]
+    fn test_termcap_query_response_constructors() {
+        // Test invalid() constructor
+        let invalid = TermcapQueryResponse::invalid();
+        assert!(!invalid.valid);
+        assert!(invalid.results.is_empty());
+
+        // Test new() constructor - valid with no results
+        let empty_valid = TermcapQueryResponse::new();
+        assert!(empty_valid.valid);
+        assert!(empty_valid.results.is_empty());
+
+        // Test with_results() constructor
+        let with_data = TermcapQueryResponse::with_results(vec![
+            TermcapQueryResult {
+                key: HexString::from_string("colors"),
+                value: Some(HexString::from_string("256")),
+            },
+            TermcapQueryResult {
+                key: HexString::from_string("RGB"),
+                value: None,
+            },
+        ]);
+        assert!(with_data.valid);
+        assert_eq!(with_data.results.len(), 2);
+        assert_eq!(with_data.get_value_as_str("colors"), Some("256"));
+        assert!(with_data.get("RGB").is_some());
+        assert!(with_data.get("RGB").unwrap().value.is_none());
     }
 }
