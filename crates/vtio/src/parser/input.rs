@@ -1,5 +1,5 @@
 use crate::event::UnrecognizedInputEvent;
-use crate::event::mouse::parse_default_mouse_bytes;
+use crate::event::mouse::parse_mouse_event_bytes;
 use crate::event::terminal::{BracketedPasteEnd, BracketedPasteStart};
 use better_any::TidExt;
 use vt_push_parser::{
@@ -21,8 +21,9 @@ enum CaptureMode {
     None,
     /// Capturing bracketed paste content.
     BracketedPaste,
-    /// Capturing default mouse event bytes (3 bytes: btn, col, row).
-    DefaultMouse,
+    /// Capturing mouse event bytes (3 UTF-8 chars: btn, col, row).
+    /// Supports both default format (single bytes) and multibyte UTF-8 format (p1005).
+    MouseEvent,
     /// Capturing DCS data.
     DcsData,
 }
@@ -230,9 +231,8 @@ impl TerminalInputParser {
                     CaptureMode::BracketedPaste | CaptureMode::DcsData => {
                         state.accum_buffer.extend_from_slice(data);
                     }
-                    CaptureMode::DefaultMouse => {
-                        // Store the 3 bytes for default mouse event
-                        state.accum_buffer.clear();
+                    CaptureMode::MouseEvent => {
+                        // Store the captured bytes for mouse event (3 UTF-8 chars)
                         state.accum_buffer.extend_from_slice(data);
                     }
                     CaptureMode::None => {
@@ -251,11 +251,12 @@ impl TerminalInputParser {
                         state.capture_mode = CaptureMode::None;
                         cb(&BracketedPaste(&paste_data));
                     }
-                    CaptureMode::DefaultMouse => {
-                        // Parse the 3 captured bytes as default mouse event
-                        if state.accum_buffer.len() == 3
-                            && let Ok(event) =
-                                parse_default_mouse_bytes(&state.accum_buffer)
+                    CaptureMode::MouseEvent => {
+                        // Parse the captured bytes as mouse event (3 UTF-8 chars)
+                        // Supports both default format (3 single bytes) and multibyte
+                        // UTF-8 format (p1005) where values >= 96 are encoded as UTF-8.
+                        if let Ok(event) =
+                            parse_mouse_event_bytes(&state.accum_buffer)
                         {
                             cb(&event);
                         } else {
@@ -373,13 +374,17 @@ where
 {
     let mut capture = VTInputCapture::None;
 
-    // Check for default mouse reporting format: CSI M (no private marker, no params)
-    // The default format is: ESC [ M btn col row
-    // where btn, col, row are raw bytes with value = 32 + actual_value
+    // Check for mouse reporting format: CSI M (no private marker, no params)
+    // Both default and multibyte (p1005) formats use: ESC [ M btn col row
+    // - Default format: each value is a single byte = 32 + actual_value
+    // - Multibyte format (p1005): values < 96 are single bytes, values >= 96
+    //   are encoded as UTF-8 (codepoint = value + 32)
+    // Using CountUtf8(3) handles both formats correctly.
     if seq.final_byte == b'M' && seq.private.is_none() && seq.params.is_empty()
     {
-        state.capture_mode = CaptureMode::DefaultMouse;
-        return VTInputCapture::Count(3);
+        state.accum_buffer.clear();
+        state.capture_mode = CaptureMode::MouseEvent;
+        return VTInputCapture::CountUtf8(3);
     }
 
     // Wrapper callback that intercepts BracketedPasteStart to set up capture mode
@@ -626,6 +631,71 @@ mod tests {
         ));
         assert_eq!(events[0].column(), 9); // 0-based
         assert_eq!(events[0].row(), 4); // 0-based
+    }
+
+    #[test]
+    fn test_mouse_events_utf8_multibyte_format() {
+        // UTF-8 multibyte mouse format (p1005): ESC [ M btn col row
+        // where btn, col, row are encoded as UTF-8 characters.
+        // Values < 96 are single bytes (same as default format).
+        // Values >= 96 are encoded as 2-byte UTF-8 (codepoint = value + 32).
+        let mut parser = TerminalInputParser::new();
+        let mut events: Vec<MouseEvent> = Vec::new();
+
+        // Test 1: Left button click at column 100, row 50
+        // btn = 32 + 0 (left button) = 32 = 0x20 (single byte)
+        // col = 100 + 32 = 132 = U+0084 = 0xC2 0x84 (two-byte UTF-8)
+        // row = 50 + 32 = 82 = 0x52 (single byte, < 128)
+        parser.feed_with(b"\x1b[M\x20\xC2\x84\x52", &mut |event| {
+            if let Some(mouse_event) = event.downcast_ref::<MouseEvent>() {
+                events.push(*mouse_event);
+            }
+        });
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                ..
+            }
+        ));
+        assert_eq!(events[0].column(), 99); // 0-based (100 - 1)
+        assert_eq!(events[0].row(), 49); // 0-based (50 - 1)
+
+        // Test 2: Right button click at column 200, row 150
+        // btn = 32 + 2 (right button) = 34 = 0x22 (single byte)
+        // col = 200 + 32 = 232 = U+00E8 = 0xC3 0xA8 (two-byte UTF-8)
+        // row = 150 + 32 = 182 = U+00B6 = 0xC2 0xB6 (two-byte UTF-8)
+        events.clear();
+        parser.feed_with(b"\x1b[M\x22\xC3\xA8\xC2\xB6", &mut |event| {
+            if let Some(mouse_event) = event.downcast_ref::<MouseEvent>() {
+                events.push(*mouse_event);
+            }
+        });
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Right),
+                ..
+            }
+        ));
+        assert_eq!(events[0].column(), 199); // 0-based (200 - 1)
+        assert_eq!(events[0].row(), 149); // 0-based (150 - 1)
+
+        // Test 3: Large coordinates near max range (2015)
+        // btn = 32 + 0 = 32 = 0x20
+        // col = 2000 + 32 = 2032 = U+07F0 = 0xDF 0xB0 (two-byte UTF-8)
+        // row = 1000 + 32 = 1032 = U+0408 = 0xD0 0x88 (two-byte UTF-8)
+        events.clear();
+        parser.feed_with(b"\x1b[M\x20\xDF\xB0\xD0\x88", &mut |event| {
+            if let Some(mouse_event) = event.downcast_ref::<MouseEvent>() {
+                events.push(*mouse_event);
+            }
+        });
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].column(), 1999); // 0-based (2000 - 1)
+        assert_eq!(events[0].row(), 999); // 0-based (1000 - 1)
     }
 
     fn collect_key_events(input: &[u8]) -> Vec<KeyEvent> {

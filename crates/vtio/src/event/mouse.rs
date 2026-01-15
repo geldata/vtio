@@ -258,7 +258,9 @@ impl Coordinates {
     derive(serde::Serialize, serde::Deserialize),
     serde(transparent)
 )]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, vtansi::derive::ToAnsi)]
+#[derive(
+    Debug, Default, PartialEq, Eq, Clone, Copy, Hash, vtansi::derive::ToAnsi,
+)]
 #[vtansi(transparent)]
 pub struct MouseKeyModifiers(pub(crate) KeyModifiers);
 
@@ -659,31 +661,103 @@ impl TrackMouse {
     }
 }
 
-/// Parse default mouse reporting format bytes into a `MouseEvent`.
+/// Decode a single mouse coordinate value from UTF-8 encoded bytes.
 ///
-/// The default format uses 3 raw bytes after `CSI M`:
+/// This handles both the default format (single byte for values < 96)
+/// and the UTF-8 multibyte format (p1005) where values >= 96 are encoded
+/// as UTF-8 codepoints with value + 32.
+///
+/// Returns the decoded value (with offset 32 subtracted) and the number
+/// of bytes consumed, or None if the input is invalid or represents
+/// an out-of-range marker (NUL byte).
+fn decode_mouse_value(bytes: &[u8]) -> Option<(u16, usize)> {
+    if bytes.is_empty() {
+        return None;
+    }
+
+    let first = bytes[0];
+
+    // NUL is used as out-of-range marker
+    if first == 0 {
+        return None;
+    }
+
+    // Single byte (ASCII): values 1-127
+    if first < 0x80 {
+        // Value is encoded as byte = actual_value + 32
+        return Some((u16::from(first.saturating_sub(32)), 1));
+    }
+
+    // Two-byte UTF-8 sequence: 110xxxxx 10xxxxxx
+    // This encodes codepoints U+0080 to U+07FF (128 to 2047)
+    // Which corresponds to values 96 to 2015 (after subtracting 32)
+    if first & 0xE0 == 0xC0 && bytes.len() >= 2 {
+        let second = bytes[1];
+        if second & 0xC0 == 0x80 {
+            // Decode UTF-8: ((first & 0x1F) << 6) | (second & 0x3F)
+            let codepoint =
+                (u16::from(first & 0x1F) << 6) | u16::from(second & 0x3F);
+            // Subtract 32 to get the actual value
+            return Some((codepoint.saturating_sub(32), 2));
+        }
+    }
+
+    // Invalid or unsupported encoding
+    None
+}
+
+/// Parse mouse event bytes into a `MouseEvent`.
+///
+/// This supports both the default format and the UTF-8 multibyte format (p1005).
+///
+/// # Default format
+/// Uses 3 raw bytes after `CSI M`:
 /// - `btn`: 32 + `button_code` (with modifier bits)
 /// - `col`: 32 + column (1-based)
 /// - `row`: 32 + row (1-based)
 ///
+/// # UTF-8 multibyte format (p1005)
+/// Same structure but each value is encoded as a UTF-8 character:
+/// - Values < 96: single byte (identical to default format)
+/// - Values >= 96: 2-byte UTF-8 encoding of (value + 32) as a codepoint
+/// - Range: 1 to 2015
+/// - NUL byte (0x00) indicates out-of-range
+///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The byte slice has fewer than 3 bytes
+/// - The byte slice doesn't contain valid mouse data
 /// - The button code is invalid
-pub fn parse_default_mouse_bytes(
-    bytes: &[u8],
-) -> Result<MouseEvent, ParseError> {
-    if bytes.len() < 3 {
-        return Err(vtansi::ParseError::InvalidValue(
-            "invalid mouse event byte sequence".to_string(),
-        ));
-    }
-    // Default mouse protocol encodes each value as a single byte with offset 32
+/// - Any coordinate is out of range (NUL marker)
+pub fn parse_mouse_event_bytes(bytes: &[u8]) -> Result<MouseEvent, ParseError> {
+    let mut offset = 0;
 
-    let btn_code = u16::from(bytes[0].saturating_sub(32));
-    let column = u16::from(bytes[1].saturating_sub(32));
-    let row = u16::from(bytes[2].saturating_sub(32));
+    // Decode button code
+    let (btn_code, btn_len) =
+        decode_mouse_value(&bytes[offset..]).ok_or_else(|| {
+            vtansi::ParseError::InvalidValue(
+                "invalid or out-of-range button code in mouse event"
+                    .to_string(),
+            )
+        })?;
+    offset += btn_len;
+
+    // Decode column
+    let (column, col_len) =
+        decode_mouse_value(&bytes[offset..]).ok_or_else(|| {
+            vtansi::ParseError::InvalidValue(
+                "invalid or out-of-range column in mouse event".to_string(),
+            )
+        })?;
+    offset += col_len;
+
+    // Decode row
+    let (row, _row_len) =
+        decode_mouse_value(&bytes[offset..]).ok_or_else(|| {
+            vtansi::ParseError::InvalidValue(
+                "invalid or out-of-range row in mouse event".to_string(),
+            )
+        })?;
 
     // Default format doesn't have separate release indication, it uses button code 3
     let kind = MouseEventKind::from_button_code(btn_code, false)?;
@@ -785,7 +859,7 @@ mod tests {
         // btn = 32 + 0 (left button) = 32 = 0x20
         // col = 32 + 10 = 42 = 0x2A
         // row = 32 + 5 = 37 = 0x25
-        let event = parse_default_mouse_bytes(&[0x20, 0x2A, 0x25]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x20, 0x2A, 0x25]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -803,7 +877,7 @@ mod tests {
         // btn = 32 + 2 (right button) = 34 = 0x22
         // col = 32 + 20 = 52 = 0x34
         // row = 32 + 15 = 47 = 0x2F
-        let event = parse_default_mouse_bytes(&[0x22, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x22, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -819,7 +893,7 @@ mod tests {
     fn test_parse_default_mouse_middle_click() {
         // Middle button click
         // btn = 32 + 1 (middle button) = 33 = 0x21
-        let event = parse_default_mouse_bytes(&[0x21, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x21, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -833,7 +907,7 @@ mod tests {
     fn test_parse_default_mouse_release() {
         // Button release (code 3)
         // btn = 32 + 3 = 35 = 0x23
-        let event = parse_default_mouse_bytes(&[0x23, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x23, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -847,7 +921,7 @@ mod tests {
     fn test_parse_default_mouse_scroll_up() {
         // Scroll up (code 64)
         // btn = 32 + 64 = 96 = 0x60
-        let event = parse_default_mouse_bytes(&[0x60, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x60, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -861,7 +935,7 @@ mod tests {
     fn test_parse_default_mouse_scroll_down() {
         // Scroll down (code 65)
         // btn = 32 + 65 = 97 = 0x61
-        let event = parse_default_mouse_bytes(&[0x61, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x61, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -875,7 +949,7 @@ mod tests {
     fn test_parse_default_mouse_scroll_left() {
         // Scroll left (code 66)
         // btn = 32 + 66 = 98 = 0x62
-        let event = parse_default_mouse_bytes(&[0x62, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x62, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -889,7 +963,7 @@ mod tests {
     fn test_parse_default_mouse_scroll_right() {
         // Scroll right (code 67)
         // btn = 32 + 67 = 99 = 0x63
-        let event = parse_default_mouse_bytes(&[0x63, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x63, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -903,7 +977,7 @@ mod tests {
     fn test_parse_default_mouse_drag() {
         // Drag with left button (code 0 + 32 drag bit = 32)
         // btn = 32 + 32 = 64 = 0x40
-        let event = parse_default_mouse_bytes(&[0x40, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x40, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -917,7 +991,7 @@ mod tests {
     fn test_parse_default_mouse_moved() {
         // Moved (code 3 + 32 drag bit = 35)
         // btn = 32 + 35 = 67 = 0x43
-        let event = parse_default_mouse_bytes(&[0x43, 0x34, 0x2F]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x43, 0x34, 0x2F]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -931,7 +1005,7 @@ mod tests {
     fn test_parse_default_mouse_with_ctrl() {
         // Ctrl+click (ctrl bit = 16)
         // btn = 32 + 0 (left) + 16 (ctrl) = 48 = 0x30
-        let event = parse_default_mouse_bytes(&[0x30, 0x2A, 0x25]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x30, 0x2A, 0x25]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -946,7 +1020,7 @@ mod tests {
     fn test_parse_default_mouse_with_shift() {
         // Shift+click (shift bit = 4)
         // btn = 32 + 0 (left) + 4 (shift) = 36 = 0x24
-        let event = parse_default_mouse_bytes(&[0x24, 0x2A, 0x25]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x24, 0x2A, 0x25]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -961,7 +1035,7 @@ mod tests {
     fn test_parse_default_mouse_with_alt() {
         // Alt+click (alt bit = 8)
         // btn = 32 + 0 (left) + 8 (alt) = 40 = 0x28
-        let event = parse_default_mouse_bytes(&[0x28, 0x2A, 0x25]).unwrap();
+        let event = parse_mouse_event_bytes(&[0x28, 0x2A, 0x25]).unwrap();
         assert!(matches!(
             event,
             MouseEvent {
@@ -974,8 +1048,77 @@ mod tests {
 
     #[test]
     fn test_parse_default_mouse_insufficient_bytes() {
-        assert!(parse_default_mouse_bytes(&[]).is_err());
-        assert!(parse_default_mouse_bytes(&[0x20]).is_err());
-        assert!(parse_default_mouse_bytes(&[0x20, 0x2A]).is_err());
+        assert!(parse_mouse_event_bytes(&[]).is_err());
+        assert!(parse_mouse_event_bytes(&[0x20]).is_err());
+        assert!(parse_mouse_event_bytes(&[0x20, 0x2A]).is_err());
+    }
+
+    #[test]
+    fn test_parse_mouse_event_bytes_utf8_multibyte_format() {
+        // Left button click at column 100, row 50 (UTF-8 multibyte format)
+        // btn = 32 + 0 = 32 = 0x20 (single byte)
+        // col = 100 + 32 = 132 = U+0084 = 0xC2 0x84 (two-byte UTF-8)
+        // row = 50 + 32 = 82 = 0x52 (single byte, < 128)
+        let event = parse_mouse_event_bytes(&[0x20, 0xC2, 0x84, 0x52]).unwrap();
+        assert!(matches!(
+            event,
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                ..
+            }
+        ));
+        assert_eq!(event.column(), 99); // 0-based (100 - 1)
+        assert_eq!(event.row(), 49); // 0-based (50 - 1)
+    }
+
+    #[test]
+    fn test_parse_mouse_event_bytes_utf8_large_coordinates() {
+        // Right button click at column 200, row 150
+        // btn = 32 + 2 (right button) = 34 = 0x22 (single byte)
+        // col = 200 + 32 = 232 = U+00E8 = 0xC3 0xA8 (two-byte UTF-8)
+        // row = 150 + 32 = 182 = U+00B6 = 0xC2 0xB6 (two-byte UTF-8)
+        let event =
+            parse_mouse_event_bytes(&[0x22, 0xC3, 0xA8, 0xC2, 0xB6]).unwrap();
+        assert!(matches!(
+            event,
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Right),
+                ..
+            }
+        ));
+        assert_eq!(event.column(), 199); // 0-based (200 - 1)
+        assert_eq!(event.row(), 149); // 0-based (150 - 1)
+    }
+
+    #[test]
+    fn test_parse_mouse_event_bytes_utf8_near_max_range() {
+        // Large coordinates near max range (2015)
+        // btn = 32 + 0 = 32 = 0x20
+        // col = 2000 + 32 = 2032 = U+07F0 = 0xDF 0xB0 (two-byte UTF-8)
+        // row = 1000 + 32 = 1032 = U+0408 = 0xD0 0x88 (two-byte UTF-8)
+        let event =
+            parse_mouse_event_bytes(&[0x20, 0xDF, 0xB0, 0xD0, 0x88]).unwrap();
+        assert_eq!(event.column(), 1999); // 0-based (2000 - 1)
+        assert_eq!(event.row(), 999); // 0-based (1000 - 1)
+    }
+
+    #[test]
+    fn test_parse_mouse_event_bytes_out_of_range_nul() {
+        // NUL byte (0x00) indicates out-of-range marker
+        // btn = 0x00 (out of range)
+        assert!(parse_mouse_event_bytes(&[0x00, 0x2A, 0x25]).is_err());
+        // col = 0x00 (out of range)
+        assert!(parse_mouse_event_bytes(&[0x20, 0x00, 0x25]).is_err());
+        // row = 0x00 (out of range)
+        assert!(parse_mouse_event_bytes(&[0x20, 0x2A, 0x00]).is_err());
+    }
+
+    #[test]
+    fn test_parse_mouse_event_bytes_insufficient_bytes() {
+        assert!(parse_mouse_event_bytes(&[]).is_err());
+        assert!(parse_mouse_event_bytes(&[0x20]).is_err());
+        assert!(parse_mouse_event_bytes(&[0x20, 0x2A]).is_err());
+        // Incomplete UTF-8 sequence
+        assert!(parse_mouse_event_bytes(&[0x20, 0xC2]).is_err());
     }
 }
