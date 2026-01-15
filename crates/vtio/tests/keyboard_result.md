@@ -201,7 +201,7 @@ key(press:delete)
 ```
 
 ```
-key(press:delete)
+key(press:backspace)
 ```
 ---
 ## Multiple characters

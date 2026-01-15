@@ -900,14 +900,8 @@ key_event! {
 
 key_event! {
     /// Backspace
-    #[vtansi(byte, code = 0x08)]
-    Bs => KeyCode::Backspace
-}
-
-key_event! {
-    /// Delete
     #[vtansi(byte, code = 0x7F)]
-    Del => KeyCode::Delete
+    Bs => KeyCode::Backspace
 }
 
 /// Macro to generate individual Ctrl+key definitions for control code ranges.

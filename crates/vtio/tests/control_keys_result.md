@@ -95,7 +95,6 @@ key(press:ctrl-g)
 ```
 
 ```
-key(press:backspace)
 ```
 ---
 ## Ctrl+I (tab - same as TAB)
