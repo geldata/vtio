@@ -285,6 +285,9 @@ impl DocSpans {
             TypeMeta::AliasOf { kw, .. } => {
                 self.add_const(kw.span(), "alias_of");
             }
+            TypeMeta::Disambiguate { kw } => {
+                self.add_const(kw.span(), "disambiguate");
+            }
         }
     }
 

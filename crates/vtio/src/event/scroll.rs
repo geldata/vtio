@@ -245,7 +245,7 @@ pub struct ScrollUp(pub u16);
 ///
 /// Content outside the scrolling region is not affected.
 ///
-/// See <https://terminalguide.namepad.de/seq/csi_t__u/> for terminal
+/// See <https://terminalguide.namepad.de/seq/csi_ct_1param/> for terminal
 /// support specifics.
 #[derive(
     Debug,

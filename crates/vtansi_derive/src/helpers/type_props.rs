@@ -242,6 +242,15 @@ pub struct ControlProperties {
     /// register in the parser trie. It will still encode to the same
     /// byte sequence.
     pub alias_of: Option<syn::Path>,
+
+    /// Whether this sequence uses exact param count for disambiguation.
+    ///
+    /// When true, the sequence uses `2 + total_params` as the key byte
+    /// instead of the boolean `has_params`. This allows sequences with
+    /// the same final byte but different param counts to coexist.
+    ///
+    /// The sequence must not have optional parameters when this is enabled.
+    pub disambiguate: bool,
 }
 
 impl HasFormatProperties for ControlProperties {
@@ -311,8 +320,13 @@ impl ControlProperties {
     }
 
     /// Generate trie key.
+    ///
+    /// The `param_marker` byte is used for CSI sequences:
+    /// - 0x00 = no params
+    /// - 0x01 = has params (normal case)
+    /// - 0x02 + N = exactly N params (disambiguated sequences)
     #[must_use]
-    pub fn get_key(&self, final_byte: Option<u8>, has_params: bool) -> Vec<u8> {
+    pub fn get_key(&self, final_byte: Option<u8>, param_marker: u8) -> Vec<u8> {
         let mut buf: Vec<u8> = Vec::new();
         buf.extend(self.kind.introducer().to_vec());
         if let Some(private) = &self.private {
@@ -328,8 +342,8 @@ impl ControlProperties {
             buf.push(*code)
         }
         if matches!(self.kind, ControlFunctionKind::Csi,) {
-            // Add marker byte: 0x00 = no params, 0x01 = has params
-            buf.push(has_params.into());
+            // Add param marker byte for disambiguation
+            buf.push(param_marker);
         }
         // Include intermediate bytes for disambiguation (CSI, ESC, DCS)
         // Intermediate bytes come before the final byte in these sequences
@@ -726,6 +740,8 @@ impl HasTypeProperties for DeriveInput {
         let mut seen_into = None;
         let mut alias_of = None;
         let mut seen_alias_of = None;
+        let mut disambiguate = false;
+        let mut seen_disambiguate = None;
 
         for meta in self.get_type_metadata()? {
             match meta {
@@ -849,6 +865,17 @@ impl HasTypeProperties for DeriveInput {
                     seen_alias_of = Some(kw);
                     alias_of = Some(path);
                 }
+                TypeMeta::Disambiguate { kw } => {
+                    if let Some(first_kw) = seen_disambiguate {
+                        return Err(occurrence_error(
+                            first_kw,
+                            kw,
+                            "disambiguate",
+                        ));
+                    }
+                    seen_disambiguate = Some(kw);
+                    disambiguate = true;
+                }
                 TypeMeta::Transparent { kw } => {
                     return Err(syn::Error::new_spanned(
                         kw,
@@ -969,6 +996,7 @@ impl HasTypeProperties for DeriveInput {
             code,
             into,
             alias_of,
+            disambiguate,
         })
     }
 }

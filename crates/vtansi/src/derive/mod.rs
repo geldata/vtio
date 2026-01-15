@@ -824,6 +824,46 @@ pub const into: Type = Type;
 /// ```
 pub const alias_of: Type = Type;
 
+/// Use exact param count for trie key disambiguation.
+///
+/// This attribute is used to disambiguate CSI sequences that share the same
+/// final byte but differ in parameter count. When marked with `disambiguate`,
+/// the sequence uses `2 + total_params` as the key byte instead of the boolean
+/// `has_params` marker.
+///
+/// # Requirements
+///
+/// - The sequence must be a CSI sequence
+/// - All parameters must be required (no optional params)
+///
+/// # How It Works
+///
+/// The parser first tries the normal `has_params` lookup (0 or 1). If that
+/// fails for a sequence with 2+ params, it tries `2 + param_count` as a
+/// fallback to match disambiguated sequences.
+///
+/// # Example
+///
+/// ```ignore
+/// // ScrollDown uses final byte 'T' with 0-1 params
+/// #[derive(AnsiOutput)]
+/// #[vtansi(csi, finalbyte = 'T')]
+/// struct ScrollDown(pub u16);
+///
+/// // TrackMouse also uses final byte 'T' but with 5 params
+/// // Using disambiguate allows both to coexist
+/// #[derive(AnsiOutput)]
+/// #[vtansi(csi, finalbyte = 'T', disambiguate)]
+/// struct TrackMouse {
+///     cmd: u8,
+///     start_column: u16,
+///     start_row: u16,
+///     first_row: u16,
+///     last_row: u16,
+/// }
+/// ```
+pub const disambiguate: () = ();
+
 // =============================================================================
 // FIELD LOCATION ATTRIBUTES
 // =============================================================================

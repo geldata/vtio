@@ -687,13 +687,47 @@ pub fn generate_registry_entries(
         && props.params.is_empty()
         && props.kind == ControlFunctionKind::Csi;
 
+    // For disambiguated sequences, validate constraints and compute param marker
+    // The param marker encoding is:
+    // - 0x00 = no params
+    // - 0x01 = has params (normal case)
+    // - 0x02 + N = exactly N params (disambiguated sequences)
+    if props.disambiguate {
+        // Disambiguated sequences must not have optional params
+        if params.params.required_count != params.params.total_count {
+            return Err(syn::Error::new_spanned(
+                ast,
+                "disambiguate requires all parameters to be required (no optional params)",
+            ));
+        }
+        // Must be a CSI sequence
+        if props.kind != ControlFunctionKind::Csi {
+            return Err(syn::Error::new_spanned(
+                ast,
+                "disambiguate is only supported for CSI sequences",
+            ));
+        }
+    }
+
+    // Compute the param marker for this sequence
+    let param_marker: u8 = if props.disambiguate {
+        // Disambiguated: use 2 + total_params
+        #[allow(clippy::cast_possible_truncation)]
+        let marker = 2u8.saturating_add(params.params.total_count as u8);
+        marker
+    } else if has_required_params {
+        1 // Normal: has params
+    } else {
+        0 // Normal: no params
+    };
+
     let emit_entry = |suffix: Option<usize>,
                       final_byte: Option<u8>,
-                      has_params: bool|
+                      param_marker: u8|
      -> syn::Result<proc_macro2::TokenStream> {
-        // Generate trie key with the specific final byte and has-params marker
+        // Generate trie key with the specific final byte and param marker
         let key_bytes = syn::LitByteStr::new(
-            &props.get_key(final_byte, has_params),
+            &props.get_key(final_byte, param_marker),
             proc_macro2::Span::mixed_site(),
         );
 
@@ -754,27 +788,43 @@ pub fn generate_registry_entries(
         Ok(code)
     };
 
-    // Build list of (suffix, final_byte, has_params) tuples for entries to emit
-    let entry_specs: Vec<(Option<usize>, Option<u8>, bool)> =
+    // Build list of (suffix, final_byte, param_marker) tuples for entries to emit
+    //
+    // For disambiguated sequences, we always use the computed param_marker (2 + total_params).
+    // For normal sequences:
+    // - If all params are optional, emit two entries (param_marker=0 and param_marker=1)
+    // - Otherwise, emit one entry with the computed param_marker
+    let entry_specs: Vec<(Option<usize>, Option<u8>, u8)> =
         match props.final_bytes.len() {
             0 => {
-                if has_all_optional_params {
-                    // Emit two entries: one with has_params=false, one with has_params=true
-                    vec![(None, None, false), (Some(1), None, true)]
+                if props.disambiguate {
+                    vec![(None, None, param_marker)]
+                } else if has_all_optional_params {
+                    // Emit two entries: one with param_marker=0, one with param_marker=1
+                    vec![(None, None, 0), (Some(1), None, 1)]
                 } else {
-                    vec![(None, None, has_required_params)]
+                    vec![(None, None, param_marker)]
                 }
             }
             1 => {
                 let fb = Some(*props.final_bytes[0]);
-                if has_all_optional_params {
-                    vec![(None, fb, false), (Some(1), fb, true)]
+                if props.disambiguate {
+                    vec![(None, fb, param_marker)]
+                } else if has_all_optional_params {
+                    vec![(None, fb, 0), (Some(1), fb, 1)]
                 } else {
-                    vec![(None, fb, has_required_params)]
+                    vec![(None, fb, param_marker)]
                 }
             }
             _ => {
-                if has_all_optional_params {
+                if props.disambiguate {
+                    props
+                        .final_bytes
+                        .iter()
+                        .enumerate()
+                        .map(|(i, b)| (Some(i), Some(**b), param_marker))
+                        .collect()
+                } else if has_all_optional_params {
                     // For multiple final bytes with all-optional params,
                     // emit two entries per final byte
                     props
@@ -783,10 +833,7 @@ pub fn generate_registry_entries(
                         .enumerate()
                         .flat_map(|(i, b)| {
                             let fb = Some(**b);
-                            vec![
-                                (Some(i * 2), fb, false),
-                                (Some(i * 2 + 1), fb, true),
-                            ]
+                            vec![(Some(i * 2), fb, 0), (Some(i * 2 + 1), fb, 1)]
                         })
                         .collect()
                 } else {
@@ -794,7 +841,7 @@ pub fn generate_registry_entries(
                         .final_bytes
                         .iter()
                         .enumerate()
-                        .map(|(i, b)| (Some(i), Some(**b), has_required_params))
+                        .map(|(i, b)| (Some(i), Some(**b), param_marker))
                         .collect()
                 }
             }
@@ -802,7 +849,7 @@ pub fn generate_registry_entries(
 
     let entries: Vec<_> = entry_specs
         .into_iter()
-        .map(|(suffix, fb, has_params)| emit_entry(suffix, fb, has_params))
+        .map(|(suffix, fb, marker)| emit_entry(suffix, fb, marker))
         .collect::<syn::Result<_>>()?;
 
     Ok(quote! {

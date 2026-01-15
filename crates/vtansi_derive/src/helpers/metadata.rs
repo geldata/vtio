@@ -25,6 +25,7 @@ pub mod kw {
     custom_keyword!(code);
     custom_keyword!(data);
     custom_keyword!(data_delimiter);
+    custom_keyword!(disambiguate);
     custom_keyword!(into);
     custom_keyword!(locate_all);
     custom_keyword!(locate);
@@ -515,6 +516,19 @@ pub enum TypeMeta {
     /// do not register in the parser trie. This is useful when multiple types
     /// represent the same byte sequence (e.g., CtrlJ and EnterKey both map to 0x0A).
     AliasOf { kw: kw::alias_of, path: syn::Path },
+    /// `#[vtansi(disambiguate)]` - use exact param count for trie key disambiguation.
+    ///
+    /// This is used to disambiguate CSI sequences that share the same final byte
+    /// but differ in parameter count. For example, ScrollDown (0-1 params) and
+    /// TrackMouse (5 params) both use final byte 'T'.
+    ///
+    /// When marked with `disambiguate`, the sequence:
+    /// - Must not have optional parameters (all fields must be required)
+    /// - Uses `2 + total_params` as the key byte instead of the boolean `has_params`
+    ///
+    /// The parser will first try the normal `has_params` lookup, and if that fails,
+    /// it will backtrack and try `2 + param_count` to match disambiguated sequences.
+    Disambiguate { kw: kw::disambiguate },
 }
 
 impl TypeMeta {
@@ -536,6 +550,7 @@ impl TypeMeta {
             Self::FieldLocation { kw, .. } => kw.span(),
             Self::Into { kw, .. } => kw.span(),
             Self::AliasOf { kw, .. } => kw.span(),
+            Self::Disambiguate { kw } => kw.span(),
         }
     }
 }
@@ -656,6 +671,9 @@ impl Parse for TypeMeta {
             input.parse::<Token![=]>()?;
             let path = input.parse()?;
             Ok(TypeMeta::AliasOf { kw, path })
+        } else if lookahead.peek(kw::disambiguate) {
+            let kw = input.parse::<kw::disambiguate>()?;
+            Ok(TypeMeta::Disambiguate { kw })
         } else {
             Err(lookahead.error())
         }

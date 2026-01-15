@@ -513,4 +513,147 @@ mod tests {
         let count = count_events(input);
         assert!(count >= 3);
     }
+
+    #[test]
+    fn test_scroll_down_default_param() {
+        use crate::event::scroll::ScrollDown;
+
+        // CSI 1 T - scroll down with explicit param 1 (the default)
+        // Note: CSI T without params won't match ScrollDown since it requires a u16 param
+        let mut scroll_events: Vec<ScrollDown> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(b"\x1b[1T", &mut |event: &dyn vtansi::AnsiEvent| {
+            if let Some(sd) = event.downcast_ref::<ScrollDown>() {
+                scroll_events.push(*sd);
+            }
+        });
+        assert_eq!(scroll_events.len(), 1);
+        assert_eq!(scroll_events[0].0, 1);
+    }
+
+    #[test]
+    fn test_scroll_down_with_param() {
+        use crate::event::scroll::ScrollDown;
+
+        // CSI 5 T - scroll down 5 lines
+        let mut events: Vec<Box<dyn std::any::Any>> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(b"\x1b[5T", &mut |event: &dyn vtansi::AnsiEvent| {
+            if let Some(sd) = event.downcast_ref::<ScrollDown>() {
+                events.push(Box::new(*sd));
+            }
+        });
+        assert_eq!(events.len(), 1);
+        let sd = events[0].downcast_ref::<ScrollDown>().unwrap();
+        assert_eq!(sd.0, 5);
+    }
+
+    #[test]
+    fn test_track_mouse() {
+        use crate::event::mouse::TrackMouse;
+
+        // CSI 1;10;5;1;20 T - track mouse with 5 params
+        let mut events: Vec<Box<dyn std::any::Any>> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(
+            b"\x1b[1;10;5;1;20T",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if let Some(tm) = event.downcast_ref::<TrackMouse>() {
+                    events.push(Box::new(*tm));
+                }
+            },
+        );
+        assert_eq!(events.len(), 1, "TrackMouse should be parsed");
+    }
+
+    #[test]
+    fn test_scroll_down_and_track_mouse_disambiguation() {
+        use crate::event::mouse::TrackMouse;
+        use crate::event::scroll::ScrollDown;
+
+        // Test that ScrollDown (1 param) and TrackMouse (5 params) can coexist
+        // with the same final byte 'T'
+
+        let mut scroll_count = 0;
+        let mut track_count = 0;
+        let mut parser = TerminalOutputParser::new();
+
+        // Parse ScrollDown
+        parser.feed_with(b"\x1b[3T", &mut |event: &dyn vtansi::AnsiEvent| {
+            if event.downcast_ref::<ScrollDown>().is_some() {
+                scroll_count += 1;
+            }
+            if event.downcast_ref::<TrackMouse>().is_some() {
+                track_count += 1;
+            }
+        });
+
+        assert_eq!(scroll_count, 1, "ScrollDown should be parsed");
+        assert_eq!(
+            track_count, 0,
+            "TrackMouse should not be parsed for 1 param"
+        );
+
+        // Parse TrackMouse
+        scroll_count = 0;
+        track_count = 0;
+        parser.feed_with(
+            b"\x1b[0;1;1;1;24T",
+            &mut |event: &dyn vtansi::AnsiEvent| {
+                if event.downcast_ref::<ScrollDown>().is_some() {
+                    scroll_count += 1;
+                }
+                if event.downcast_ref::<TrackMouse>().is_some() {
+                    track_count += 1;
+                }
+            },
+        );
+
+        assert_eq!(track_count, 1, "TrackMouse should be parsed for 5 params");
+        assert_eq!(
+            scroll_count, 0,
+            "ScrollDown should not be parsed for 5 params"
+        );
+    }
+
+    #[test]
+    fn test_scroll_down_encode_roundtrip() {
+        use crate::event::scroll::ScrollDown;
+        use vtansi::AnsiEncode;
+
+        let sd = ScrollDown(5);
+        let encoded = sd.encode_ansi().unwrap();
+        assert_eq!(encoded, b"\x1b[5T");
+
+        // Parse it back
+        let mut events: Vec<ScrollDown> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(&encoded, &mut |event: &dyn vtansi::AnsiEvent| {
+            if let Some(sd) = event.downcast_ref::<ScrollDown>() {
+                events.push(*sd);
+            }
+        });
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].0, 5);
+    }
+
+    #[test]
+    fn test_track_mouse_encode_roundtrip() {
+        use crate::event::mouse::TrackMouse;
+        use vtansi::AnsiEncode;
+
+        let tm = TrackMouse::new(1, 10, 5, 1, 24);
+        let encoded = tm.encode_ansi().unwrap();
+        assert_eq!(encoded, b"\x1b[1;10;5;1;24T");
+
+        // Parse it back
+        let mut events: Vec<TrackMouse> = Vec::new();
+        let mut parser = TerminalOutputParser::new();
+        parser.feed_with(&encoded, &mut |event: &dyn vtansi::AnsiEvent| {
+            if let Some(tm) = event.downcast_ref::<TrackMouse>() {
+                events.push(*tm);
+            }
+        });
+        assert_eq!(events.len(), 1);
+    }
 }

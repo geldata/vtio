@@ -220,7 +220,56 @@ where
     let finalbyte_slice = std::slice::from_ref(&seq.final_byte);
     let data = AnsiEventData::new_with_finalbyte(finalbyte_slice);
 
-    let mut cursor = cursor_factory();
+    // Create cursor once and copy for fallback attempts
+    let base_cursor = cursor_factory();
+
+    // Try normal param marker first (0 = no params, 1 = has params)
+    let normal_marker: u8 = u8::from(!all_params.is_empty());
+    if parse_csi_with_marker(
+        seq,
+        &base_cursor,
+        normal_marker,
+        all_params,
+        &data,
+        cb,
+    ) {
+        return true;
+    }
+
+    // If normal lookup failed and we have 2+ params, try disambiguated marker (2 + param_count)
+    // This handles sequences marked with #[vtansi(disambiguate)] that use exact param count
+    if param_count >= 2 {
+        #[allow(clippy::cast_possible_truncation)]
+        let disambiguated_marker: u8 = 2u8.saturating_add(param_count as u8);
+        if parse_csi_with_marker(
+            seq,
+            &base_cursor,
+            disambiguated_marker,
+            all_params,
+            &data,
+            cb,
+        ) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Internal helper to parse CSI with a specific param marker byte.
+fn parse_csi_with_marker<F>(
+    seq: &vt_push_parser::event::CSI,
+    cursor: &AnsiControlFunctionTrieCursor,
+    param_marker: u8,
+    all_params: &[&[u8]],
+    data: &AnsiEventData,
+    cb: &mut F,
+) -> bool
+where
+    F: FnMut(&dyn vtansi::AnsiEvent),
+{
+    let mut cursor = *cursor;
+    let param_count = all_params.len();
 
     // Advance with private marker if present
     if let Some(private) = seq.private
@@ -229,11 +278,8 @@ where
         return false;
     }
 
-    // Advance with has_params marker
-    if matches!(
-        cursor.advance((!all_params.is_empty()).into()),
-        Answer::DeadEnd
-    ) {
+    // Advance with param marker byte
+    if matches!(cursor.advance(param_marker), Answer::DeadEnd) {
         return false;
     }
 
